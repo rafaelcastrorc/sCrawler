@@ -254,7 +254,6 @@ public class Controller implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         task = new DoWork();
-        scrollPane.setStyle("-fx-background-color:transparent;");
 
         task.setType("initialize");
         new Thread(task).start();

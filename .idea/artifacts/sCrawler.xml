@@ -1,12 +1,16 @@
 <component name="ArtifactManager">
-  <artifact type="javafx" build-on-make="true" name="MyProjects">
-    <output-path>$PROJECT_DIR$/out/artifacts/MyProjects</output-path>
+  <artifact type="javafx" build-on-make="true" name="sCrawler">
+    <output-path>$PROJECT_DIR$/out/artifacts/sCrawler</output-path>
     <properties id="javafx-properties">
       <options>
+        <option name="alias" value="" />
         <option name="appClass" value="com.rc.crawler.View" />
         <option name="description" value="Crawler for Google Scholar." />
+        <option name="enabledSigning" value="true" />
         <option name="htmlPlaceholderId" value="" />
+        <option name="keystore" value="" />
         <option name="title" value="sCrawler" />
+        <option name="updateMode" value="always" />
         <option name="vendor" value="Rafael Castro" />
         <option name="version" value="2.0" />
       </options>
