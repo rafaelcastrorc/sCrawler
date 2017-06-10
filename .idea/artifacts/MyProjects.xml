@@ -1,0 +1,20 @@
+<component name="ArtifactManager">
+  <artifact type="javafx" build-on-make="true" name="MyProjects">
+    <output-path>$PROJECT_DIR$/out/artifacts/MyProjects</output-path>
+    <properties id="javafx-properties">
+      <options>
+        <option name="appClass" value="com.rc.crawler.View" />
+        <option name="description" value="Crawler for Google Scholar." />
+        <option name="htmlPlaceholderId" value="" />
+        <option name="title" value="sCrawler" />
+        <option name="vendor" value="Rafael Castro" />
+        <option name="version" value="2.0" />
+      </options>
+    </properties>
+    <root id="root">
+      <element id="archive" name="MyProjects.jar">
+        <element id="module-output" name="MyProjects" />
+      </element>
+    </root>
+  </artifact>
+</component>
