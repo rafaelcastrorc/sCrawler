@@ -1,24 +1,16 @@
 <component name="ArtifactManager">
-  <artifact type="javafx" build-on-make="true" name="sCrawler">
+  <artifact type="jar" build-on-make="true" name="sCrawler">
     <output-path>$PROJECT_DIR$/out/artifacts/sCrawler</output-path>
-    <properties id="javafx-properties">
-      <options>
-        <option name="alias" value="" />
-        <option name="appClass" value="com.rc.crawler.View" />
-        <option name="description" value="Crawler for Google Scholar." />
-        <option name="enabledSigning" value="true" />
-        <option name="htmlPlaceholderId" value="" />
-        <option name="keystore" value="" />
-        <option name="title" value="sCrawler" />
-        <option name="updateMode" value="always" />
-        <option name="vendor" value="Rafael Castro" />
-        <option name="version" value="2.0" />
-      </options>
-    </properties>
-    <root id="root">
-      <element id="archive" name="MyProjects.jar">
-        <element id="module-output" name="MyProjects" />
-      </element>
+    <root id="archive" name="MyProjects.jar">
+      <element id="module-output" name="MyProjects" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jsoup-1.10.2 (1).jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/joda-time-2.9.9.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/commons-io-2.5.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/junit/lib/junit-jupiter-api-5.0.0-M4.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/junit/lib/opentest4j-1.0.0-M2.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/testng/lib/testng.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/testng/lib/jcommander.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jfoenix.jar" path-in-jar="/" />
     </root>
   </artifact>
 </component>

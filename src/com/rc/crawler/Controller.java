@@ -227,6 +227,17 @@ public class Controller implements Initializable {
 
     }
 
+
+    public void updateProgressBar(Double num) {
+        Platform.runLater(new Runnable() {
+            @Override
+            public void run() {
+                progressBar.progressProperty().setValue(num);
+            }
+        });
+    }
+
+
     public void updateOutput(String message) {
         Platform.runLater(new Runnable() {
             @Override
@@ -254,6 +265,7 @@ public class Controller implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         task = new DoWork();
+        scrollPane.setStyle("-fx-background-color:transparent;");
 
         task.setType("initialize");
         new Thread(task).start();
@@ -286,7 +298,7 @@ public class Controller implements Initializable {
                 //Add listeners to the different labels and loaders
                 crawler.getAlertPopUpProperty().addListener((observable, oldValue, newValue) -> displayAlert(newValue));
                 crawler.getOutputProperty().addListener((observable, oldValue, newValue) -> updateOutput(newValue));
-                crawler.getLoadBarProperty().addListener((observable, oldValue, newValue) -> progressBar.progressProperty().setValue(newValue));
+                crawler.getLoadBarProperty().addListener((observable, oldValue, newValue) -> updateProgressBar(newValue.doubleValue()));
                 crawler.getSearchResultLabelProperty().addListener(((observable, oldValue, newValue) -> updateSearchLabel(newValue)));
                 crawler.getConnectionOutput().addListener(((observable, oldValue, newValue) -> updateConnectionOutput(newValue)));
                 crawler.getNumberOfWorkingIPs().addListener(((observable, oldValue, newValue) -> {
