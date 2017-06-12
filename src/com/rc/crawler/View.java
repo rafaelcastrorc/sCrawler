@@ -39,6 +39,7 @@ public class View extends Application {
         Parent root =  loader.load();
         primaryStage.setTitle("Crawler");
         Scene loadingScene = new Scene(root);
+        loadingScene.getStylesheets().add("Style.css");
         primaryStage.setScene(loadingScene);
         primaryStage.setResizable(false);
         primaryStage.show();

@@ -1,0 +1,62 @@
+.root{
+    -fx-font-family: "Roboto Light";
+}
+
+.jfx-tab-pane .tab-header-background {
+
+    -fx-background-color: #7d9a4f;
+}
+
+
+#tabPane .tab {
+    -fx-background-color: #adcb7d;
+    -fx-padding: 5 5 5 5;
+
+}
+
+#tabPane .tab:selected {
+    -fx-background-color: #4f6c24;
+    -fx-focus-color: transparent;
+}
+
+.jfx-tab-pane .tab-header-area .jfx-rippler{
+    -jfx-rippler-fill: #4f6c24;
+}
+
+
+#tabPane .tab-label {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+}
+
+
+#tabPane .tab:selected .tab-label {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.split-pane {
+    -fx-box-border: #434141;
+
+}
+
+.progress-bar {
+    -fx-box-border:  #434141;
+    -fx-accent: #7d9a4f;
+
+}
+
+.progress-bar > .track {
+    -fx-text-box-border: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-shadow-highlight-color: transparent;
+
+}
+
+.split-pane > .split-pane-divider {
+    -fx-padding: 0 0.05em 0 0.05em;
+    -fx-border-color: transparent;
+    -fx-background-color: #434141 ;
+}
+

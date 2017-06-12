@@ -3,17 +3,14 @@ package com.rc.crawler;
 import javafx.beans.property.*;
 import org.apache.commons.io.FileUtils;
 import org.joda.time.DateTime;
-import org.joda.time.Period;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -27,7 +24,7 @@ import java.util.regex.Pattern;
  */
 
 
-public class Crawler {
+class Crawler {
     String numOfCitations = "";
     private String citingPapersURL = "";
     //Counts number of requests
@@ -277,18 +274,22 @@ public class Crawler {
             ArrayList<String> proxiesLists = new ArrayList<>();
             proxiesLists.add("https://www.us-proxy.org"); //working US only proxy
 
-            proxiesLists.add("https://hidemy.name/en/proxy-list"); //international list
             proxiesLists.add("https://www.hide-my-ip.com/proxylist.shtml");
 
-            proxiesLists.add("http://www.httptunnel.ge/ProxyListForFree.aspx");
+            proxiesLists.add("https://hidemy.name/en/proxy-list"); //international list
 
+            proxiesLists.add("http://www.httptunnel.ge/ProxyListForFree.aspx"); //International
 
+            //This site has over 1000 proxies
+            for (int i = 0; i< 300; i = i +15) {
+                proxiesLists.add("http://proxydb.net/?offset="+i);
+            }
 
-            for (int j = 0; j < proxiesLists.size(); j++) {
+            //Get random item
+            //Todo
 
-                //Get random website
-                String url = "http://proxydb.net/?offset=30";
-
+            //Iterate over all websites
+            for (String url : proxiesLists) {
 
                 //Get Base URI
                 URL urlObj = new URL(url);
@@ -302,15 +303,16 @@ public class Crawler {
 
                 while (areThereMoreEntries) {
                     try {
-                        System.out.println(absLink);
+
+                        //Sleep random periods before requesting info from website
                         timeToWait = getTimeToWait();
                         Thread.sleep(timeToWait * 1000);
-                        //Initial link
+
                         if (mainPage) {
                             doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
                             mainPage = false;
                         } else {
-                            System.out.println(baseURI + absLink);
+
                             doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
                         }
                         areThereMoreEntries = false;
@@ -320,7 +322,6 @@ public class Crawler {
 
                         while (linkMatcher.find()) {
                             String strLink = linkMatcher.group();
-                            System.out.println(strLink);
                             if (strLink.contains("start=")) {
                                 Pattern newURLPattern = Pattern.compile("/[^\">]*");
                                 Matcher newURLMatcher = newURLPattern.matcher(strLink);
@@ -334,7 +335,6 @@ public class Crawler {
                             }
                         }
 
-                        System.out.println(doc);
                         //Get the data from the table
                         Elements table = doc.select("table");
                         Elements rows = table.select("tr");
@@ -457,7 +457,7 @@ public class Crawler {
 
                 if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
                     //In case you been flags as a bot even before searching
-                    connectionOutput.setValue("Google flagged your IP as a bot.Changing to a different one");
+                    connectionOutput.setValue("Google flagged your IP as a bot. Changing to a different one");
                     doc = changeIP(url, false, false);
 
                 }
@@ -739,15 +739,15 @@ public class Crawler {
 
 
     /**
-     * Generates a random time to wait before performing a task (5-10 seconds)
+     * Generates a random time to wait before performing a task (10-20 seconds)
      *
      * @return int that represents seconds
      */
     private int getTimeToWait() {
         if (listOfTimes == null) {
-            listOfTimes = new Integer[5];
+            listOfTimes = new Integer[10];
             for (int i = 0; i < listOfTimes.length; i++) {
-                listOfTimes[i] = i + 5;
+                listOfTimes[i] = i + 10;
             }
         }
         int rnd = new Random().nextInt(listOfTimes.length);
@@ -756,41 +756,6 @@ public class Crawler {
     }
 
 
-    static class Proxy {
-
-        private final String proxy;
-        private final int port;
-
-        Proxy(String proxy, int port) {
-            this.proxy = proxy;
-            this.port = port;
-        }
-
-        String getProxy() {
-            return proxy;
-        }
-
-        int getPort() {
-            return port;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Proxy proxy1 = (Proxy) o;
-
-            return port == proxy1.port && (proxy != null ? proxy.equals(proxy1.proxy) : proxy1.proxy == null);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = proxy != null ? proxy.hashCode() : 0;
-            result = 31 * result + port;
-            return result;
-        }
-    }
 
 
     //Thread class to process requests
