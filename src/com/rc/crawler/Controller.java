@@ -1,18 +1,32 @@
 package com.rc.crawler;
 
 import com.jfoenix.controls.JFXButton;
+import com.jfoenix.controls.JFXListView;
 import com.jfoenix.controls.JFXTabPane;
 import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
 
 import javafx.concurrent.Task;
+import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.stage.*;
+import javafx.stage.Window;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.ResourceBundle;
+import java.util.Scanner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,13 +35,11 @@ public class Controller implements Initializable {
     private boolean hasSearchedBefore = false;
     private String numOfPDFToDownload;
     private LoadingBox loading;
-    private DoWork task;
     private volatile Crawler crawler;
+    private Window window;
+    private HashSet<String> articleNames;
+    private HashMap<Long, String> mapThreadToTitle;
 
-    @SuppressWarnings("WeakerAccess")
-    public Controller() {
-
-    }
 
     @FXML
     private Label output;
@@ -67,6 +79,26 @@ public class Controller implements Initializable {
 
     @FXML
     private Tab tab1;
+
+    @FXML
+    private JFXButton uploadButton;
+
+    @FXML
+    private JFXButton searchButtonMultiple;
+
+    @FXML
+    private JFXTextField numberOfPDFsMultiple;
+
+    @FXML
+    private JFXListView<String> listView;
+
+
+
+    @SuppressWarnings("WeakerAccess")
+    public Controller() {
+    }
+
+
     /**
      * Called when the click button is pressed. Creates a new task to start searching
      */
@@ -79,14 +111,39 @@ public class Controller implements Initializable {
         } else {
             title = text;
             //Display loading message dialog
-            informationPanel();
-            task = new DoWork();
-            task.setType("search");
-            new Thread(task).start();
+            informationPanel("Loading...");
+            //Create a new task to perform search in background
+            DoWork task = new DoWork("search");
+            Thread t = new Thread(task);
+            t.setDaemon(true);
+            t.start();
         }
-
     }
 
+
+    /**
+     * Performs all the operations to search for a paper in Google Scholar.
+     * Method is called inside a task.
+     */
+    private void search() {
+        updateSearchLabel("Loading...");
+
+        crawler.searchForArticle(title, hasSearchedBefore);
+
+        String numberOfCitations = crawler.getNumberOfCitations();
+        if (numberOfCitations.isEmpty() || numberOfCitations.equals("Provide feedback")) {
+            numberOfCitations = "Could not find paper";
+        } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
+            numberOfCitations = "ERROR: There was more than 1 result found for your given query";
+        } else {
+            numberOfCitations = numberOfCitations + " different papers";
+            downloadButton.setDisable(false);
+        }
+        this.hasSearchedBefore = true;
+
+        updateSearchLabel(numberOfCitations);
+
+    }
 
     /**
      * Called when the download button is pressed. Creates a new task to start downloading PDFs
@@ -104,9 +161,10 @@ public class Controller implements Initializable {
             if (matcher.find()) {
                 numOfPDFToDownload = matcher.group();
                 try {
-                    task = new DoWork();
-                    task.setType("download");
-                    new Thread(task).start();
+                    DoWork task = new DoWork("download");
+                    Thread t = new Thread(task);
+                    t.setDaemon(true);
+                    t.start();
 
 
                 } catch (Exception e1) {
@@ -121,7 +179,8 @@ public class Controller implements Initializable {
     }
 
     /**
-     * Call the getPDFs method inside of crawler to start downloading PDFs
+     * Call the getPDFs method inside of crawler to start downloading PDFs.
+     * Method is called inside a task.
      */
     private void download() {
         try {
@@ -131,37 +190,92 @@ public class Controller implements Initializable {
         }
     }
 
-    /**
-     * Performs all the operations to search for a paper in Google Scholar
-     */
-    private void search() {
 
 
-        updateSearchLabel("Loading...");
-
-        crawler.searchForArticle(title, hasSearchedBefore);
-
-        String numberOfCitations = crawler.getNumberOfCitations();
-        if (numberOfCitations.isEmpty() || numberOfCitations.equals("Provide feedback")) {
-            numberOfCitations = "Could not find paper";
-            hasSearchedBefore = false;
-        } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
-            numberOfCitations = "ERROR: There was more than 1 result found for your given query";
-        } else {
-            numberOfCitations = numberOfCitations + " different papers";
-            hasSearchedBefore = true;
-            downloadButton.setDisable(false);
-
-
-        }
-        updateSearchLabel(numberOfCitations);
+    @FXML
+    void uploadOnClick(Event e) {
+        Node node =  (Node) e.getSource();
+        window = node.getScene().getWindow();
+        openFile();
 
     }
+
+    private void openFile() {
+
+        Platform.runLater(() -> {
+            FileChooser fileChooser = new FileChooser();
+            configureFileChooser(fileChooser);
+            File file = fileChooser.showOpenDialog(window);
+
+
+            if (file == null) {
+               informationPanel("Please upload a file.");
+            }
+            else if (!file.exists() || !file.canRead()) {
+                displayAlert("There was an error opening the file");
+            }
+            else if (file.length() < 1) {
+                displayAlert("File is empty");
+            }
+            else {
+                this.articleNames = new HashSet<>();
+                try {
+                    Scanner scanner = new Scanner(file);
+                    while (scanner.hasNextLine()) {
+                        String line = scanner.nextLine();
+                        articleNames.add(line);
+                    }
+                    updateOutput("File has been submitted.");
+                    searchButtonMultiple.setDisable(false);
+
+                } catch (FileNotFoundException e) {
+                    displayAlert(e.getMessage());
+                }
+
+            }
+        });
+
+    }
+
+    private void configureFileChooser(FileChooser fileChooser) {
+        fileChooser.setTitle("Please select the file");
+        FileChooser.ExtensionFilter extFilter = new FileChooser.ExtensionFilter("TXT files (*.txt)", "*.txt");
+        FileChooser.ExtensionFilter extFilter2 = new FileChooser.ExtensionFilter("CSV file (*.csv)", "*.csv");
+
+        fileChooser.getExtensionFilters().add(extFilter2);
+        fileChooser.getExtensionFilters().add(extFilter);
+
+    }
+
+
+    @FXML
+    void searchOnClickMultiple() {
+        for (String article : articleNames) {
+            int numberOfThreadsToUse = optimizer();
+            ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreadsToUse);
+            DoWork task = new DoWork("search", article);
+            Thread t = new Thread(task);
+            t.setDaemon(true);
+            t.start();
+            executorService.submit(task);
+
+            //Display loading message dialog
+            informationPanel("Loading...");
+
+        }
+    }
+
+
+    int optimizer() {
+    return 1;
+    }
+
 
     /**
      * Adds or removes elements to the list of proxies that work
      *
-     * @param s remove,proxyNumber if you want to remove a proxy, add,proxyNumber to add a new proxy
+     * @param s Write: remove, if you want to remove a proxy.
+     *          Write: add,proxyNumber to add a new proxy
      */
     private synchronized void updateWorkingProxiesLabel(String s) {
         Platform.runLater(() -> {
@@ -192,9 +306,7 @@ public class Controller implements Initializable {
      * @param text text to add to output
      */
     private void updateConnectionOutput(String text) {
-        Platform.runLater(() -> {
-            connectionOutput.setText(text + "\n" + connectionOutput.getText());
-        });
+        Platform.runLater(() -> connectionOutput.setText(text + "\n" + connectionOutput.getText()));
     }
 
     /**
@@ -234,7 +346,6 @@ public class Controller implements Initializable {
 
     }
 
-
     /**
      * Updates the progress bar
      *
@@ -265,11 +376,11 @@ public class Controller implements Initializable {
     /**
      * Creates a pop up message that says Loading...
      */
-    private void informationPanel() {
+    private void informationPanel(String s) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Information");
         alert.setHeaderText(null);
-        alert.setContentText("Loading...");
+        alert.setContentText(s);
 
         alert.showAndWait();
     }
@@ -283,9 +394,10 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        task = new DoWork();
-        task.setType("initialize");
-        new Thread(task).start();
+        DoWork task = new DoWork("initialize");
+        Thread t = new Thread(task);
+        t.setDaemon(true);
+        t.start();
     }
 
 
@@ -294,7 +406,29 @@ public class Controller implements Initializable {
      */
     class DoWork extends Task<Void> {
         //Type of task that will be performed
-        String type;
+        private final String type;
+        private final String article;
+
+
+        /**
+         * Initializes  newtask. Takes as a parameter the type of task that will be performed. Task include: download, search, initialize, close
+         * @param type String with the type of task
+         */
+        DoWork(String type) {
+            this.type = type;
+            this.article = null;
+        }
+
+        /**
+         * Initializes new task. Takes as a parameter the type of task that will be performed. Task include: download, search, initialize, close
+         * And the title of the article associated with the thread.
+         * @param type String with the type of task
+         * @param article Article associated with the thread
+         */
+        DoWork(String type, String article) {
+            this.type = type;
+            this.article = article;
+        }
 
         /**
          * Called upon start of task. Depending on the task, it processes a different method
@@ -309,13 +443,19 @@ public class Controller implements Initializable {
 
                 case "search":
                     progressBar.progressProperty().setValue(0);
+                    if (article != null) {
+                    //Only happens when we are using threads to do multiple searches
+                        mapThreadToTitle.put(Thread.currentThread().getId(), article);
+                    }
                     search();
                     progressBar.progressProperty().setValue(1);
                     break;
                 case "download":
                     download();
                     progressBar.progressProperty().setValue(1);
-
+                    break;
+                case "upload":
+                    openFile();
                     break;
                 default:
                     //Loading crawler case
@@ -340,14 +480,6 @@ public class Controller implements Initializable {
 
         }
 
-        /**
-         * Sets the type of task that will be performed. Task include: download, search, initialize, close
-         *
-         * @param type String with the type of task
-         */
-        void setType(String type) {
-            this.type = type;
-        }
     }
 
 

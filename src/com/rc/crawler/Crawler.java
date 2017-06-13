@@ -25,17 +25,17 @@ import java.util.regex.Pattern;
 
 
 class Crawler {
-    String numOfCitations = "";
+    private final GUILabelManagement guiLabels;
+    private String numOfCitations = "";
     private String citingPapersURL = "";
     //Counts number of requests
     private int requestCounter = 0;
     private int pdfCounter;
     private Integer[] listOfTimes;
-
-    private Map<String, Proxy> mapThreadIdToProxy = Collections.synchronizedMap(new HashMap<String, Proxy>());
-    //Keeps track of all the proxys that have been downloaded, since we are picking a random element, it is faster to use a list to get it
-    private List<Proxy> listOfProxysGathered;
-    //Keeps track of all proxys downloaed, used for contains() and remove()
+    private Map<Long, Proxy> mapThreadIdToProxy = Collections.synchronizedMap(new HashMap<Long, Proxy>());
+    //Keeps track of all the proxies that have been downloaded, since we are picking a random element, it is faster to use a list to get it
+    private List<Proxy> listOfProxiesGathered;
+    //Keeps track of all proxies downloaded, used for contains() and remove()
     private Set<Proxy> setOfProxyGathered;
     //Current working proxy
     private Proxy ipAndPort;
@@ -45,68 +45,61 @@ class Crawler {
     private ConcurrentLinkedQueue<Proxy> queueOfConnections = new ConcurrentLinkedQueue<>();
 
 
-    //////////////////
-    private StringProperty numberOfWorkingIPs = new SimpleStringProperty();
-    private StringProperty alertPopUp = new SimpleStringProperty();
-    private StringProperty searchResultLabel = new SimpleStringProperty();
-    //Queue with IPs that work
-    private DoubleProperty loadBar = new SimpleDoubleProperty();
-    private StringProperty output = new SimpleStringProperty();
-    private StringProperty connectionOutput = new SimpleStringProperty();
-    private IntegerProperty numberOfPDF = new SimpleIntegerProperty();
-/////////////////////////
-
     //Modifies connection output label
-    public StringProperty getConnectionOutput() {
-        return connectionOutput;
+     StringProperty getConnectionOutput() {
+        return guiLabels.getConnectionOutput();
     }
 
     //Modifies number of PDFs label
-    public IntegerProperty getNumberOfPDF() {
-        return numberOfPDF;
+     IntegerProperty getNumberOfPDF() {
+        return guiLabels.getNumberOfPDFs();
     }
 
     //Modifies number of PDFs label
-    public StringProperty getNumberOfWorkingIPs() {
-        return numberOfWorkingIPs;
+     StringProperty getNumberOfWorkingIPs() {
+        return guiLabels.getNumberOfWorkingIPs();
     }
-
-    Queue getQueueOfProxies() {
-        return queueOfConnections;
-    }
-
 
     //Creates alerts
-    public StringProperty getAlertPopUpProperty() {
-        return alertPopUp;
+     StringProperty getAlertPopUpProperty() {
+        return guiLabels.getAlertPopUp();
     }
 
     //Modifies search result label
     public StringProperty getSearchResultLabelProperty() {
-        return searchResultLabel;
+        return guiLabels.getSearchResultLabel();
     }
 
     //Modifies load bar
-    public DoubleProperty getLoadBarProperty() {
-        return loadBar;
+    DoubleProperty getLoadBarProperty() {
+        return guiLabels.getLoadBar();
     }
 
 
     //Modifies output
-    public StringProperty getOutputProperty() {
-        return output;
+    StringProperty getOutputProperty() {
+        return guiLabels.getOutput();
     }
 
 
+    /**
+     * Constructor.
+     */
     Crawler() {
+        this.guiLabels = new GUILabelManagement();
         //Start getting the list of all proxys. Load progress bar up to 75%
-        output.set("Initializing...");
+        guiLabels.setLoadBar(0);
+        guiLabels.setOutput("Initializing...");
     }
 
+    /**
+     * Loads the crawler. Calls the different methods to download n proxies, and at least 1 working connection, before
+     * the user can use the program.
+     */
     void loadCrawler() {
-        //Retrieve all the possible proxies
+        //Retrieve n proxies (n = 1000)
         getProxies(1000);
-        output.set("Establishing connections...");
+        guiLabels.setOutput("Establishing connections...");
         //Try to connect to n proxys
         startConnectionThreads();
     }
@@ -141,23 +134,23 @@ class Crawler {
                     isFirst = false;
                     Proxy curr = proxy.get();
                     queueOfConnections.add(curr);
-                    connectionOutput.setValue("This is the first Ip that will be used");
-                    connectionOutput.setValue("First proxy " + queueOfConnections.peek().getProxy());
-                    //"Done" loading, but just the first IP
-                    loadBar.setValue(1);
-                    output.set("Connected!");
-                    connectionOutput.setValue("Connected");
-                    numberOfWorkingIPs.setValue("add," + queueOfConnections.peek().getProxy());
+                    guiLabels.setConnectionOutput("This is the first proxy that will be used: "+ queueOfConnections.peek().getProxy());
+                    //"Done" loading, but just the first proxy
+                    guiLabels.setLoadBar(1);
+                    guiLabels.setOutput("Connected!");
+                    guiLabels.setConnectionOutput("Connected");
+                    Proxy temp = queueOfConnections.peek();
+                    guiLabels.setNumberOfWorkingIPs("add," + temp.getProxy()+" Port: "+temp.getPort());
 
                 } else {
                     Proxy curr = proxy.get();
                     queueOfConnections.add(curr);
                     //Notify the number of working IPs
-                    numberOfWorkingIPs.setValue("add," + curr.getProxy());
-                    connectionOutput.setValue("Other proxies : " + curr.getProxy());
+                    guiLabels.setNumberOfWorkingIPs("add," + curr.getProxy()+" Port: "+curr.getPort());
+                    guiLabels.setConnectionOutput("Other proxies : " + curr.getProxy());
                 }
             } catch (Exception ex) {
-                alertPopUp.setValue(ex.toString());
+                guiLabels.setAlertPopUp(ex.toString());
             }
         }
 
@@ -165,15 +158,17 @@ class Crawler {
 
 
     /**
-     * Method called on initiation. Gets all the proxys available.
+     * Downloads proxies from different websites, without duplicates. If proxies have been downloaded before, within a
+     * 24h window, it loads those proxies instead.
+     * @param numberOfProxiesToDownload limit of the proxies to download.
      */
     private void getProxies(int numberOfProxiesToDownload) {
         int proxyCounter = 0;
-        listOfProxysGathered = Collections.synchronizedList(new ArrayList<Proxy>());
+        listOfProxiesGathered = Collections.synchronizedList(new ArrayList<Proxy>());
         //Sets don't allow repetition so we avoid duplicates
         setOfProxyGathered = Collections.synchronizedSet(new HashSet<Proxy>());
 
-        output.set("Checking if a valid proxy file exists...");
+        guiLabels.setOutput("Checking if a valid proxy file exists...");
         //Check first if there have been proxies downloaded
         Logger logger = Logger.getInstance();
 
@@ -186,7 +181,7 @@ class Crawler {
 
             scanner = new Scanner(listOfProxiesFile);
         } catch (FileNotFoundException e) {
-            connectionOutput.setValue("Could not find list of proxies file.");
+            guiLabels.setConnectionOutput("Could not find ListOfProxies file.");
             fileExist = false;
         }
 
@@ -210,8 +205,9 @@ class Crawler {
                     continue;
                 }
                 if (!isValidDate) {
-                    output.set("No valid file found.");
+                    guiLabels.setOutput("No valid file found.");
                     //If it is not a valid date we stop.
+                    scanner.close();
                     getProxiesFromWebsite(numberOfProxiesToDownload, 0);
                     break;
                 }
@@ -222,13 +218,13 @@ class Crawler {
                 //Add it to the sets
                 if (!setOfProxyGathered.contains(proxy)) {
                     setOfProxyGathered.add(proxy);
-                    listOfProxysGathered.add(proxy);
+                    listOfProxiesGathered.add(proxy);
                     proxyCounter++;
 
                 }
                 Double d = (proxyCounter / (numberOfProxiesToDownload) * 1.0) * 0.7;
-                loadBar.setValue(d);
-                output.set("Proxies downloaded: " + proxyCounter + "/" + numberOfProxiesToDownload);
+                guiLabels.setLoadBar(d);
+                guiLabels.setOutput("Proxies downloaded: " + proxyCounter + "/" + numberOfProxiesToDownload);
             }
             if (proxyCounter < numberOfProxiesToDownload) {
                 //Get more proxies if there are not enough
@@ -236,16 +232,24 @@ class Crawler {
                     Thread.sleep(1000);
                 } catch (InterruptedException ignored) {
                 }
-                output.set("Not enough proxies in file.");
-
+                guiLabels.setOutput("Not enough proxies in file.");
+                scanner.close();
                 getProxiesFromWebsite(numberOfProxiesToDownload, proxyCounter);
             }
         } else {
-            output.set("No valid file found.");
+            guiLabels.setOutput("No valid file found.");
+            scanner.close();
             getProxiesFromWebsite(numberOfProxiesToDownload, 0);
         }
+        scanner.close();
     }
 
+    /**
+     * Downloads proxies from different websites, without duplicates.
+     * @param numberOfProxiesToDownload Limit of proxies to download
+     * @param proxyCounter The number of proxies that have been downloaded so far.
+     * @return
+     */
     private boolean getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter) {
 
 
@@ -266,27 +270,31 @@ class Crawler {
             }
 
 
-            output.set("Starting to download Proxies...");
+            guiLabels.setOutput("Starting to download Proxies...");
 
             Document doc;
 
             //Websites that contain lists with proxies
             ArrayList<String> proxiesLists = new ArrayList<>();
-            proxiesLists.add("https://www.us-proxy.org"); //working US only proxy
+            //working US only proxy list. All results displayed at once. (< 200)
+            proxiesLists.add("https://www.us-proxy.org");
 
-            proxiesLists.add("https://www.hide-my-ip.com/proxylist.shtml");
+            //Working international proxy list. All results displayed at once. (<300)
+            proxiesLists.add("http://www.httptunnel.ge/ProxyListForFree.aspx");
 
-            proxiesLists.add("https://hidemy.name/en/proxy-list"); //international list
+             //Working international proxy list. All results displayed at once. (<150)
+              proxiesLists.add("https://hidemy.name/en/proxy-list");
 
-            proxiesLists.add("http://www.httptunnel.ge/ProxyListForFree.aspx"); //International
 
-            //This site has over 1000 proxies
+             //Use for backup
+            //International list, but it is divided in entries.
+             proxiesLists.add("https://www.hide-my-ip.com/proxylist.shtml");
+
+            //This site has over 1000 proxies, but it is divided by entries.
             for (int i = 0; i< 300; i = i +15) {
                 proxiesLists.add("http://proxydb.net/?offset="+i);
             }
 
-            //Get random item
-            //Todo
 
             //Iterate over all websites
             for (String url : proxiesLists) {
@@ -301,18 +309,17 @@ class Crawler {
                 String absLink = "";
                 boolean areThereMoreEntries = true;
 
+                //Go through the url, find all proxies and check if the website has more entries.
                 while (areThereMoreEntries) {
                     try {
 
-                        //Sleep random periods before requesting info from website
-                        timeToWait = getTimeToWait();
-                        Thread.sleep(timeToWait * 1000);
-
-                        if (mainPage) {
+                        if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
                             doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
                             mainPage = false;
                         } else {
-
+                            //Sleep random periods before requesting info from website
+                            timeToWait = getTimeToWait();
+                            Thread.sleep(timeToWait * 1000);
                             doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
                         }
                         areThereMoreEntries = false;
@@ -331,10 +338,8 @@ class Crawler {
                                     areThereMoreEntries = true;
                                     break;
                                 }
-
                             }
                         }
-
                         //Get the data from the table
                         Elements table = doc.select("table");
                         Elements rows = table.select("tr");
@@ -346,81 +351,75 @@ class Crawler {
                             boolean found = false;
                             String[] array = new String[2];
                             for (Element elt : cols) {
+                                //matcher matches only ip, matcher2 matches ip with port number
                                 Matcher matcher = ips.matcher(elt.toString());
                                 Matcher matcher2 = ipAndPort.matcher(elt.toString());
-                                if (found) {
-                                    //Get Port number
-                                    String portNum = elt.toString();
-                                    portNum = portNum.replaceAll("</?td>", "");
-                                    array[1] = portNum;
-                                    Proxy curr = new Proxy(array[0], Integer.valueOf(array[1]));
-                                    //add as long as it is not already in the set
-                                    if (!setOfProxyGathered.contains(curr)) {
-                                        logger.writeToListOfProxies("\n" + curr.getProxy() + "," + curr.getPort());
-                                        setOfProxyGathered.add(curr);
-                                        listOfProxysGathered.add(curr);
-                                        proxyCounter++;
-                                        if (proxyCounter == numberOfProxiesToDownload) {
-                                            //Once we have enough proxies, stop
-                                            return true;
-                                        }
-
-                                    }
-                                    array = new String[2];
-                                    found = false;
-                                }
-
                                 if (matcher2.find()) {
                                     //If port and number appear in the same string
                                     found = false;
-                                    String ip = "";
-                                    int port = 0;
-
-                                    if (matcher.find()) {
-                                        ip = matcher.group();
-                                    }
-                                    port = Integer.valueOf(matcher2.group().replaceAll(ip+":", ""));
+                                    String[] currIPAndPort = matcher2.group().split(":");
+                                    String ip = currIPAndPort[0];
+                                    int port = Integer.valueOf(currIPAndPort[1]);
                                     Proxy nProxy = new Proxy(ip, port);
 
                                     if (!setOfProxyGathered.contains(nProxy)) {
                                         logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy.getPort());
                                         setOfProxyGathered.add(nProxy);
-                                        listOfProxysGathered.add(nProxy);
+                                        listOfProxiesGathered.add(nProxy);
                                         proxyCounter++;
                                         if (proxyCounter == numberOfProxiesToDownload) {
-                                                //Once we have enough proxies, stop
+                                            //Once we have enough proxies, stop
                                             return true;
                                         }
-
                                     }
 
-
                                 }
+                                else {
+                                    if (found) {
+                                        //Get Port number
+                                        String portNum = elt.toString();
+                                        portNum = portNum.replaceAll("</?td>", "");
+                                        array[1] = portNum;
+                                        Proxy curr = new Proxy(array[0], Integer.valueOf(array[1]));
+                                        //add as long as it is not already in the set
+                                        if (!setOfProxyGathered.contains(curr)) {
+                                            logger.writeToListOfProxies("\n" + curr.getProxy() + "," + curr.getPort());
+                                            setOfProxyGathered.add(curr);
+                                            listOfProxiesGathered.add(curr);
+                                            proxyCounter++;
+                                            if (proxyCounter == numberOfProxiesToDownload) {
+                                                //Once we have enough proxies, stop
+                                                return true;
+                                            }
 
-                                else if (matcher.find()) {
-                                    //If an Ip is found, then the next element is the port number
-                                    found = true;
-                                    array[0] = matcher.group();
+                                        }
+                                        array = new String[2];
+                                        found = false;
+                                    } else if (matcher.find()) {
+                                        //If an Ip is found, then the next element is the port number
+                                        found = true;
+                                        array[0] = matcher.group();
+                                    }
                                 }
 
                             }
                         }
                         Double d = (proxyCounter / (double) numberOfProxiesToDownload) * 0.7;
-                        loadBar.setValue(d);
-                        output.set("Proxies downloaded: " + proxyCounter + "/" + numberOfProxiesToDownload);
+                        guiLabels.setLoadBar(d);
+                        guiLabels.setOutput("Proxies downloaded: " + proxyCounter + "/" + numberOfProxiesToDownload);
                         Thread.sleep(1000);
 
 
                     } catch (IOException e) {
-                        alertPopUp.setValue("There was a problem one of the Proxy Databases. \nPlease make sure you have an internet connection.");
+                        guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases. \nPlease make sure you have an internet connection.");
                     } catch (InterruptedException e) {
-                        connectionOutput.setValue(e.getMessage());
+                        guiLabels.setConnectionOutput(e.getMessage());
                     }
                 }
             }
         }
         catch (IOException e) {
-            alertPopUp.setValue(e.getMessage());
+            guiLabels.setAlertPopUp(e.getMessage());
         }
         return false;
 
@@ -447,7 +446,7 @@ class Crawler {
         boolean found = false;
         while (!found) {
             if (invalidAttempts >= 2) {
-                searchResultLabel.setValue("Could not find paper, please try writing more specific information");
+                guiLabels.setSearchResultLabel("Could not find paper, please try writing more specific information");
                 numOfCitations = "";
                 citingPapersURL = "";
                 found = true;
@@ -457,12 +456,12 @@ class Crawler {
 
                 if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
                     //In case you been flags as a bot even before searching
-                    connectionOutput.setValue("Google flagged your IP as a bot. Changing to a different one");
+                    guiLabels.setConnectionOutput("Google flagged this proxy as a bot. Changing to a different one");
                     doc = changeIP(url, false, false);
 
                 }
                 requestCounter++;
-                connectionOutput.setValue(String.valueOf("Number of requests: " + requestCounter));
+                guiLabels.setConnectionOutput("Number of requests: " + requestCounter);
 
 
                 String text = "";
@@ -480,12 +479,10 @@ class Crawler {
 
                 numOfCitations = text;
                 citingPapersURL = absLink;
-                System.out.println(!doc.toString().contains("1 result"));
-                System.out.println(!doc.toString().contains("Showing the best result for this search"));
 
                 if (!doc.toString().contains("1 result") && !doc.toString().contains("Showing the best result for this search")) {
 
-                    searchResultLabel.setValue("ERROR: There was more than 1 result found for your given query.\nPlease write the entire title and/or the authors");
+                    guiLabels.setSearchResultLabel("ERROR: There was more than 1 result found for your given query");
                     numOfCitations = "There was more than 1 result found for your given query";
                 }
                 invalidAttempts++;
@@ -553,7 +550,7 @@ class Crawler {
      * @throws IOException Unable to open file
      */
     private Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
-        if (listOfProxysGathered.isEmpty()) {
+        if (listOfProxiesGathered.isEmpty()) {
             //This happens if there is no internet connection
             Document d = null;
             try {
@@ -561,20 +558,21 @@ class Crawler {
 
 
             } catch (IOException e) {
-                alertPopUp.set("Could not connect, please check your internet connection");
-                output.setValue("No internet connection");
+                guiLabels.setAlertPopUp("Could not connect, please check your internet connection");
+                guiLabels.setOutput("No internet connection");
 
             }
             return d;
         }
+
         if (hasSearchBefore && requestCounter <= 100 && !numOfCitations.isEmpty()) {
 
             //If has searched before and it worked, then use previous ip
             try {
                 return Jsoup.connect(url).proxy(ipAndPort.getProxy(), ipAndPort.getPort()).userAgent("Mozilla").get();
             } catch (IOException e) {
-                connectionOutput.setValue("There was a problem connecting to your previously used proxy.\nChanging to a different one");
-                connectionOutput.setValue(e.getMessage());
+                guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy.\nChanging to a different one");
+                guiLabels.setConnectionOutput(e.getMessage());
                 changeIP(url, false, false);
             }
 
@@ -591,18 +589,18 @@ class Crawler {
                 //Since we are using one, we need to find a replacement.
                 Request request = new Request(true);
                 executorService.submit(request);
-                numberOfWorkingIPs.setValue("remove,none");
+                guiLabels.setNumberOfWorkingIPs("remove,none");
 
                 try {
                     doc = Jsoup.connect(url).proxy(proxyToUse.getProxy(), proxyToUse.getPort()).userAgent("Mozilla").get();
-                    connectionOutput.setValue("Successfully connected to proxy from queue.\nAdding a new thread to find a new connection");
+                    guiLabels.setConnectionOutput("Successfully connected to proxy from queue.\nAdding a new thread to find a new connection");
                     if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
                         throw new IllegalArgumentException("Google flagged your IP as a bot.Changing to a different one");
                     }
                     connected = true;
                 } catch (Exception e) {
-                    connectionOutput.setValue("There was a problem connecting to one of the Proxies from the queue. ");
-                    connectionOutput.setValue(e.getMessage());
+                    guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the queue.");
+                    guiLabels.setConnectionOutput(e.getMessage());
                 }
             }
             return doc;
@@ -610,10 +608,10 @@ class Crawler {
 
 
         //The only way to get to here is if it is one of the threads trying to find a new connection
-        //Stablish a new connection
+        //Establish a new connection
         //Reset request counter
         requestCounter = 0;
-        connectionOutput.setValue(String.valueOf("Number of requests: " + requestCounter));
+        guiLabels.setConnectionOutput(String.valueOf("Number of requests: " + requestCounter));
         boolean connected = false;
         Document doc = null;
         boolean thereWasAnError = false;
@@ -624,18 +622,18 @@ class Crawler {
 
             try {
                 if (thereWasAnError) {
-                    connectionOutput.setValue("Attempt " + attempt + ": Failed to connect to Proxy, trying with a different one...");
+                    guiLabels.setConnectionOutput("Attempt " + attempt + ": Failed to connect to Proxy, trying with a different one...");
                     attempt++;
                 } else {
-                    connectionOutput.setValue("Connecting to Proxy...");
+                    guiLabels.setConnectionOutput("Connecting to Proxy...");
                 }
                 doc = Jsoup.connect(url).proxy(proxyToBeUsed.getProxy(), proxyToBeUsed.getPort()).userAgent("Mozilla").get();
                 if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
-                    connectionOutput.setValue("Google flagged your IP as a bot.Changing to a different one");
+                    guiLabels.setConnectionOutput("Google flagged this proxy as a bot. Changing to a different one");
                     throw new IllegalArgumentException();
                 }
                 connected = true;
-                mapThreadIdToProxy.put(Thread.currentThread().getName(), proxyToBeUsed);
+                mapThreadIdToProxy.put(Thread.currentThread().getId(), proxyToBeUsed);
 
             } catch (Exception e) {
                 thereWasAnError = true;
@@ -654,7 +652,7 @@ class Crawler {
      * @throws Exception Problem downloading or reading a file
      */
     void getPDFs(int limit) throws Exception {
-        output.setValue("Downloading...");
+        guiLabels.setOutput("Downloading...");
         pdfCounter = 0;
         //Go though all links
         ArrayList<String> list = getAllLinks();
@@ -663,17 +661,17 @@ class Crawler {
         }
         for (String currUrl : list) {
             if (pdfCounter >= limit) {
-                output.setValue("All PDFs available have been downloaded");
+                guiLabels.setOutput("All PDFs available have been downloaded");
                 break;
             }
             timeToWait = getTimeToWait();
-            connectionOutput.setValue("Waiting " + timeToWait + " seconds before going to the search results");
+            guiLabels.setConnectionOutput("Waiting " + timeToWait + " seconds before going to the search results");
             Thread.sleep(timeToWait * 1000);
 
             //Increase counter for every new google link
             Document citingPapers;
             if (requestCounter >= 100) {
-                connectionOutput.setValue("Wait... Changing proxy because of amount of requests...");
+                guiLabels.setConnectionOutput("Wait... Changing proxy because of amount of requests...");
                 citingPapers = changeIP(currUrl, false, false);
             } else {
                 citingPapers = changeIP(currUrl, true, false);
@@ -681,14 +679,14 @@ class Crawler {
 
             if (citingPapers.text().contains("Sorry, we can't verify that you're not a robot")) {
                 //In case you been flagged as a bot even before searching
-                connectionOutput.setValue("Google flagged your IP as a bot.\nChanging to a different one");
+                guiLabels.setConnectionOutput("Google flagged this proxy as a bot.\nChanging to a different one");
                 citingPapers = changeIP(currUrl, false, false);
 
             }
 
             requestCounter++;
 
-            connectionOutput.setValue(String.valueOf("Number of requests: " + requestCounter));
+            guiLabels.setConnectionOutput(String.valueOf("Number of requests: " + requestCounter));
             Elements linksInsidePaper = citingPapers.select("a[href]");
             String text;
             String absLink;
@@ -700,11 +698,11 @@ class Crawler {
                     try {
                         downloadPDF(absLink);
                     } catch (IOException e2) {
-                        connectionOutput.setValue("This file could not be downloaded, skipping...");
+                        guiLabels.setConnectionOutput("This file could not be downloaded, skipping...");
                         pdfCounter--;
                     }
-                    numberOfPDF.setValue(pdfCounter);
-                    loadBar.setValue(pdfCounter / limit);
+                    guiLabels.setNumberOfPDF(pdfCounter);
+                    guiLabels.setLoadBar(pdfCounter / limit);
 
                     System.out.println(text);
                     System.out.println(absLink);
@@ -718,21 +716,21 @@ class Crawler {
     }
 
 
-    public synchronized Proxy addConnection() {
+    private synchronized Proxy addConnection() {
         //Make sure that the a connection is only modified by one thread at a time to avoid race conditions
 
-        int randomIndex = new Random().nextInt(listOfProxysGathered.size());
-        Proxy curr = listOfProxysGathered.get(randomIndex);
+        int randomIndex = new Random().nextInt(listOfProxiesGathered.size());
+        Proxy curr = listOfProxiesGathered.get(randomIndex);
         //If it is still in the set,  it has not yet been used.
         while (!setOfProxyGathered.contains(curr)) {
-            randomIndex = new Random().nextInt(listOfProxysGathered.size());
-            curr = listOfProxysGathered.get(randomIndex);
+            randomIndex = new Random().nextInt(listOfProxiesGathered.size());
+            curr = listOfProxiesGathered.get(randomIndex);
         }
         //Remove from set
         setOfProxyGathered.remove(curr);
         //Remove from list
-        listOfProxysGathered.remove(randomIndex);
-        connectionOutput.setValue("Number of Proxies available: " + setOfProxyGathered.size());
+        listOfProxiesGathered.remove(randomIndex);
+        guiLabels.setConnectionOutput("Number of Proxies available: " + setOfProxyGathered.size());
 
         return curr;
     }
@@ -757,9 +755,11 @@ class Crawler {
 
 
 
-
-    //Thread class to process requests
-    public class Request implements Callable<Proxy> {
+    /**
+     * Implements Callable. Assigns a task to a thread.
+     * Find new working proxy and adds it to the queue.
+     */
+     class Request implements Callable<Proxy> {
         private boolean atRuntime = false;
 
         Request() {
@@ -771,7 +771,7 @@ class Crawler {
 
         @Override
         public Proxy call() throws Exception {
-            connectionOutput.setValue(Thread.currentThread().getId() + " is trying to connect");
+            guiLabels.setConnectionOutput(Thread.currentThread().getId() + " is trying to connect");
             // Try to stablish connection
             boolean valid = false;
             while (!valid) {
@@ -784,10 +784,117 @@ class Crawler {
             }
             if (atRuntime) {
                 //If it is at runtime, add it to the queue from here
-                queueOfConnections.add(mapThreadIdToProxy.get(Thread.currentThread().getName()));
+                Proxy temp = mapThreadIdToProxy.get(Thread.currentThread().getId());
+                queueOfConnections.add(temp);
+                guiLabels.setNumberOfWorkingIPs("add," + temp.getProxy()+" Port: "+temp.getPort());
             }
-            return mapThreadIdToProxy.get(Thread.currentThread().getName());
+            return mapThreadIdToProxy.get(Thread.currentThread().getId());
         }
     }
+
+
+    /**
+     * Manages the different objects that the controller is listening to, to update the GUI.
+     */
+    class GUILabelManagement {
+
+        private StringProperty numberOfWorkingIPs = new SimpleStringProperty();
+        private StringProperty alertPopUp = new SimpleStringProperty();
+        private StringProperty searchResultLabel = new SimpleStringProperty();
+        private DoubleProperty loadBar = new SimpleDoubleProperty();
+        private StringProperty output = new SimpleStringProperty();
+        private StringProperty connectionOutput = new SimpleStringProperty();
+        private IntegerProperty numberOfPDF = new SimpleIntegerProperty();
+
+
+
+         StringProperty getNumberOfWorkingIPs() {
+            return numberOfWorkingIPs;
+        }
+
+
+        StringProperty getAlertPopUp() {
+            return alertPopUp;
+        }
+
+        StringProperty getSearchResultLabel() {
+            return searchResultLabel;
+        }
+
+        DoubleProperty getLoadBar() {
+            return loadBar;
+        }
+
+
+        StringProperty getOutput() {
+            return output;
+        }
+
+        StringProperty getConnectionOutput() {
+            return connectionOutput;
+        }
+
+        IntegerProperty getNumberOfPDFs() {
+            return numberOfPDF;
+        }
+
+
+        /**
+         * Adds a new proxy to the queue displayed in the WorkingProxiesLabel
+         * @param numberOfWorkingIPs String with the Proxy to add or remove.
+         */
+        void setNumberOfWorkingIPs(String numberOfWorkingIPs) {
+            this.numberOfWorkingIPs.set(numberOfWorkingIPs);
+        }
+
+        /**
+         * Sets a pop up alert
+         * @param alertPopUp String with message to display
+         */
+        void setAlertPopUp(String alertPopUp) {
+            this.alertPopUp.set(alertPopUp);
+        }
+
+        /**
+         * Sets what the searchResult label will display
+         * @param searchResultLabel String with message to display
+         */
+        void setSearchResultLabel(String searchResultLabel) {
+            this.searchResultLabel.set(searchResultLabel);
+        }
+
+        /**
+         * Sets the current percentage the progress bar has loaded from 0 to 1
+         * @param loadBar double from 0 to 1
+         */
+        void setLoadBar(double loadBar) {
+            this.loadBar.set(loadBar);
+        }
+
+        /**
+         * Sets the output displayed in the status label
+         * @param output String with message to display
+         */
+        void setOutput(String output) {
+            this.output.set(output);
+        }
+
+        /**
+         * Sets all the IO and debuggin output in the connectionOutput label
+         * @param connectionOutput String with message to display
+         */
+        void setConnectionOutput(String connectionOutput) {
+            this.connectionOutput.set(connectionOutput);
+        }
+
+        /**
+         * Sets the current number of PDFs downloaded in the appropiate label
+         * @param numberOfPDF int with the number of PDFs downloaded
+         */
+        void setNumberOfPDF(int numberOfPDF) {
+            this.numberOfPDF.set(numberOfPDF);
+        }
+    }
+
 }
 

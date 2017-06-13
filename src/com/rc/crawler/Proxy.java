@@ -2,21 +2,38 @@ package com.rc.crawler;
 
 /**
  * Created by rafaelcastro on 6/12/17.
+ * Proxy object. Has an IP and a port number
  */
 class Proxy {
 
     private final String proxy;
     private final int port;
 
+    /**
+     * Constructor. Takes an ip and a port number.
+     *
+     * @param proxy IP address of the proxy, as a string.
+     * @param port  port number of the proxy, as an int
+     */
     Proxy(String proxy, int port) {
         this.proxy = proxy;
         this.port = port;
     }
 
+    /**
+     * Gets the ip, as a string.
+     *
+     * @return ip address
+     */
     String getProxy() {
         return proxy;
     }
 
+    /**
+     * Gets the port, as an int.
+     *
+     * @return port number
+     */
     int getPort() {
         return port;
     }
@@ -37,4 +54,5 @@ class Proxy {
         result = 31 * result + port;
         return result;
     }
+
 }
