@@ -48,8 +48,8 @@ public class View extends Application {
 
 
     //Classs to handle alert box. No communiaction needed back
-    public static class AlertBox {
-        public static void display(String title, String message) {
+    public class AlertBox {
+        public void display(String title, String message) {
             Stage window = new Stage();
             window.initModality(Modality.APPLICATION_MODAL);
             window.setTitle(title);

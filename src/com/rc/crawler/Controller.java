@@ -6,14 +6,18 @@ import com.jfoenix.controls.JFXTabPane;
 import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
 
+import javafx.beans.property.SimpleStringProperty;
 import javafx.concurrent.Task;
 import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.*;
 import javafx.stage.Window;
 
@@ -27,6 +31,7 @@ import java.util.ResourceBundle;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,7 +43,7 @@ public class Controller implements Initializable {
     private volatile Crawler crawler;
     private Window window;
     private HashSet<String> articleNames;
-    private HashMap<Long, String> mapThreadToTitle;
+    private HashMap<Long, String> mapThreadToTitle = new HashMap<>();
 
 
     @FXML
@@ -92,6 +97,7 @@ public class Controller implements Initializable {
     @FXML
     private JFXListView<String> listView;
 
+    private SearchResultBox searchResultBox;
 
 
     @SuppressWarnings("WeakerAccess")
@@ -112,6 +118,7 @@ public class Controller implements Initializable {
             title = text;
             //Display loading message dialog
             informationPanel("Loading...");
+            updateOutput("Searching...");
             //Create a new task to perform search in background
             DoWork task = new DoWork("search");
             Thread t = new Thread(task);
@@ -124,23 +131,34 @@ public class Controller implements Initializable {
     /**
      * Performs all the operations to search for a paper in Google Scholar.
      * Method is called inside a task.
+     * @param title title that we are looking for. Null if the method is not called from a thread
      */
-    private void search() {
+    private void search(String title) {
         updateSearchLabel("Loading...");
+        this.searchResultBox = new SearchResultBox();
+
+        if (title == null) {
+            //If the title is null, then just use the field title as title.
+            title = this.title;
+        }
 
         crawler.searchForArticle(title, hasSearchedBefore);
 
         String numberOfCitations = crawler.getNumberOfCitations();
         if (numberOfCitations.isEmpty() || numberOfCitations.equals("Provide feedback")) {
             numberOfCitations = "Could not find paper";
+            updateOutput("Could not find paper...");
         } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
             numberOfCitations = "ERROR: There was more than 1 result found for your given query";
+            displaySearchResults(title);
         } else {
             numberOfCitations = numberOfCitations + " different papers";
+            updateOutput("Paper found!");
+
             downloadButton.setDisable(false);
         }
         this.hasSearchedBefore = true;
-
+        updateOutput("Done searching");
         updateSearchLabel(numberOfCitations);
 
     }
@@ -196,12 +214,14 @@ public class Controller implements Initializable {
     void uploadOnClick(Event e) {
         Node node =  (Node) e.getSource();
         window = node.getScene().getWindow();
-        openFile();
+        DoWork task = new DoWork("upload");
+        Thread t = new Thread(task);
+        t.setDaemon(true);
+        t.start();
 
     }
 
     private void openFile() {
-
         Platform.runLater(() -> {
             FileChooser fileChooser = new FileChooser();
             configureFileChooser(fileChooser);
@@ -251,13 +271,22 @@ public class Controller implements Initializable {
     @FXML
     void searchOnClickMultiple() {
         for (String article : articleNames) {
+
+            //Todo  move all this
             int numberOfThreadsToUse = optimizer();
             ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreadsToUse);
             DoWork task = new DoWork("search", article);
             Thread t = new Thread(task);
             t.setDaemon(true);
-            t.start();
-            executorService.submit(task);
+            Future future = executorService.submit(t);
+//            try {
+//               // future.get();
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            } catch (ExecutionException e) {
+//                e.printStackTrace();
+//            }
+
 
             //Display loading message dialog
             informationPanel("Loading...");
@@ -329,6 +358,7 @@ public class Controller implements Initializable {
     }
 
 
+
     /**
      * Displays a pop up alert message
      *
@@ -340,7 +370,6 @@ public class Controller implements Initializable {
             alert.setTitle("Error");
             alert.setHeaderText(null);
             alert.setContentText(message);
-
             alert.showAndWait();
         });
 
@@ -373,6 +402,8 @@ public class Controller implements Initializable {
         });
     }
 
+
+
     /**
      * Creates a pop up message that says Loading...
      */
@@ -385,6 +416,35 @@ public class Controller implements Initializable {
         alert.showAndWait();
     }
 
+    private void displaySearchResults(String title) {
+        searchResultBox.select.setOnAction(e-> selectOnClick());
+        searchResultBox.doNotDownload.setOnAction(e -> doNotDownloadOnClick());
+        Platform.runLater(() -> searchResultBox.display(title));
+    }
+
+    private void doNotDownloadOnClick(){
+        searchResultBox.close();
+        updateOutput("Skipping file...");
+    }
+
+    private void selectOnClick() {
+        String selection;
+        selection = (String) searchResultBox.searchResultListView.getSelectionModel().getSelectedItem();
+        if (selection == null || selection.isEmpty()) {
+            displayAlert("Please select one search result.");
+        }
+        else {
+            searchResultBox.close();
+            String[] array = crawler.getSearchResultToLink().get(selection);
+            crawler.setCitingPapersURL(array[0]);
+            crawler.setNumOfCitations(array[1]);
+            updateSearchLabel(array[1]);
+            downloadButton.setDisable(false);
+            System.out.println(array[0]);
+        }
+    }
+
+
 
     /**
      * Call upon star
@@ -394,11 +454,16 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        File dir = new File("DownloadedPDFs");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdir();
         DoWork task = new DoWork("initialize");
         Thread t = new Thread(task);
         t.setDaemon(true);
         t.start();
+
     }
+
 
 
     /**
@@ -443,11 +508,12 @@ public class Controller implements Initializable {
 
                 case "search":
                     progressBar.progressProperty().setValue(0);
+                    crawler.getMultipleSearchResult().addListener(((observable, oldValue, newValue) -> searchResultBox.addItemToListView(newValue)));
                     if (article != null) {
-                    //Only happens when we are using threads to do multiple searches
+                        //Only happens when we are using threads to do multiple searches
                         mapThreadToTitle.put(Thread.currentThread().getId(), article);
                     }
-                    search();
+                    search(article);
                     progressBar.progressProperty().setValue(1);
                     break;
                 case "download":

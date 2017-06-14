@@ -1,7 +1,6 @@
 package com.rc.crawler;
 
 import javafx.beans.property.*;
-import org.apache.commons.io.FileUtils;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -9,14 +8,12 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-
 import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 
 /**
  * Created by rafaelcastro on 5/31/17.
@@ -44,14 +41,26 @@ class Crawler {
     private ExecutorService executorService;
     private ConcurrentLinkedQueue<Proxy> queueOfConnections = new ConcurrentLinkedQueue<>();
 
+    public HashMap<String, String[]> getSearchResultToLink() {
+        return searchResultToLink;
+    }
 
+    public void setNumOfCitations(String numOfCitations) {
+        this.numOfCitations = numOfCitations;
+    }
+
+    public void setCitingPapersURL(String citingPapersURL) {
+        this.citingPapersURL = citingPapersURL;
+    }
+
+    private HashMap<String, String[]> searchResultToLink = new HashMap<>();
     //Modifies connection output label
      StringProperty getConnectionOutput() {
         return guiLabels.getConnectionOutput();
     }
 
     //Modifies number of PDFs label
-     IntegerProperty getNumberOfPDF() {
+     StringProperty getNumberOfPDF() {
         return guiLabels.getNumberOfPDFs();
     }
 
@@ -80,6 +89,11 @@ class Crawler {
     StringProperty getOutputProperty() {
         return guiLabels.getOutput();
     }
+
+    StringProperty getMultipleSearchResult() {
+        return guiLabels.getMultipleSearchResult();
+    }
+
 
 
     /**
@@ -430,6 +444,7 @@ class Crawler {
         //Todo
     }
 
+
     /**
      * Search for an article in Google Schoolar
      *
@@ -481,9 +496,36 @@ class Crawler {
                 citingPapersURL = absLink;
 
                 if (!doc.toString().contains("1 result") && !doc.toString().contains("Showing the best result for this search")) {
-
                     guiLabels.setSearchResultLabel("ERROR: There was more than 1 result found for your given query");
                     numOfCitations = "There was more than 1 result found for your given query";
+
+                    boolean searchResultFound = false;
+                    String searchResult = "";
+                    for (Element link : links) {
+                        text = link.text();
+                        absLink = link.attr("abs:href");
+                        Pattern pattern = Pattern.compile("((www\\.)?scholar\\.google\\.com)|(www\\.(support\\.)?google\\.com)");
+                        Matcher matcher = pattern.matcher(absLink);
+                        if (!matcher.find()) {
+                            text = link.text();
+                            Pattern pattern2 = Pattern.compile("\\[HTML]|\\[PDF]");
+                            Matcher matcher2 = pattern2.matcher(text);
+                            if (!matcher2.find() && !text.equals("Provide feedback")) {
+                                searchResult = text;
+                                guiLabels.setMultipleSearchResult(text);
+                                searchResultFound = true;
+
+                            }
+                        }
+                        else if (searchResultFound) {
+                            if (text.contains("Cited by")) {
+                                searchResultToLink.put(searchResult, new String[]{absLink, text});
+                                searchResultFound = false;
+
+                            }
+
+                        }
+                    }
                 }
                 invalidAttempts++;
             }
@@ -516,18 +558,6 @@ class Crawler {
         }
         return list;
 
-    }
-
-    /**
-     * Download a pdf file to a directory
-     *
-     * @param url URL to download file from
-     * @throws IOException Unable to open link
-     */
-    private void downloadPDF(String url) throws IOException {
-        File docDestFile = new File("./DownloadedPDFs/" + pdfCounter + ".pdf");
-        URL urlObj = new URL(url);
-        FileUtils.copyURLToFile(urlObj, docDestFile);
     }
 
 
@@ -595,7 +625,7 @@ class Crawler {
                     doc = Jsoup.connect(url).proxy(proxyToUse.getProxy(), proxyToUse.getPort()).userAgent("Mozilla").get();
                     guiLabels.setConnectionOutput("Successfully connected to proxy from queue.\nAdding a new thread to find a new connection");
                     if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
-                        throw new IllegalArgumentException("Google flagged your IP as a bot.Changing to a different one");
+                        throw new IllegalArgumentException("Google flagged your IP as a bot. Changing to a different one");
                     }
                     connected = true;
                 } catch (Exception e) {
@@ -605,7 +635,6 @@ class Crawler {
             }
             return doc;
         }
-
 
         //The only way to get to here is if it is one of the threads trying to find a new connection
         //Establish a new connection
@@ -652,6 +681,7 @@ class Crawler {
      * @throws Exception Problem downloading or reading a file
      */
     void getPDFs(int limit) throws Exception {
+        int numberOfSearches = 0;
         guiLabels.setOutput("Downloading...");
         pdfCounter = 0;
         //Go though all links
@@ -681,10 +711,18 @@ class Crawler {
                 //In case you been flagged as a bot even before searching
                 guiLabels.setConnectionOutput("Google flagged this proxy as a bot.\nChanging to a different one");
                 citingPapers = changeIP(currUrl, false, false);
-
             }
 
             requestCounter++;
+            numberOfSearches++;
+
+            //If 20 searches are made and no valid result is found, stop
+            if (numberOfSearches == 20) {
+                guiLabels.setConnectionOutput("No more papers found.");
+                guiLabels.setOutput("No more papers found.");
+                guiLabels.setLoadBar(limit / (double) limit);
+                break;
+            }
 
             guiLabels.setConnectionOutput(String.valueOf("Number of requests: " + requestCounter));
             Elements linksInsidePaper = citingPapers.select("a[href]");
@@ -694,18 +732,27 @@ class Crawler {
                 text = link.text();
                 absLink = link.attr("abs:href");
                 if (text.contains("PDF")) {
+                    System.out.println(text);
+
                     pdfCounter++;
                     try {
-                        downloadPDF(absLink);
+                        PDFDownloader pdfDownloader = new PDFDownloader();
+                        pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, ipAndPort);
+                        File file = new File("./DownloadedPDFs/" + pdfCounter + ".pdf");
+                        if (file.length() == 0 || !file.canRead()) {
+                            throw new IOException("File is invalid");
+                        }
+                        numberOfSearches = 0;
+
                     } catch (IOException e2) {
+                        System.out.println(e2.getMessage());
                         guiLabels.setConnectionOutput("This file could not be downloaded, skipping...");
                         pdfCounter--;
                     }
-                    guiLabels.setNumberOfPDF(pdfCounter);
-                    guiLabels.setLoadBar(pdfCounter / limit);
 
-                    System.out.println(text);
-                    System.out.println(absLink);
+                    guiLabels.setNumberOfPDF(pdfCounter+"/"+limit);
+                    guiLabels.setLoadBar(pdfCounter / (double) limit);
+
                     if (pdfCounter >= limit) {
                         break;
                     }
@@ -717,7 +764,7 @@ class Crawler {
 
 
     private synchronized Proxy addConnection() {
-        //Make sure that the a connection is only modified by one thread at a time to avoid race conditions
+        //Makes sure that the a connection is only modified by one thread at a time to avoid race conditions
 
         int randomIndex = new Random().nextInt(listOfProxiesGathered.size());
         Proxy curr = listOfProxiesGathered.get(randomIndex);
@@ -793,108 +840,6 @@ class Crawler {
     }
 
 
-    /**
-     * Manages the different objects that the controller is listening to, to update the GUI.
-     */
-    class GUILabelManagement {
-
-        private StringProperty numberOfWorkingIPs = new SimpleStringProperty();
-        private StringProperty alertPopUp = new SimpleStringProperty();
-        private StringProperty searchResultLabel = new SimpleStringProperty();
-        private DoubleProperty loadBar = new SimpleDoubleProperty();
-        private StringProperty output = new SimpleStringProperty();
-        private StringProperty connectionOutput = new SimpleStringProperty();
-        private IntegerProperty numberOfPDF = new SimpleIntegerProperty();
-
-
-
-         StringProperty getNumberOfWorkingIPs() {
-            return numberOfWorkingIPs;
-        }
-
-
-        StringProperty getAlertPopUp() {
-            return alertPopUp;
-        }
-
-        StringProperty getSearchResultLabel() {
-            return searchResultLabel;
-        }
-
-        DoubleProperty getLoadBar() {
-            return loadBar;
-        }
-
-
-        StringProperty getOutput() {
-            return output;
-        }
-
-        StringProperty getConnectionOutput() {
-            return connectionOutput;
-        }
-
-        IntegerProperty getNumberOfPDFs() {
-            return numberOfPDF;
-        }
-
-
-        /**
-         * Adds a new proxy to the queue displayed in the WorkingProxiesLabel
-         * @param numberOfWorkingIPs String with the Proxy to add or remove.
-         */
-        void setNumberOfWorkingIPs(String numberOfWorkingIPs) {
-            this.numberOfWorkingIPs.set(numberOfWorkingIPs);
-        }
-
-        /**
-         * Sets a pop up alert
-         * @param alertPopUp String with message to display
-         */
-        void setAlertPopUp(String alertPopUp) {
-            this.alertPopUp.set(alertPopUp);
-        }
-
-        /**
-         * Sets what the searchResult label will display
-         * @param searchResultLabel String with message to display
-         */
-        void setSearchResultLabel(String searchResultLabel) {
-            this.searchResultLabel.set(searchResultLabel);
-        }
-
-        /**
-         * Sets the current percentage the progress bar has loaded from 0 to 1
-         * @param loadBar double from 0 to 1
-         */
-        void setLoadBar(double loadBar) {
-            this.loadBar.set(loadBar);
-        }
-
-        /**
-         * Sets the output displayed in the status label
-         * @param output String with message to display
-         */
-        void setOutput(String output) {
-            this.output.set(output);
-        }
-
-        /**
-         * Sets all the IO and debuggin output in the connectionOutput label
-         * @param connectionOutput String with message to display
-         */
-        void setConnectionOutput(String connectionOutput) {
-            this.connectionOutput.set(connectionOutput);
-        }
-
-        /**
-         * Sets the current number of PDFs downloaded in the appropiate label
-         * @param numberOfPDF int with the number of PDFs downloaded
-         */
-        void setNumberOfPDF(int numberOfPDF) {
-            this.numberOfPDF.set(numberOfPDF);
-        }
-    }
 
 }
 

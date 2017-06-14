@@ -60,3 +60,53 @@
     -fx-background-color: #434141 ;
 }
 
+.jfx-list-cell:selected {
+    -fx-background-color: #7d9a4f;
+    -fx-text-fill: #000000;
+
+}
+.jfx-list-cell {
+    -fx-background-color: #e1e2e1;
+    -fx-text-fill: #000000;
+
+}
+.jfx-list-cell:odd{
+    -fx-background-color: #afb0af;
+    -fx-text-fill: #000000;
+
+}
+
+.jfx-list-view {
+    -fx-background-color: #434141;
+    -fx-border-color: transparent;
+}
+
+
+
+
+
+.list-cell:selected {
+    -fx-background-color: #7d9a4f;
+    -fx-text-fill: #000000;
+
+}
+
+.list-cell:odd:selected {
+    -fx-background-color: #7d9a4f;
+    -fx-text-fill: #000000;
+
+}
+.list-cell {
+    -fx-padding: 2px ;
+    -fx-background-color: #e1e2e1;
+    -fx-text-fill: #000000;
+    -fx-border-color: #c6c8c6;
+}
+
+
+
+.list-view {
+    -fx-background-color: #e1e2e1;
+    -fx-padding: 3px ;
+    -fx-border-color: #e1e2e1;
+}

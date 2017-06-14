@@ -6,10 +6,5 @@ public class Main {
         Controller controller = new Controller();
         View.launch(View.class);
 
-
     }
-
-
-
-
 }

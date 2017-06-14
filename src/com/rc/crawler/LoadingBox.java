@@ -1,10 +1,8 @@
 package com.rc.crawler;
 
+import javafx.event.Event;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -14,53 +12,57 @@ import javafx.stage.StageStyle;
 
 /**
  * Created by rafaelcastro on 6/9/17.
+ * Creates a loading box window.
  */
-public class LoadingBox {
+class LoadingBox {
 
 
-    Stage window;
+    private Stage window;
 
     LoadingBox() {
+    }
+
+    /**
+     * Displays the window
+     *
+     * @return true
+     */
+    boolean display() {
+        window = new Stage();
+        window.initModality(Modality.APPLICATION_MODAL);
+        window.initStyle(StageStyle.TRANSPARENT);
 
 
-        }
-
-        public  boolean display() {
-            window = new Stage();
-            window.initModality(Modality.APPLICATION_MODAL);
-            window.initStyle(StageStyle.TRANSPARENT);
+        window.setMinWidth(400);
 
 
-            window.setMinWidth(400);
+        //Ignore closing window
+        window.setOnCloseRequest(Event::consume);
 
+        ProgressIndicator progressIndicator = new ProgressIndicator();
 
-            //Ignore closing window
-            window.setOnCloseRequest(e -> {
+        VBox layout = new VBox(20);
+        layout.setStyle("-fx-background-color: rgba(255, 255, 255, 0.5);" +
+                "-fx-background-insets: 50;"
+        );
+        layout.getChildren().addAll(progressIndicator);
 
-                e.consume();
-            });
+        layout.setAlignment(Pos.CENTER);
 
-            ProgressIndicator progressIndicator = new ProgressIndicator();
+        Scene scene = new Scene(layout, 200, 200);
+        scene.setFill(Color.TRANSPARENT);
+        window.setScene(scene);
+        window.showAndWait();
 
-            VBox layout = new VBox(20);
-            layout.setStyle("-fx-background-color: rgba(255, 255, 255, 0.5);" +
-                    "-fx-background-insets: 50;"
-            );
-            layout.getChildren().addAll(progressIndicator);
+        return true;
+    }
 
-            layout.setAlignment(Pos.CENTER);
-
-            Scene scene = new Scene(layout, 200, 200);
-            scene.setFill(Color.TRANSPARENT);
-            window.setScene(scene);
-            window.showAndWait();
-
-            return true;
-        }
-
-        void close() {
-            window.close();
-        }
+    /**
+     * Closes the window
+     */
+    void close() {
+        window.close();
+    }
 
 
 }

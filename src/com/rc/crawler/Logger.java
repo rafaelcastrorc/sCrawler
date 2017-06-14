@@ -13,7 +13,8 @@ class Logger {
     private static BufferedWriter listOfProxiesWriter;
     private static Logger instance;
     private static BufferedWriter listOfWorkingProxiesWriter;
-    private static BufferedWriter output;
+    private static BufferedWriter reportWriter;
+
 
 
     /**
@@ -99,7 +100,7 @@ class Logger {
         try {
             listOfWorkingProxiesWriter = new BufferedWriter(new FileWriter("./AppData/ListOfWorkingProxies.txt"));
         } catch (IOException e) {
-            System.err.println("Unable to create output file");
+            throw new IOException("Unable to create output file");
         }
     }
 
@@ -119,6 +120,49 @@ class Logger {
         }
     }
 
+
+
+
+    /**
+     * Gets the file that contains the main report file
+     * @return File
+     */
+    File getMainReportWriterFile() {
+        return new File("./DownloadedPDFs/Report.txt");
+    }
+
+
+
+    public void setReportWriter(boolean append, String location) throws IOException {
+        if (append) {
+            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt", true));
+        }
+        try {
+            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt"));
+        } catch (IOException e) {
+            throw new IOException("Unable to create report file");
+        }
+    }
+
+    /**
+     * Writes the report
+     *
+     * @param s String to write
+     * @throws IOException Error writing to file
+     */
+    public void writeReport(String s) throws IOException {
+        try {
+            reportWriter.write(s);
+            reportWriter.flush();
+        } catch (IOException e) {
+            throw new IOException("Cannot write to file");
+
+        }
+    }
+
+
+
+
     /**
      * Closes the logger
      *
@@ -130,6 +174,10 @@ class Logger {
         if (listOfWorkingProxiesWriter != null) {
             listOfWorkingProxiesWriter.flush();
             listOfWorkingProxiesWriter.close();
+        }
+        if (reportWriter != null) {
+            reportWriter.flush();
+            reportWriter.close();
         }
 
     }

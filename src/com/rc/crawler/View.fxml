@@ -108,7 +108,7 @@
                                                             <Font name="Roboto Light" size="16.0" />
                                                          </font>
                                                       </JFXTextField>
-                                                      <JFXButton fx:id="downloadButton" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download" textFill="WHITE">
+                                                      <JFXButton fx:id="downloadButton" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
                                                          <font>
                                                             <Font name="Roboto Light" size="16.0" />
                                                          </font>
@@ -158,7 +158,7 @@
                                                                   <Font name="Roboto Light" size="16.0" />
                                                                </font>
                                                             </JFXButton>
-                                                            <JFXButton fx:id="searchButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#searchOnClickMultiple" style="-fx-background-color: #7d9a4f;" text="Search" textFill="WHITE">
+                                                            <JFXButton fx:id="searchButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#searchOnClickMultiple" style="-fx-background-color: #7d9a4f;" text="Search">
                                                                <font>
                                                                   <Font name="Roboto Light" size="16.0" />
                                                                </font>
@@ -194,7 +194,7 @@
                                                                         <Font name="Roboto Light" size="16.0" />
                                                                      </font>
                                                                   </JFXTextField>
-                                                                  <JFXButton fx:id="downloadButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download" textFill="WHITE">
+                                                                  <JFXButton fx:id="downloadButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
                                                                      <font>
                                                                         <Font name="Roboto Light" size="16.0" />
                                                                      </font>
