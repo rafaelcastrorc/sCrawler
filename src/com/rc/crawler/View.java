@@ -7,6 +7,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -39,7 +40,9 @@ public class View extends Application {
         Parent root =  loader.load();
         primaryStage.setTitle("Crawler");
         Scene loadingScene = new Scene(root);
+        // load the tron font.
         loadingScene.getStylesheets().add("Style.css");
+        loadingScene.getStylesheets().add("https://fonts.googleapis.com/css?family=Roboto");
         primaryStage.setScene(loadingScene);
         primaryStage.setResizable(false);
         primaryStage.show();

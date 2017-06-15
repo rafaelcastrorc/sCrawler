@@ -23,11 +23,13 @@ import java.util.regex.Pattern;
 
 class Crawler {
     private final GUILabelManagement guiLabels;
+
+
+    private PDFDownloader pdfDownloader;
     private String numOfCitations = "";
     private String citingPapersURL = "";
     //Counts number of requests
     private int requestCounter = 0;
-    private int pdfCounter;
     private Integer[] listOfTimes;
     private Map<Long, Proxy> mapThreadIdToProxy = Collections.synchronizedMap(new HashMap<Long, Proxy>());
     //Keeps track of all the proxies that have been downloaded, since we are picking a random element, it is faster to use a list to get it
@@ -40,6 +42,12 @@ class Crawler {
     private Integer timeToWait;
     private ExecutorService executorService;
     private ConcurrentLinkedQueue<Proxy> queueOfConnections = new ConcurrentLinkedQueue<>();
+
+
+    public void setPdfDownloader(PDFDownloader pdfDownloader) {
+        this.pdfDownloader = pdfDownloader;
+    }
+
 
     public HashMap<String, String[]> getSearchResultToLink() {
         return searchResultToLink;
@@ -90,6 +98,7 @@ class Crawler {
         return guiLabels.getOutput();
     }
 
+    //Modifies list view
     StringProperty getMultipleSearchResult() {
         return guiLabels.getMultipleSearchResult();
     }
@@ -528,6 +537,7 @@ class Crawler {
                     }
                 }
                 invalidAttempts++;
+                hasSearchBefore = true;
             }
         }
 
@@ -595,7 +605,7 @@ class Crawler {
             return d;
         }
 
-        if (hasSearchBefore && requestCounter <= 100 && !numOfCitations.isEmpty()) {
+        if (hasSearchBefore && requestCounter <= 100) {
 
             //If has searched before and it worked, then use previous ip
             try {
@@ -603,13 +613,13 @@ class Crawler {
             } catch (IOException e) {
                 guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy.\nChanging to a different one");
                 guiLabels.setConnectionOutput(e.getMessage());
-                changeIP(url, false, false);
             }
 
         }
 
         //Connect to the next working IP if the number of request is >100 or the proxy no longer works
         if (queueOfConnections.size() > 0 && !comesFromThread) {
+            System.out.println(queueOfConnections.size());
             boolean connected = false;
             Document doc = null;
             while (!connected) {
@@ -633,13 +643,13 @@ class Crawler {
                     guiLabels.setConnectionOutput(e.getMessage());
                 }
             }
+            requestCounter = 1;
             return doc;
         }
 
         //The only way to get to here is if it is one of the threads trying to find a new connection
         //Establish a new connection
         //Reset request counter
-        requestCounter = 0;
         guiLabels.setConnectionOutput(String.valueOf("Number of requests: " + requestCounter));
         boolean connected = false;
         Document doc = null;
@@ -658,7 +668,7 @@ class Crawler {
                 }
                 doc = Jsoup.connect(url).proxy(proxyToBeUsed.getProxy(), proxyToBeUsed.getPort()).userAgent("Mozilla").get();
                 if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
-                    guiLabels.setConnectionOutput("Google flagged this proxy as a bot. Changing to a different one");
+                   // guiLabels.setConnectionOutput("Google flagged this proxy as a bot. Changing to a different one");
                     throw new IllegalArgumentException();
                 }
                 connected = true;
@@ -680,10 +690,11 @@ class Crawler {
      * @param limit max number of pdfs to download
      * @throws Exception Problem downloading or reading a file
      */
-    void getPDFs(int limit) throws Exception {
+    int getPDFs(int limit) throws Exception {
+        //Keeps track of the number of searches done
         int numberOfSearches = 0;
         guiLabels.setOutput("Downloading...");
-        pdfCounter = 0;
+        int pdfCounter = 0;
         //Go though all links
         ArrayList<String> list = getAllLinks();
         if (list.isEmpty()) {
@@ -736,9 +747,9 @@ class Crawler {
 
                     pdfCounter++;
                     try {
-                        PDFDownloader pdfDownloader = new PDFDownloader();
                         pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, ipAndPort);
-                        File file = new File("./DownloadedPDFs/" + pdfCounter + ".pdf");
+
+                        File file = new File("./DownloadedPDFs/"+pdfDownloader.getPath() +"/"+ pdfCounter + ".pdf");
                         if (file.length() == 0 || !file.canRead()) {
                             throw new IOException("File is invalid");
                         }
@@ -750,7 +761,7 @@ class Crawler {
                         pdfCounter--;
                     }
 
-                    guiLabels.setNumberOfPDF(pdfCounter+"/"+limit);
+                    guiLabels.setNumberOfPDF(pdfCounter +"/"+limit);
                     guiLabels.setLoadBar(pdfCounter / (double) limit);
 
                     if (pdfCounter >= limit) {
@@ -760,6 +771,7 @@ class Crawler {
 
             }
         }
+        return pdfCounter;
     }
 
 
@@ -819,14 +831,13 @@ class Crawler {
         @Override
         public Proxy call() throws Exception {
             guiLabels.setConnectionOutput(Thread.currentThread().getId() + " is trying to connect");
-            // Try to stablish connection
+            // Try to Establish connection
             boolean valid = false;
             while (!valid) {
                 try {
                     changeIP("https://scholar.google.com/scholar?hl=en&q=interesting+articles&btnG=&as_sdt=1%2C39&as_sdtp=", false, true);
                     valid = true;
                 } catch (Exception ignored) {
-
                 }
             }
             if (atRuntime) {

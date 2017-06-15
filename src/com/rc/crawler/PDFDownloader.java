@@ -1,5 +1,6 @@
 package com.rc.crawler;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -7,12 +8,26 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.HashMap;
 
 /**
  * Created by rafaelcastro on 6/14/17.
  * Downloads PDFs files based on a URL
  */
 class PDFDownloader {
+    private GUILabelManagement guiLabels;
+    private String title = "";
+    private String path = "";
+
+
+    /**
+     * Gets the folder where the files are going to be stored for a given query
+     * @return string with the folder name
+     */
+    public String getPath() {
+        return path;
+    }
+
     /**
      * Download a pdf file to a directory
      *
@@ -24,6 +39,7 @@ class PDFDownloader {
      */
      void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort) throws IOException {
         URL urlObj = new URL(url);
+        this.guiLabels = guiLabels;
         HttpURLConnection connection =  (HttpURLConnection) urlObj.openConnection();
 
         //Set request property to avoid error 403
@@ -31,10 +47,7 @@ class PDFDownloader {
         int status = connection.getResponseCode();
         if (status == 200) {
             System.out.println(url);
-            //Check if the url contains .pdf, if not, is not a pdf file
-            if (!url.endsWith("pdf")) {
-                throw new IOException("Invalid file");
-            }
+
         }
 
         if (status == 429) {
@@ -90,7 +103,7 @@ class PDFDownloader {
 
                 connection.connect();
                 ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + pdfCounter + ".pdf");
+                FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/"+path +"/"+ pdfCounter + ".pdf");
                 fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
                 if (status != HttpURLConnection.HTTP_OK) {
@@ -106,10 +119,43 @@ class PDFDownloader {
             }
         }
         else {
+
             ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-            FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + pdfCounter + ".pdf");
+            FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/"+path +"/"+ pdfCounter + ".pdf");
             fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
         }
+    }
+
+
+    String createUniqueFolder(String title) {
+        this.title = title;
+        String[] titleWords = title.split(" ");
+         String firstWord = titleWords[0];
+         if (firstWord.length() < 3) {
+             firstWord = firstWord + titleWords[1];
+         }
+         if (firstWord.length() > 3) {
+             firstWord = firstWord.substring(0,3);
+        }
+        File uniqueFileFolder = null;
+        try {
+            uniqueFileFolder = File.createTempFile(firstWord, null, new File("./DownloadedPDFs"));
+        } catch (IOException e) {
+            guiLabels.setAlertPopUp("Unable to create output file");
+        }
+
+        String nameOfFolder = uniqueFileFolder.getName().substring(0, uniqueFileFolder.getName().length()-4);
+
+        File dir = new File("./DownloadedPDFs/"+nameOfFolder);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdir();
+
+        //Delete temporary file
+        uniqueFileFolder.delete();
+
+        path = nameOfFolder;
+        System.out.println(path);
+        return nameOfFolder;
     }
 }

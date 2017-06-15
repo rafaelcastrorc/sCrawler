@@ -72,6 +72,8 @@ public class SearchResultBox {
 
         Scene dialogScene = new Scene(layout, 400, 250);
         dialogScene.getStylesheets().add("Style.css");
+        dialogScene.getStylesheets().add("https://fonts.googleapis.com/css?family=Roboto");
+
         dialog.setScene(dialogScene);
         dialog.showAndWait();
     }

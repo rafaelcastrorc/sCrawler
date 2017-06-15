@@ -37,14 +37,30 @@
          </padding></HBox>
    </bottom>
    <top>
-      <HBox alignment="CENTER" prefHeight="39.0" prefWidth="600.0" BorderPane.alignment="CENTER">
+      <HBox alignment="BOTTOM_CENTER" prefHeight="39.0" prefWidth="600.0" BorderPane.alignment="CENTER">
          <children>
-            <Label text="sCrawler" textFill="WHITE">
+            <Region maxWidth="217.5" prefHeight="53.0" prefWidth="217.0" HBox.hgrow="ALWAYS" />
+            <Label prefHeight="53.0" prefWidth="165.0" text="sCrawler" textFill="WHITE">
                <font>
                   <Font name="Roboto Thin" size="43.0" />
                </font>
+               <HBox.margin>
+                  <Insets />
+               </HBox.margin>
             </Label>
+            <Label alignment="TOP_LEFT" text="Developed by Rafael Castro" textFill="WHITE">
+               <font>
+                  <Font name="Roboto Thin" size="12.0" />
+               </font>
+               <HBox.margin>
+                  <Insets right="5.0" />
+               </HBox.margin>
+            </Label>
+            <Region prefHeight="53.0" prefWidth="14.0" HBox.hgrow="ALWAYS" />
          </children>
+         <BorderPane.margin>
+            <Insets />
+         </BorderPane.margin>
       </HBox>
    </top>
    <center>

@@ -137,10 +137,8 @@ class Logger {
         if (append) {
             reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt", true));
         }
-        try {
-            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt"));
-        } catch (IOException e) {
-            throw new IOException("Unable to create report file");
+        else {
+            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt", false));
         }
     }
 

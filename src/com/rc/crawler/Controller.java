@@ -6,20 +6,19 @@ import com.jfoenix.controls.JFXTabPane;
 import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
 
-import javafx.beans.property.SimpleStringProperty;
 import javafx.concurrent.Task;
 import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.layout.VBox;
 import javafx.stage.*;
 import javafx.stage.Window;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -142,12 +141,21 @@ public class Controller implements Initializable {
             title = this.title;
         }
 
+
         crawler.searchForArticle(title, hasSearchedBefore);
 
         String numberOfCitations = crawler.getNumberOfCitations();
         if (numberOfCitations.isEmpty() || numberOfCitations.equals("Provide feedback")) {
             numberOfCitations = "Could not find paper";
             updateOutput("Could not find paper...");
+            Logger logger = Logger.getInstance();
+            try {
+                logger.setReportWriter(true, "Report");
+                logger.writeReport("\nCould not find paper: "+ title+"\n");
+            } catch (IOException e) {
+               displayAlert(e.getMessage());
+            }
+
         } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
             numberOfCitations = "ERROR: There was more than 1 result found for your given query";
             displaySearchResults(title);
@@ -202,7 +210,24 @@ public class Controller implements Initializable {
      */
     private void download() {
         try {
-            crawler.getPDFs(Integer.parseInt(numOfPDFToDownload));
+            String currTitle = mapThreadToTitle.get(Thread.currentThread().getId());
+            if (currTitle == null) {
+                currTitle = title;
+            }
+            PDFDownloader pdfDownloader = new PDFDownloader();
+            crawler.setPdfDownloader(pdfDownloader);
+            //Generate a unique folder name
+            String path = pdfDownloader.createUniqueFolder(title);
+            int numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload));
+
+            Logger logger = Logger.getInstance();
+            logger.setReportWriter(true, "Report");
+            logger.writeReport("\n-Paper downloaded: "+ currTitle + "\n   Number of PDFs downloaded: "+ numberOfPDFsDownloaded + "/"+numOfPDFToDownload+
+                    "\n     Folder path: " + path+ "\n");
+
+            logger.setReportWriter(false, path + "/ArticleName");
+            logger.writeReport("Searched paper: "+currTitle);
+
         } catch (Exception e) {
             displayAlert(e.getMessage());
         }
@@ -424,8 +449,20 @@ public class Controller implements Initializable {
 
     private void doNotDownloadOnClick(){
         searchResultBox.close();
-        updateOutput("Skipping file...");
-    }
+        updateOutput("File not downloaded");
+        Logger logger = Logger.getInstance();
+        String currTitle = mapThreadToTitle.get(Thread.currentThread().getId());
+        if (currTitle == null) {
+            currTitle = title;
+        }
+        try {
+        logger.setReportWriter(true, "Report");
+        logger.writeReport("\nPaper not downloaded: "+ currTitle+"\n");
+        }
+        catch(IOException e) {
+            displayAlert(e.getMessage());
+        }
+        }
 
     private void selectOnClick() {
         String selection;
@@ -434,7 +471,9 @@ public class Controller implements Initializable {
             displayAlert("Please select one search result.");
         }
         else {
+            title = selection;
             searchResultBox.close();
+            //Retrieves the number of citation and url for the selected search result
             String[] array = crawler.getSearchResultToLink().get(selection);
             crawler.setCitingPapersURL(array[0]);
             crawler.setNumOfCitations(array[1]);
@@ -457,6 +496,16 @@ public class Controller implements Initializable {
         File dir = new File("DownloadedPDFs");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdir();
+        Logger logger =Logger.getInstance();
+        try {
+            logger.setReportWriter(true, "Report");
+            DateTimeFormatter formatter = DateTimeFormat.forPattern("dd/MM/yyyy HH:mm:ss");
+            //Write current date
+            logger.writeReport("\n\n------------------------------------------------\n"+ new DateTime().toString(formatter));
+        } catch (IOException e) {
+            displayAlert(e.getMessage());
+        }
+
         DoWork task = new DoWork("initialize");
         Thread t = new Thread(task);
         t.setDaemon(true);
