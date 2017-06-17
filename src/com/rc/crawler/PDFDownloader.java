@@ -8,11 +8,10 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.util.HashMap;
 
 /**
  * Created by rafaelcastro on 6/14/17.
- * Downloads PDFs files based on a URL
+ * Manages the way PDFs are stored and downloaded.
  */
 class PDFDownloader {
     private GUILabelManagement guiLabels;
@@ -22,25 +21,26 @@ class PDFDownloader {
 
     /**
      * Gets the folder where the files are going to be stored for a given query
+     *
      * @return string with the folder name
      */
-    public String getPath() {
+    String getPath() {
         return path;
     }
 
     /**
      * Download a pdf file to a directory
      *
-     * @param url URL to download file from
+     * @param url        URL to download file from
      * @param pdfCounter Number of PDFs downloaded
-     * @param guiLabels GUILabelManagement object
-     * @param ipAndPort Proxy with the current proxy being used
+     * @param guiLabels  GUILabelManagement object
+     * @param ipAndPort  Proxy with the current proxy being used
      * @throws IOException Unable to open link
      */
-     void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort) throws IOException {
+    void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort) throws IOException {
         URL urlObj = new URL(url);
         this.guiLabels = guiLabels;
-        HttpURLConnection connection =  (HttpURLConnection) urlObj.openConnection();
+        HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
 
         //Set request property to avoid error 403
         connection.setRequestProperty("User-Agent", "Chrome");
@@ -52,14 +52,14 @@ class PDFDownloader {
 
         if (status == 429) {
             //If we have sent too many reuest to server, change proxy
-            String cookie = connection.getHeaderField( "Set-Cookie").split(";")[0];
+            String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
             connection.disconnect();
             guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
             java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
             //If server blocks us, then we connect via the current proxy we are using
             connection = (HttpURLConnection) urlObj.openConnection(proxy);
             connection.setRequestProperty("User-Agent", "Chrome");
-            connection.setRequestProperty("Cookie", cookie );
+            connection.setRequestProperty("Cookie", cookie);
             status = connection.getResponseCode();
         }
         connection.connect();
@@ -82,14 +82,14 @@ class PDFDownloader {
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
                 status = connection.getResponseCode();
                 if (status == 429) {
-                    String cookie = connection.getHeaderField( "Set-Cookie").split(";")[0];
+                    String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
                     connection.disconnect();
                     guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
                     java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
                     //If server blocks us, then we connect via the current proxy we are using
                     connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
                     connection.setRequestProperty("User-Agent", "Chrome");
-                    connection.setRequestProperty("Cookie", cookie );
+                    connection.setRequestProperty("Cookie", cookie);
                     status = connection.getResponseCode();
 
                 }
@@ -103,7 +103,7 @@ class PDFDownloader {
 
                 connection.connect();
                 ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/"+path +"/"+ pdfCounter + ".pdf");
+                FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
                 fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
                 if (status != HttpURLConnection.HTTP_OK) {
@@ -111,32 +111,36 @@ class PDFDownloader {
                             || status == HttpURLConnection.HTTP_MOVED_PERM
                             || status == HttpURLConnection.HTTP_SEE_OTHER)
                         redirect = true;
-                }
-                else {
+                } else {
                     redirect = false;
                 }
 
             }
-        }
-        else {
+        } else {
 
             ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-            FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/"+path +"/"+ pdfCounter + ".pdf");
+            FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
             fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
         }
     }
 
 
+    /**
+     * Creates a unique folder to store the downloaded PDFs
+     *
+     * @param title title of the paper
+     * @return string with the name of the folder
+     */
     String createUniqueFolder(String title) {
         this.title = title;
         String[] titleWords = title.split(" ");
-         String firstWord = titleWords[0];
-         if (firstWord.length() < 3) {
-             firstWord = firstWord + titleWords[1];
-         }
-         if (firstWord.length() > 3) {
-             firstWord = firstWord.substring(0,3);
+        String firstWord = titleWords[0];
+        if (firstWord.length() < 3) {
+            firstWord = firstWord + titleWords[1];
+        }
+        if (firstWord.length() > 3) {
+            firstWord = firstWord.substring(0, 3);
         }
         File uniqueFileFolder = null;
         try {
@@ -145,13 +149,15 @@ class PDFDownloader {
             guiLabels.setAlertPopUp("Unable to create output file");
         }
 
-        String nameOfFolder = uniqueFileFolder.getName().substring(0, uniqueFileFolder.getName().length()-4);
+        assert uniqueFileFolder != null;
+        String nameOfFolder = uniqueFileFolder.getName().substring(0, uniqueFileFolder.getName().length() - 4);
 
-        File dir = new File("./DownloadedPDFs/"+nameOfFolder);
+        File dir = new File("./DownloadedPDFs/" + nameOfFolder);
         //noinspection ResultOfMethodCallIgnored
         dir.mkdir();
 
         //Delete temporary file
+        //noinspection ResultOfMethodCallIgnored
         uniqueFileFolder.delete();
 
         path = nameOfFolder;

@@ -15,15 +15,18 @@ class GUILabelManagement {
     private StringProperty searchResultLabel = new SimpleStringProperty();
     private DoubleProperty loadBar = new SimpleDoubleProperty();
     private StringProperty output = new SimpleStringProperty();
+    private StringProperty outputMultiple = new SimpleStringProperty();
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
     private StringProperty multipleSearchResult = new SimpleStringProperty();
 
 
+    public StringProperty getOutputMultiple() {
+        return outputMultiple;
+    }
     StringProperty getNumberOfWorkingIPs() {
         return numberOfWorkingIPs;
     }
-
 
     StringProperty getAlertPopUp() {
         return alertPopUp;
@@ -116,6 +119,10 @@ class GUILabelManagement {
      */
     void setMultipleSearchResult(String result) {
         this.multipleSearchResult.setValue(result);
+    }
+
+    public void setOutputMultiple(String outputMultiple) {
+        this.outputMultiple.set(outputMultiple);
     }
 
 

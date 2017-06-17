@@ -15,27 +15,6 @@
 <?import javafx.scene.layout.*?>
 
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" style="-fx-background-color: #434141;" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rc.crawler.Controller">
-   <bottom>
-      <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="25.0" prefWidth="600.0" style="-fx-background-color: #434141;" BorderPane.alignment="TOP_CENTER">
-         <children>
-            <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
-               <font>
-                  <Font name="Roboto Light" size="16.0" />
-               </font>
-               <HBox.margin>
-                  <Insets />
-               </HBox.margin>
-            </Label>
-            <Label fx:id="output" alignment="TOP_LEFT" textFill="WHITE">
-               <font>
-                  <Font name="Roboto Light" size="16.0" />
-               </font>
-            </Label>
-         </children>
-         <padding>
-            <Insets bottom="10.0" left="10.0" right="10.0" top="3.0" />
-         </padding></HBox>
-   </bottom>
    <top>
       <HBox alignment="BOTTOM_CENTER" prefHeight="39.0" prefWidth="600.0" BorderPane.alignment="CENTER">
          <children>
@@ -72,9 +51,9 @@
                      <children>
                         <JFXTabPane fx:id="tabPane" prefHeight="380.0" prefWidth="600.0" style="-fx-background-color: #0288d1;" styleClass="Style.css">
                            <tabs>
-                              <Tab fx:id="tab1" closable="false" text="Single Paper">
+                              <Tab fx:id="tab1" closable="false" text="Single Article">
                                  <content>
-                                    <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="200.0" prefWidth="100.0" style="-fx-background-color: #7D9A4F;" BorderPane.alignment="CENTER">
+                                    <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="200.0" prefWidth="100.0" style="-fx-background-color: #434141;" BorderPane.alignment="CENTER">
                                        <children>
                                           <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="113.0" prefWidth="600.0" spacing="10.0" style="-fx-background-color: #afb0af;">
                                              <children>
@@ -110,7 +89,7 @@
                                                 <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
                                              </padding>
                                           </VBox>
-                                          <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="208.0" prefWidth="600.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
+                                          <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="135.0" prefWidth="600.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
                                              <children>
                                                 <Label text="2. How many papers that cite the article you want to download?">
                                                    <font>
@@ -150,93 +129,136 @@
                                                 <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
                                              </padding>
                                           </VBox>
+                                          <ProgressBar fx:id="progressBar" maxWidth="1.7976931348623157E308" prefHeight="21.0" prefWidth="591.0" progress="0.0">
+                                             <padding>
+                                                <Insets right="8.0" />
+                                             </padding>
+                                          </ProgressBar>
+                                          <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="25.0" prefWidth="600.0" style="-fx-background-color: #434141;">
+                                             <children>
+                                                <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
+                                                   <font>
+                                                      <Font name="Roboto Light" size="16.0" />
+                                                   </font>
+                                                   <HBox.margin>
+                                                      <Insets />
+                                                   </HBox.margin>
+                                                </Label>
+                                                <Label fx:id="output" alignment="TOP_LEFT" textFill="WHITE">
+                                                   <font>
+                                                      <Font name="Roboto Light" size="16.0" />
+                                                   </font>
+                                                </Label>
+                                             </children>
+                                          </HBox>
                                        </children>
                                     </VBox>
                                  </content>
                               </Tab>
                               <Tab fx:id="tab2" text="Multiple Articles">
                                 <content>
-                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" style="-fx-background-color: #434141;">
                                        <children>
-                                          <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="304.0" prefWidth="590.0" style="-fx-background-color: #7D9A4F;">
+                                          <VBox>
                                              <children>
-                                                <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="108.0" prefWidth="590.0" spacing="10.0" style="-fx-background-color: #afb0af;">
-                                                   <children>
-                                                      <Label prefHeight="45.0" prefWidth="570.0" text="1. Please select the file, in CSV format, that contains all the articles you are trying to find the citing papers of" wrapText="true">
-                                                         <font>
-                                                            <Font name="Roboto Light" size="16.0" />
-                                                         </font>
-                                                      </Label>
-                                                      <HBox alignment="CENTER_LEFT" nodeOrientation="LEFT_TO_RIGHT" prefHeight="37.0" prefWidth="580.0" spacing="20.0">
-                                                         <children>
-                                                            <JFXButton fx:id="uploadButton" alignment="CENTER" cancelButton="true" onAction="#uploadOnClick" style="-fx-background-color: #7d9a4f;" text="Upload">
-                                                               <font>
-                                                                  <Font name="Roboto Light" size="16.0" />
-                                                               </font>
-                                                            </JFXButton>
-                                                            <JFXButton fx:id="searchButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#searchOnClickMultiple" style="-fx-background-color: #7d9a4f;" text="Search">
-                                                               <font>
-                                                                  <Font name="Roboto Light" size="16.0" />
-                                                               </font>
-                                                            </JFXButton>
-                                                            <Label fx:id="searchLabel1">
-                                                               <font>
-                                                                  <Font name="Roboto Light" size="16.0" />
-                                                               </font>
-                                                            </Label>
-                                                         </children>
-                                                         <padding>
-                                                            <Insets top="10.0" />
-                                                         </padding>
-                                                      </HBox>
-                                                   </children>
-                                                   <padding>
-                                                      <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                                                   </padding>
-                                                </VBox>
                                                 <HBox>
                                                    <children>
-                                                      <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="145.0" prefWidth="345.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
+                                                      <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="265.0" prefWidth="381.0" style="-fx-background-color: #e1e2e1;">
                                                          <children>
-                                                            <Label prefHeight="108.0" prefWidth="325.0" text="2. How many papers that cite each article you want to download?" wrapText="true">
-                                                               <font>
-                                                                  <Font name="Roboto Light" size="16.0" />
-                                                               </font>
-                                                            </Label>
-                                                            <HBox alignment="CENTER_LEFT" nodeOrientation="LEFT_TO_RIGHT" spacing="10.0">
+                                                            <VBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="210.0" prefWidth="381.0" spacing="10.0" style="-fx-background-color: #e1e2e1;">
                                                                <children>
-                                                                  <JFXTextField fx:id="numberOfPDFsMultiple" focusColor="BLACK" prefHeight="28.0" prefWidth="200.0" promptText="Number of PDFs" unFocusColor="#515151">
+                                                                  <Label prefHeight="79.0" prefWidth="361.0" text="1. Please select the file that contains all the articles you are trying to find the citing papers of" textAlignment="CENTER" wrapText="true">
                                                                      <font>
                                                                         <Font name="Roboto Light" size="16.0" />
                                                                      </font>
-                                                                  </JFXTextField>
-                                                                  <JFXButton fx:id="downloadButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
+                                                                  </Label>
+                                                                  <JFXButton fx:id="uploadButton" alignment="CENTER" cancelButton="true" onAction="#uploadOnClick" style="-fx-background-color: #7d9a4f;" text="Upload">
                                                                      <font>
                                                                         <Font name="Roboto Light" size="16.0" />
                                                                      </font>
                                                                   </JFXButton>
                                                                </children>
-                                                            </HBox>
-                                                            <HBox prefHeight="100.0" prefWidth="200.0">
+                                                               <padding>
+                                                                  <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                                                               </padding>
+                                                            </VBox>
+                                                            <HBox prefHeight="265.0" prefWidth="381.0">
                                                                <children>
-                                                                  <Label text="PDFs Downloaded: ">
-                                                                     <font>
-                                                                        <Font name="Roboto Light" size="16.0" />
-                                                                     </font>
-                                                                  </Label>
-                                                                  <Label fx:id="pdfsDownloadedLabel1">
-                                                                     <font>
-                                                                        <Font name="Roboto Light" size="16.0" />
-                                                                     </font>
-                                                                  </Label>
+                                                                  <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="145.0" prefWidth="389.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
+                                                                     <children>
+                                                                        <Label prefHeight="247.0" prefWidth="361.0" text="2. How many papers that cite each article you want to download?" textAlignment="CENTER" wrapText="true">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </Label>
+                                                                        <HBox alignment="CENTER" nodeOrientation="LEFT_TO_RIGHT" spacing="10.0">
+                                                                           <children>
+                                                                              <JFXTextField fx:id="numberOfPDFsMultiple" focusColor="BLACK" prefHeight="28.0" prefWidth="200.0" promptText="Number of PDFs" unFocusColor="#515151">
+                                                                                 <font>
+                                                                                    <Font name="Roboto Light" size="16.0" />
+                                                                                 </font>
+                                                                              </JFXTextField>
+                                                                              <JFXButton fx:id="downloadButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#multipleDownloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
+                                                                                 <font>
+                                                                                    <Font name="Roboto Light" size="16.0" />
+                                                                                 </font>
+                                                                              </JFXButton>
+                                                                           </children>
+                                                                        </HBox>
+                                                                        <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0">
+                                                                           <children>
+                                                                              <Label fx:id="pdfsDownloadedMultipleLabel" text="PDFs Downloaded: ">
+                                                                                 <font>
+                                                                                    <Font name="Roboto Light" size="16.0" />
+                                                                                 </font>
+                                                                              </Label>
+                                                                              <Label fx:id="pdfsDownloadedLabel1">
+                                                                                 <font>
+                                                                                    <Font name="Roboto Light" size="16.0" />
+                                                                                 </font>
+                                                                              </Label>
+                                                                           </children>
+                                                                        </HBox>
+                                                                     </children>
+                                                                     <padding>
+                                                                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                                                                     </padding>
+                                                                  </VBox>
                                                                </children>
                                                             </HBox>
                                                          </children>
-                                                         <padding>
-                                                            <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                                                         </padding>
                                                       </VBox>
-                                                      <JFXListView prefHeight="164.0" prefWidth="246.0" />
+                                                      <VBox alignment="CENTER" prefHeight="265.0" prefWidth="210.0" style="-fx-background-color: #afb0af;">
+                                                         <children>
+                                                            <Label alignment="TOP_CENTER" text="Simultaneous Downloads">
+                                                               <font>
+                                                                  <Font name="Roboto Light" size="18.0" />
+                                                               </font>
+                                                               <VBox.margin>
+                                                                  <Insets bottom="10.0" top="10.0" />
+                                                               </VBox.margin>
+                                                            </Label>
+                                                            <ScrollPane prefHeight="240.0" prefWidth="210.0" />
+                                                         </children>
+                                                      </VBox>
+                                                   </children>
+                                                </HBox>
+                                                <ProgressBar fx:id="progressBarMultiple" maxWidth="1.7976931348623157E308" prefHeight="21.0" prefWidth="519.0" progress="0.0" />
+                                                <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="20.0" prefWidth="600.0" style="-fx-background-color: #434141;">
+                                                   <children>
+                                                      <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                         <HBox.margin>
+                                                            <Insets />
+                                                         </HBox.margin>
+                                                      </Label>
+                                                      <Label fx:id="outputMultiple" alignment="TOP_LEFT" textFill="WHITE">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Label>
                                                    </children>
                                                 </HBox>
                                              </children>
@@ -248,34 +270,32 @@
                         </JFXTabPane>
                      </children>
                   </AnchorPane>
-                <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+                <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0" style="-fx-background-color: #434141;">
                      <children>
-                        <HBox prefHeight="304.0" prefWidth="599.0" spacing="15.0" style="-fx-background-color: #e1e2e1;">
+                        <HBox prefHeight="335.0" prefWidth="599.0" spacing="15.0" style="-fx-background-color: #e1e2e1;" AnchorPane.bottomAnchor="10.0" AnchorPane.topAnchor="0.0">
                            <children>
-                              <Label fx:id="workingProxyOutput" alignment="TOP_LEFT" prefHeight="274.0" prefWidth="227.0" text="Working Proxies:">
+                              <Label fx:id="workingProxyOutput" alignment="TOP_LEFT" prefHeight="403.0" prefWidth="177.0" text="Working Proxies:">
                                  <font>
                                     <Font name="Roboto Light" size="13.0" />
                                  </font>
                               </Label>
-                              <Label fx:id="connectionOutput" alignment="TOP_LEFT" maxHeight="1.7976931348623157E308" prefHeight="138.0" prefWidth="437.0" style="-fx-background-color: #e1e2e1;" text="Connection Output:">
+                              <Label fx:id="connectionOutput" alignment="TOP_LEFT" maxHeight="1.7976931348623157E308" prefHeight="150.0" prefWidth="437.0" style="-fx-background-color: #e1e2e1;" text="Connection Output:">
                                  <font>
                                     <Font name="Roboto Light" size="10.0" />
                                  </font>
                               </Label>
                            </children>
                            <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="20.0" />
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
                            </padding>
+                           <opaqueInsets>
+                              <Insets />
+                           </opaqueInsets>
                         </HBox>
                      </children>
                   </AnchorPane>
               </items>
             </SplitPane>
-            <ProgressBar fx:id="progressBar" maxWidth="1.7976931348623157E308" prefHeight="20.0" prefWidth="604.0" progress="0.0">
-               <VBox.margin>
-                  <Insets left="5.0" right="5.0" />
-               </VBox.margin>
-            </ProgressBar>
          </children>
          <padding>
             <Insets left="3.0" />

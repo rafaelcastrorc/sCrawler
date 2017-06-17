@@ -12,7 +12,6 @@ import java.io.IOException;
 class Logger {
     private static BufferedWriter listOfProxiesWriter;
     private static Logger instance;
-    private static BufferedWriter listOfWorkingProxiesWriter;
     private static BufferedWriter reportWriter;
 
 
@@ -90,37 +89,6 @@ class Logger {
     }
 
 
-    /**
-     * Sets a File to be used for the list of working proxies (proxies that work, but have been used for more than 100 requests).
-     */
-    public void setListOfWorkingProxies(boolean append) throws IOException {
-        if (append) {
-            listOfProxiesWriter = new BufferedWriter(new FileWriter("./AppData/ListOfWorkingProxies.txt", true));
-        }
-        try {
-            listOfWorkingProxiesWriter = new BufferedWriter(new FileWriter("./AppData/ListOfWorkingProxies.txt"));
-        } catch (IOException e) {
-            throw new IOException("Unable to create output file");
-        }
-    }
-
-    /**
-     * Writes to the list of working proxies
-     *
-     * @param s String to write
-     * @throws IOException Error writing to file
-     */
-    public void writeToListOfWorkingProxies(String s) throws IOException {
-        try {
-            listOfWorkingProxiesWriter.write(s);
-            listOfWorkingProxiesWriter.flush();
-        } catch (IOException e) {
-            throw new IOException("Cannot write to file");
-
-        }
-    }
-
-
 
 
     /**
@@ -169,10 +137,7 @@ class Logger {
      void closeLoggers() throws IOException {
         listOfProxiesWriter.flush();
         listOfProxiesWriter.close();
-        if (listOfWorkingProxiesWriter != null) {
-            listOfWorkingProxiesWriter.flush();
-            listOfWorkingProxiesWriter.close();
-        }
+
         if (reportWriter != null) {
             reportWriter.flush();
             reportWriter.close();

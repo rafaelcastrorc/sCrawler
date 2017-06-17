@@ -12,14 +12,14 @@ import javafx.stage.StageStyle;
 
 /**
  * Created by rafaelcastro on 6/9/17.
- * Creates a loading box window.
+ * Creates a loading window.
  */
-class LoadingBox {
+class LoadingWindow {
 
 
     private Stage window;
 
-    LoadingBox() {
+    LoadingWindow() {
     }
 
     /**

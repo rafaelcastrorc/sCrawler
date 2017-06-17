@@ -1,8 +1,6 @@
 package com.rc.crawler;
 
 import com.jfoenix.controls.JFXButton;
-import com.jfoenix.controls.JFXListView;
-import com.jfoenix.controls.JFXTabPane;
 import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
 
@@ -13,7 +11,6 @@ import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.stage.*;
 import javafx.stage.Window;
 import org.joda.time.DateTime;
@@ -24,32 +21,38 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.ResourceBundle;
-import java.util.Scanner;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Controller implements Initializable {
-    private String title;
-    private boolean hasSearchedBefore = false;
+   // private boolean hasSearchedBefore = false;
     private String numOfPDFToDownload;
-    private LoadingBox loading;
+    private LoadingWindow loading;
     private volatile Crawler crawler;
     private Window window;
     private HashSet<String> articleNames;
-    private HashMap<Long, String> mapThreadToTitle = new HashMap<>();
-
+    private Map<Long, String> mapThreadToTitle = Collections.synchronizedMap(new HashMap<Long, String>());
+    private Map<Long, Boolean> mapThreadToBool = Collections.synchronizedMap(new HashMap<Long, Boolean>());
+    private GUILabelManagement guiLabels;
+    private Map<Long, SearchResultWindow> threadToSearchResultWindow = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());;
+    private ExecutorService singleThreadExecutor;
+    private String citingPapersURL = "";
 
     @FXML
     private Label output;
+    @FXML
+    private Label outputMultiple;
 
     @FXML
     private Label pdfsDownloadedLabel;
+
+    @FXML
+    private Label pdfsDownloadedMultipleLabel;
 
     @FXML
     private JFXTextField numberOfPDFs;
@@ -73,36 +76,16 @@ public class Controller implements Initializable {
     private Label connectionOutput;
 
     @FXML
-    private ScrollPane scrollPane;
-
-    @FXML
-    private JFXTabPane tabPane;
-
-    @FXML
-    private Tab tab2;
-
-    @FXML
-    private Tab tab1;
-
-    @FXML
-    private JFXButton uploadButton;
-
-    @FXML
-    private JFXButton searchButtonMultiple;
+    private JFXButton downloadButtonMultiple;
 
     @FXML
     private JFXTextField numberOfPDFsMultiple;
 
-    @FXML
-    private JFXListView<String> listView;
-
-    private SearchResultBox searchResultBox;
 
 
     @SuppressWarnings("WeakerAccess")
     public Controller() {
     }
-
 
     /**
      * Called when the click button is pressed. Creates a new task to start searching
@@ -114,15 +97,12 @@ public class Controller implements Initializable {
         if (text.isEmpty()) {
             displayAlert("Please write a title");
         } else {
-            title = text;
             //Display loading message dialog
             informationPanel("Loading...");
             updateOutput("Searching...");
             //Create a new task to perform search in background
-            DoWork task = new DoWork("search");
-            Thread t = new Thread(task);
-            t.setDaemon(true);
-            t.start();
+            DoWork task = new DoWork("search", text);
+            singleThreadExecutor.submit(task);
         }
     }
 
@@ -132,42 +112,49 @@ public class Controller implements Initializable {
      * Method is called inside a task.
      * @param title title that we are looking for. Null if the method is not called from a thread
      */
-    private void search(String title) {
+    private String[] search(String title, boolean isMultipleSearch) {
         updateSearchLabel("Loading...");
-        this.searchResultBox = new SearchResultBox();
-
-        if (title == null) {
-            //If the title is null, then just use the field title as title.
-            title = this.title;
+        SearchResultWindow searchResultWindow = new SearchResultWindow();
+        threadToSearchResultWindow.put(Thread.currentThread().getId(), searchResultWindow);
+        guiLabels.getMultipleSearchResult().addListener(((observable, oldValue, newValue) -> searchResultWindow.addItemToListView(newValue)));
+        //Array containing the number of citations and the url of the citing articles
+        boolean hasSearchedBefore = false;
+        if (mapThreadToBool.get(Thread.currentThread().getId())!= null) {
+            hasSearchedBefore = true;
         }
+        else {
+            mapThreadToBool.put(Thread.currentThread().getId(), true);
+        }
+        String[] result = crawler.searchForArticle(title, hasSearchedBefore);
 
-
-        crawler.searchForArticle(title, hasSearchedBefore);
-
-        String numberOfCitations = crawler.getNumberOfCitations();
+        String numberOfCitations = result[0];
         if (numberOfCitations.isEmpty() || numberOfCitations.equals("Provide feedback")) {
             numberOfCitations = "Could not find paper";
             updateOutput("Could not find paper...");
             Logger logger = Logger.getInstance();
             try {
                 logger.setReportWriter(true, "Report");
-                logger.writeReport("\nCould not find paper: "+ title+"\n");
+                logger.writeReport("\n-Could not find paper: "+ title+"\n");
             } catch (IOException e) {
                displayAlert(e.getMessage());
             }
 
         } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
             numberOfCitations = "ERROR: There was more than 1 result found for your given query";
-            displaySearchResults(title);
+            displaySearchResults(title, isMultipleSearch);
         } else {
             numberOfCitations = numberOfCitations + " different papers";
             updateOutput("Paper found!");
+            if (!isMultipleSearch) {
+                citingPapersURL = result[1];
+            }
 
             downloadButton.setDisable(false);
         }
-        this.hasSearchedBefore = true;
+        //this.hasSearchedBefore = true;
         updateOutput("Done searching");
         updateSearchLabel(numberOfCitations);
+        return result;
 
     }
 
@@ -181,18 +168,12 @@ public class Controller implements Initializable {
         //Make sure that only numbers are accepted
         Pattern numbersOnly = Pattern.compile("^[0-9]+$");
         Matcher matcher = numbersOnly.matcher(text);
-        if (!hasSearchedBefore) {
-            displayAlert("Please search for a paper before pressing download.");
-        } else {
+
             if (matcher.find()) {
                 numOfPDFToDownload = matcher.group();
                 try {
-                    DoWork task = new DoWork("download");
-                    Thread t = new Thread(task);
-                    t.setDaemon(true);
-                    t.start();
-
-
+                    DoWork task = new DoWork("download", null);
+                    singleThreadExecutor.submit(task);
                 } catch (Exception e1) {
                     displayAlert(e1.getMessage());
                 }
@@ -202,23 +183,19 @@ public class Controller implements Initializable {
             }
         }
 
-    }
+
 
     /**
      * Call the getPDFs method inside of crawler to start downloading PDFs.
      * Method is called inside a task.
      */
-    private void download() {
+    private void download(String currTitle, String citingPaperURL) {
         try {
-            String currTitle = mapThreadToTitle.get(Thread.currentThread().getId());
-            if (currTitle == null) {
-                currTitle = title;
-            }
             PDFDownloader pdfDownloader = new PDFDownloader();
             crawler.setPdfDownloader(pdfDownloader);
             //Generate a unique folder name
-            String path = pdfDownloader.createUniqueFolder(title);
-            int numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload));
+            String path = pdfDownloader.createUniqueFolder(currTitle);
+            int numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), citingPaperURL);
 
             Logger logger = Logger.getInstance();
             logger.setReportWriter(true, "Report");
@@ -239,10 +216,8 @@ public class Controller implements Initializable {
     void uploadOnClick(Event e) {
         Node node =  (Node) e.getSource();
         window = node.getScene().getWindow();
-        DoWork task = new DoWork("upload");
-        Thread t = new Thread(task);
-        t.setDaemon(true);
-        t.start();
+        DoWork task = new DoWork("upload", null);
+        singleThreadExecutor.submit(task);
 
     }
 
@@ -263,7 +238,7 @@ public class Controller implements Initializable {
                 displayAlert("File is empty");
             }
             else {
-                this.articleNames = new HashSet<>();
+                articleNames = new HashSet<>();
                 try {
                     Scanner scanner = new Scanner(file);
                     while (scanner.hasNextLine()) {
@@ -271,7 +246,7 @@ public class Controller implements Initializable {
                         articleNames.add(line);
                     }
                     updateOutput("File has been submitted.");
-                    searchButtonMultiple.setDisable(false);
+                    downloadButtonMultiple.setDisable(false);
 
                 } catch (FileNotFoundException e) {
                     displayAlert(e.getMessage());
@@ -289,39 +264,35 @@ public class Controller implements Initializable {
 
         fileChooser.getExtensionFilters().add(extFilter2);
         fileChooser.getExtensionFilters().add(extFilter);
-
     }
-
 
     @FXML
-    void searchOnClickMultiple() {
-        for (String article : articleNames) {
+    void multipleDownloadOnClick() {
+        progressBar.progressProperty().setValue(0);
+        String text = numberOfPDFsMultiple.getText();
+        //Make sure that only numbers are accepted
+        Pattern numbersOnly = Pattern.compile("^[0-9]+$");
+        Matcher matcher = numbersOnly.matcher(text);
 
-            //Todo  move all this
-            int numberOfThreadsToUse = optimizer();
-            ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreadsToUse);
-            DoWork task = new DoWork("search", article);
-            Thread t = new Thread(task);
-            t.setDaemon(true);
-            Future future = executorService.submit(t);
-//            try {
-//               // future.get();
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            } catch (ExecutionException e) {
-//                e.printStackTrace();
-//            }
+            if (matcher.find()) {
+                numOfPDFToDownload = matcher.group();
+                int numberOfThreadsToUse = optimizer();
+                ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreadsToUse, new MyThreadFactory());
+                for (String article : articleNames) {
+                    //Re use task, and do has search before
+                    DoWork task = new DoWork("multipleSearch", article);
+                    executorService.submit(task);
+                }
 
-
-            //Display loading message dialog
-            informationPanel("Loading...");
-
+            } else {
+                displayAlert("Please only write numbers here.");
+            }
         }
-    }
+
 
 
     int optimizer() {
-    return 1;
+    return 2;
     }
 
 
@@ -411,7 +382,7 @@ public class Controller implements Initializable {
 
 
     /**
-     * Updates the status label
+     * Updates the status label of the Single Article mode
      *
      * @param message String with the message to output
      */
@@ -428,6 +399,18 @@ public class Controller implements Initializable {
     }
 
 
+    /**
+     * Updates the status label of the Multiple Article Mode
+     *
+     * @param message String with the message to output
+     */
+    private void updateOutputMultiple(String message) {
+        Platform.runLater(() -> {
+        });
+    }
+
+
+
 
     /**
      * Creates a pop up message that says Loading...
@@ -437,53 +420,76 @@ public class Controller implements Initializable {
         alert.setTitle("Information");
         alert.setHeaderText(null);
         alert.setContentText(s);
-
         alert.showAndWait();
     }
 
-    private void displaySearchResults(String title) {
-        searchResultBox.select.setOnAction(e-> selectOnClick());
-        searchResultBox.doNotDownload.setOnAction(e -> doNotDownloadOnClick());
-        Platform.runLater(() -> searchResultBox.display(title));
+
+    private void displaySearchResults(String title, boolean isMultipleSearch) {
+        Long currentThreadId = Thread.currentThread().getId();
+        SearchResultWindow searchResultWindow = threadToSearchResultWindow.get(currentThreadId);
+        searchResultWindow.setQueryStr(title);
+
+        //Selection button for the search result window
+        searchResultWindow.select.setOnAction(e-> {
+            String selection;
+            selection = (String) searchResultWindow.searchResultListView.getSelectionModel().getSelectedItem();
+            if (selection == null || selection.isEmpty()) {
+                displayAlert("Please select one search result.");
+            }
+            else {
+                //Retrieves the number of citation and url for the selected search result
+                String[] array = crawler.getSearchResultToLink().get(selection);
+                if (!isMultipleSearch) {
+                    citingPapersURL = array[0];
+                }
+                //Update search label to display result
+                updateSearchLabel(array[1]);
+                searchResultWindow.store(array);
+                searchResultWindow.close();
+                downloadButton.setDisable(false);
+                threadToSearchResultWindow.put(currentThreadId,searchResultWindow);
+                mapThreadToTitle.put(currentThreadId,selection);
+
+            }
+        });
+
+
+        //Do not download button for the search result window
+        searchResultWindow.doNotDownload.setOnAction(e -> {
+            //Retrieve the search result window associated with thread
+            searchResultWindow.close();
+            //Store the result and then add it back to map
+            searchResultWindow.store(new String[]{"File not downloaded", null});
+            threadToSearchResultWindow.put(Thread.currentThread().getId(),searchResultWindow);
+
+            updateOutput("File not downloaded");
+            Logger logger = Logger.getInstance();
+            String currTitle = mapThreadToTitle.get(Thread.currentThread().getId());
+            if (currTitle == null) {
+                currTitle = title;
+            }
+            try {
+                logger.setReportWriter(true, "Report");
+                logger.writeReport("\n-Paper not downloaded: "+ currTitle+"\n");
+            }
+            catch(IOException e2) {
+                displayAlert(e2.getMessage());
+            }
+        });
+
+
+        FutureTask<Void> futureTask = new FutureTask<>(searchResultWindow);
+        Platform.runLater(futureTask);
+        if (isMultipleSearch) {
+            try {
+                futureTask.get();
+            } catch (InterruptedException | ExecutionException e) {
+                displayAlert(e.getMessage());
+            }
+        }
+
+
     }
-
-    private void doNotDownloadOnClick(){
-        searchResultBox.close();
-        updateOutput("File not downloaded");
-        Logger logger = Logger.getInstance();
-        String currTitle = mapThreadToTitle.get(Thread.currentThread().getId());
-        if (currTitle == null) {
-            currTitle = title;
-        }
-        try {
-        logger.setReportWriter(true, "Report");
-        logger.writeReport("\nPaper not downloaded: "+ currTitle+"\n");
-        }
-        catch(IOException e) {
-            displayAlert(e.getMessage());
-        }
-        }
-
-    private void selectOnClick() {
-        String selection;
-        selection = (String) searchResultBox.searchResultListView.getSelectionModel().getSelectedItem();
-        if (selection == null || selection.isEmpty()) {
-            displayAlert("Please select one search result.");
-        }
-        else {
-            title = selection;
-            searchResultBox.close();
-            //Retrieves the number of citation and url for the selected search result
-            String[] array = crawler.getSearchResultToLink().get(selection);
-            crawler.setCitingPapersURL(array[0]);
-            crawler.setNumOfCitations(array[1]);
-            updateSearchLabel(array[1]);
-            downloadButton.setDisable(false);
-            System.out.println(array[0]);
-        }
-    }
-
-
 
     /**
      * Call upon star
@@ -493,10 +499,14 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        //To perform tasks on single article mode.
+        this.singleThreadExecutor= Executors.newSingleThreadExecutor(new MyThreadFactory());
         File dir = new File("DownloadedPDFs");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdir();
         Logger logger =Logger.getInstance();
+
+        //Create a report, or write to an existing one.
         try {
             logger.setReportWriter(true, "Report");
             DateTimeFormatter formatter = DateTimeFormat.forPattern("dd/MM/yyyy HH:mm:ss");
@@ -506,10 +516,13 @@ public class Controller implements Initializable {
             displayAlert(e.getMessage());
         }
 
-        DoWork task = new DoWork("initialize");
-        Thread t = new Thread(task);
-        t.setDaemon(true);
-        t.start();
+        guiLabels = new GUILabelManagement();
+        //Start loading crawler. Show loading screen until first connection found
+        DoWork task = new DoWork("initialize", null);
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+
 
     }
 
@@ -521,17 +534,8 @@ public class Controller implements Initializable {
     class DoWork extends Task<Void> {
         //Type of task that will be performed
         private final String type;
-        private final String article;
+        private String article;
 
-
-        /**
-         * Initializes  newtask. Takes as a parameter the type of task that will be performed. Task include: download, search, initialize, close
-         * @param type String with the type of task
-         */
-        DoWork(String type) {
-            this.type = type;
-            this.article = null;
-        }
 
         /**
          * Initializes new task. Takes as a parameter the type of task that will be performed. Task include: download, search, initialize, close
@@ -554,19 +558,58 @@ public class Controller implements Initializable {
 
             //The different types of background tasks that need to be completed
             switch (type) {
+                case"multipleSearch":
+                    String url = "";
+                    progressBar.progressProperty().setValue(0);
+                    String[] result = search(article, true);
+                    String numOfCitations = result[0];
+
+                    if (numOfCitations.isEmpty() || numOfCitations.equals("Provide feedback")) {
+                        //We don't download if this happens and omit the file
+                        //customOutput.setText("File could not be downloaded);
+                        progressBar.progressProperty().setValue(1);
+                        break;
+
+                    }
+                    else if (numOfCitations.equals("There was more than 1 result found for your given query")) {
+                        //Get search result window
+
+                        SearchResultWindow searchResultWindow = threadToSearchResultWindow.get(Thread.currentThread().getId());
+                        if (searchResultWindow.getNumberOfCitations().equals("File not downloaded")) {
+                            //customOutput.setText("File could not be downloaded);
+                            progressBar.progressProperty().setValue(1);
+                            break;
+                        }
+                        else {
+                            url = searchResultWindow.getCitingPapersURL();
+                            article = mapThreadToTitle.get(Thread.currentThread().getId());
+                        }
+                    }
+                    //Custom output.setText("Done Searching");
+                    progressBar.progressProperty().setValue(1);
+                    if (url.isEmpty()) {
+                        //If url was not updated in search result window, then it was obtained through a normal search
+                        url = result[1];
+                    }
+                    progressBar.progressProperty().setValue(0);
+                    download(article, url);
+                    progressBar.progressProperty().setValue(1);
+                    break;
 
                 case "search":
                     progressBar.progressProperty().setValue(0);
-                    crawler.getMultipleSearchResult().addListener(((observable, oldValue, newValue) -> searchResultBox.addItemToListView(newValue)));
                     if (article != null) {
                         //Only happens when we are using threads to do multiple searches
                         mapThreadToTitle.put(Thread.currentThread().getId(), article);
                     }
-                    search(article);
+                    search(article, false);
+                    //In case the title changed, then retrieve the new article name
+                    article = mapThreadToTitle.get(Thread.currentThread().getId());
                     progressBar.progressProperty().setValue(1);
                     break;
                 case "download":
-                    download();
+                    //Traditional download
+                    download(mapThreadToTitle.get(Thread.currentThread().getId()), citingPapersURL);
                     progressBar.progressProperty().setValue(1);
                     break;
                 case "upload":
@@ -574,19 +617,19 @@ public class Controller implements Initializable {
                     break;
                 default:
                     //Loading crawler case
-                    loading = new LoadingBox();
+                    loading = new LoadingWindow();
                     //Create a new loading box to display while application loads
                     Platform.runLater(() -> loading.display());
-                    crawler = new Crawler();
-                    //Add listeners to the different labels and loaders
-                    crawler.getAlertPopUpProperty().addListener((observable, oldValue, newValue) -> displayAlert(newValue));
-                    crawler.getOutputProperty().addListener((observable, oldValue, newValue) -> updateOutput(newValue));
-                    crawler.getLoadBarProperty().addListener((observable, oldValue, newValue) -> updateProgressBar(newValue.doubleValue()));
-                    crawler.getSearchResultLabelProperty().addListener(((observable, oldValue, newValue) -> updateSearchLabel(newValue)));
-                    crawler.getConnectionOutput().addListener(((observable, oldValue, newValue) -> updateConnectionOutput(newValue)));
-                    crawler.getNumberOfWorkingIPs().addListener(((observable, oldValue, newValue) -> updateWorkingProxiesLabel(newValue)));
-                    crawler.getNumberOfPDF().addListener(((observable, oldValue, newValue) -> updateNumberOfPDFs(String.valueOf(newValue))));
-
+                    crawler = new Crawler(guiLabels);
+                    //For single article mode
+                    guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> displayAlert(newValue));
+                    guiLabels.getOutput().addListener((observable, oldValue, newValue) -> updateOutput(newValue));
+                    guiLabels.getLoadBar().addListener((observable, oldValue, newValue) -> updateProgressBar(newValue.doubleValue()));
+                    guiLabels.getSearchResultLabel().addListener(((observable, oldValue, newValue) -> updateSearchLabel(newValue)));
+                    guiLabels.getConnectionOutput().addListener(((observable, oldValue, newValue) -> updateConnectionOutput(newValue)));
+                    guiLabels.getNumberOfWorkingIPs().addListener(((observable, oldValue, newValue) -> updateWorkingProxiesLabel(newValue)));
+                    guiLabels.getNumberOfPDFs().addListener(((observable, oldValue, newValue) -> updateNumberOfPDFs(String.valueOf(newValue))));
+                    //For multiple article mode
                     //Load the crawler
                     crawler.loadCrawler();
                     break;
