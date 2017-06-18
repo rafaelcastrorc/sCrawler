@@ -1,6 +1,5 @@
 package com.rc.crawler;
 
-import javafx.beans.Observable;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -27,19 +26,10 @@ class GUILabelManagement {
     private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());
     private StringProperty numberOfPDFMultiple = new SimpleStringProperty();
 
-
-    public Map<Long, SearchResultWindow> getMapThreadToSearchResultW() {
-        return mapThreadToSearchResultW;
-    }
-
-    public void associateThreadToSearchResultW(Long threadID, SearchResultWindow window) {
-        this.mapThreadToSearchResultW.put(threadID, window);
-    }
-
-
-    public StringProperty getOutputMultiple() {
+    StringProperty getOutputMultiple() {
         return outputMultiple;
     }
+
     StringProperty getNumberOfWorkingIPs() {
         return numberOfWorkingIPs;
     }
@@ -59,6 +49,7 @@ class GUILabelManagement {
     DoubleProperty getLoadBarMultiple() {
         return loadBarMultiple;
     }
+
     StringProperty getOutput() {
         return output;
     }
@@ -71,11 +62,17 @@ class GUILabelManagement {
         return numberOfPDF;
     }
 
+    StringProperty getNumberOfPDFsMultiple() {
+        return numberOfPDFMultiple;
+    }
 
-
+    Map<Long, SearchResultWindow> getMapThreadToSearchResultW() {
+        return mapThreadToSearchResultW;
+    }
 
     /**
      * Adds a new proxy to the queue displayed in the WorkingProxiesLabel
+     *
      * @param numberOfWorkingIPs String with the Proxy to add or remove.
      */
     void setNumberOfWorkingIPs(String numberOfWorkingIPs) {
@@ -84,6 +81,7 @@ class GUILabelManagement {
 
     /**
      * Sets a pop up alert
+     *
      * @param alertPopUp String with message to display
      */
     void setAlertPopUp(String alertPopUp) {
@@ -92,6 +90,7 @@ class GUILabelManagement {
 
     /**
      * Sets what the searchResult label will display
+     *
      * @param searchResultLabel String with message to display
      */
     void setSearchResultLabel(String searchResultLabel) {
@@ -100,6 +99,7 @@ class GUILabelManagement {
 
     /**
      * Sets the current percentage the progress bar has loaded from 0 to 1
+     *
      * @param loadBar double from 0 to 1
      */
     void setLoadBar(double loadBar) {
@@ -108,6 +108,7 @@ class GUILabelManagement {
 
     /**
      * Sets the output displayed in the status label
+     *
      * @param output String with message to display
      */
     void setOutput(String output) {
@@ -115,7 +116,8 @@ class GUILabelManagement {
     }
 
     /**
-     * Sets all the IO and debuggin output in the connectionOutput label
+     * Sets all the IO and debugging output in the connectionOutput label
+     *
      * @param connectionOutput String with message to display
      */
     void setConnectionOutput(String connectionOutput) {
@@ -123,7 +125,8 @@ class GUILabelManagement {
     }
 
     /**
-     * Sets the current number of PDFs downloaded in the appropiate label
+     * Sets the current number of PDFs downloaded in the appropriate label
+     *
      * @param numberOfPDF int with the number of PDFs downloaded
      */
     void setNumberOfPDF(String numberOfPDF) {
@@ -131,14 +134,17 @@ class GUILabelManagement {
     }
 
     /**
-     * Sets the current number of PDFs downloaded in the appropiate label for multiple article mode
+     * Sets the current number of PDFs downloaded in the appropriate label for multiple article mode
+     *
      * @param numberOfPDF int with the number of PDFs downloaded
      */
     void setNumberOfPDFMultiple(String numberOfPDF) {
         this.numberOfPDFMultiple.set(numberOfPDF);
     }
+
     /**
      * Adds a search result to a list view
+     *
      * @param result string with the search result
      */
     void setMultipleSearchResult(String result) {
@@ -146,17 +152,30 @@ class GUILabelManagement {
         curr.addItemToListView(result);
     }
 
-
-     void setOutputMultiple(String outputMultiple) {
+    /**
+     * Sets the output displayed in the status label in multiple article mode
+     *
+     * @param outputMultiple String with message to display
+     */
+    void setOutputMultiple(String outputMultiple) {
         this.outputMultiple.set(outputMultiple);
     }
 
-    void setLoadBarMultiple(double loadBarMultiple) {
-        this.loadBarMultiple.set(loadBarMultiple);
+    /**
+     * Sets the load bar percentage to 1
+     */
+    void setLoadBarMultiple() {
+        this.loadBarMultiple.set((double) 1);
     }
 
-
-    public StringProperty getNumberOfPDFsMultiple() {
-        return numberOfPDFMultiple;
+    /**
+     * Associates a thread to a search result window obj
+     *
+     * @param threadID ID of the current thread
+     * @param window   SearchResultWindow obj
+     */
+    void associateThreadToSearchResultW(Long threadID, SearchResultWindow window) {
+        this.mapThreadToSearchResultW.put(threadID, window);
     }
+
 }

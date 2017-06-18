@@ -17,8 +17,9 @@ import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 6/15/17.
+ * Finds and downloads proxies from different websites
  */
-public class ProxiesDownloader {
+class ProxiesDownloader {
     private Integer[] listOfTimes;
     private Integer timeToWait;
     private ArrayList<String> listOfUnusedLinks = new ArrayList<>();
@@ -41,8 +42,7 @@ public class ProxiesDownloader {
                 proxiesLists.add("http://proxydb.net/?offset=" + i);
             }
             listOfUnusedLinks.addAll(proxiesLists);
-        }
-        else {
+        } else {
             //If  we need to add more proxies, then we use the links that we did not use before.
             proxiesLists.addAll(listOfUnusedLinks);
         }
@@ -51,11 +51,15 @@ public class ProxiesDownloader {
 
     /**
      * Downloads proxies from different websites, without duplicates.
+     *
      * @param numberOfProxiesToDownload Limit of proxies to download
      * @param proxyCounter              The number of proxies that have been downloaded so far.
-     * @param crawler
+     * @param guiLabels                 GUILabelManagement obj
+     * @param crawler                   crawler reference
+     * @param addMore                   true if the program is trying to add more proxies.
      */
-     synchronized int getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter, GUILabelManagement guiLabels, Crawler crawler, boolean addMore) {
+    @SuppressWarnings("Duplicates")
+    synchronized int getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter, GUILabelManagement guiLabels, Crawler crawler, boolean addMore) {
 
         //Set a new file, if there was one before, overwrite it
         Logger logger = Logger.getInstance();
@@ -216,7 +220,7 @@ public class ProxiesDownloader {
             guiLabels.setAlertPopUp(e.getMessage());
         }
         return proxyCounter1;
-     }
+    }
 
 
     /**
@@ -235,11 +239,6 @@ public class ProxiesDownloader {
         this.timeToWait = listOfTimes[rnd];
         return timeToWait;
     }
-
-    void getWorkingProxies(Crawler crawler) {
-
-    }
-
 
 }
 

@@ -45,14 +45,14 @@ class Crawler {
     Crawler(GUILabelManagement guiLabels, SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
         this.guiLabels = guiLabels;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
-        //Start getting the list of all proxys. Load progress bar up to 75%
+        //Start getting the list of all proxies. Load progress bar up to 75%
         guiLabels.setLoadBar(0);
         guiLabels.setOutput("Initializing...");
         guiLabels.setOutputMultiple("Initializing...");
 
     }
 
-    public ConcurrentLinkedQueue<Proxy> getQueueOfConnections() {
+    ConcurrentLinkedQueue<Proxy> getQueueOfConnections() {
         return queueOfConnections;
     }
 
@@ -65,11 +65,9 @@ class Crawler {
     }
 
 
-
     HashMap<String, String[]> getSearchResultToLink() {
         return searchResultToLink;
     }
-
 
 
     private HashMap<String, String[]> searchResultToLink = new HashMap<>();
@@ -81,7 +79,7 @@ class Crawler {
      */
     void loadCrawler() {
         //Retrieve n proxies (n = 600) before starting the program.
-        getProxies(550);
+        getProxies();
         guiLabels.setOutput("Establishing connections...");
         guiLabels.setOutputMultiple("Establishing connections...");
 
@@ -122,7 +120,7 @@ class Crawler {
                     guiLabels.setConnectionOutput("This is the first proxy that will be used: " + queueOfConnections.peek().getProxy());
                     //"Done" loading, but just the first proxy
                     guiLabels.setLoadBar(1);
-                    guiLabels.setLoadBarMultiple(1);
+                    guiLabels.setLoadBarMultiple();
                     guiLabels.setOutput("Connected!");
                     guiLabels.setOutputMultiple("Connected!");
                     guiLabels.setConnectionOutput("Connected");
@@ -145,10 +143,8 @@ class Crawler {
     /**
      * Downloads proxies from different websites, without duplicates. If proxies have been downloaded before, within a
      * 24h window, it loads those proxies instead.
-     *
-     * @param numberOfProxiesToDownload limit of the proxies to download.
      */
-    private void getProxies(int numberOfProxiesToDownload) {
+    private void getProxies() {
         int proxyCounter = 0;
         listOfProxiesGathered = Collections.synchronizedList(new ArrayList<Proxy>());
         //Sets don't allow repetition so we avoid duplicates
@@ -200,7 +196,7 @@ class Crawler {
 
                     //If it is not a valid date we stop.
                     scanner.close();
-                    proxyCounter = proxiesDownloader.getProxiesFromWebsite(numberOfProxiesToDownload, 0, guiLabels, this, false);
+                    proxyCounter = proxiesDownloader.getProxiesFromWebsite(550, 0, guiLabels, this, false);
                     break;
                 }
                 //It is a valid file so we retrieve all the stored proxies from the file.
@@ -215,11 +211,11 @@ class Crawler {
                     proxyCounter++;
 
                 }
-                Double d = (proxyCounter / (numberOfProxiesToDownload) * 1.0) * 0.7;
+                Double d = (proxyCounter / (550) * 1.0) * 0.7;
                 guiLabels.setLoadBar(d);
-                guiLabels.setOutput("Proxies downloaded: " + proxyCounter + "/" + numberOfProxiesToDownload);
+                guiLabels.setOutput("Proxies downloaded: " + proxyCounter + "/" + 550);
             }
-            if (proxyCounter < numberOfProxiesToDownload) {
+            if (proxyCounter < 550) {
                 //Get more proxies if there are not enough
                 try {
                     Thread.sleep(1000);
@@ -227,18 +223,18 @@ class Crawler {
                 }
                 guiLabels.setOutput("Not enough proxies in file.");
                 scanner.close();
-                proxiesDownloader.getProxiesFromWebsite(numberOfProxiesToDownload, proxyCounter, guiLabels, this, false);
+                proxiesDownloader.getProxiesFromWebsite(550, proxyCounter, guiLabels, this, false);
             }
         } else {
             guiLabels.setOutput("No valid file found.");
-            proxiesDownloader.getProxiesFromWebsite(numberOfProxiesToDownload, 0, guiLabels, this, false);
+            proxiesDownloader.getProxiesFromWebsite(550, 0, guiLabels, this, false);
         }
         if (scanner != null) {
             scanner.close();
         }
     }
 
-    void getMoreProxies() {
+    private void getMoreProxies() {
         if (listOfWorkingProxies.size() == 0) {
             proxiesDownloader.getProxiesFromWebsite(1000, setOfProxyGathered.size(), guiLabels, this, true);
         } else {
@@ -252,7 +248,7 @@ class Crawler {
     }
 
     /**
-     * Search for an article in Google Schoolar
+     * Search for an article in Google Scholar
      *
      * @param keyword         String with the title of the document
      * @param hasSearchBefore has the user press the button search before
@@ -405,7 +401,7 @@ class Crawler {
         if (hasSearchBefore && mapThreadIdToReqCount.get(currThreadID) <= 50) {
             //If has searched before and it worked, then use previous ip
             Proxy ipAndPort = mapThreadIdToProxy.get(currThreadID);
-           // System.out.println("Using previous IP " + currThreadID + " " + ipAndPort.getProxy() + " " + ipAndPort.getPort());
+            // System.out.println("Using previous IP " + currThreadID + " " + ipAndPort.getProxy() + " " + ipAndPort.getPort());
             try {
                 return Jsoup.connect(url).proxy(ipAndPort.getProxy(), ipAndPort.getPort()).userAgent("Mozilla").get();
             } catch (IOException e2) {
@@ -485,7 +481,7 @@ class Crawler {
     /**
      * Downloads the number of pdf requested
      *
-     * @param limit max number of pdfs to download
+     * @param limit max number of PDFs to download
      * @throws Exception Problem downloading or reading a file
      */
     int getPDFs(int limit, String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader) throws Exception {
@@ -512,8 +508,7 @@ class Crawler {
             guiLabels.setConnectionOutput("Waiting " + timeToWait + " seconds before going to the search results");
             if (!isMultipleSearch) {
                 guiLabels.setOutput("Waiting " + timeToWait + " seconds before going to the search results");
-            }
-            else {
+            } else {
                 simultaneousDownloadsGUI.updateStatus("Waiting " + timeToWait + " s");
             }
             Thread.sleep(timeToWait * 1000);
@@ -521,7 +516,7 @@ class Crawler {
             //Increase counter for every new google link
             Document citingPapers;
             if (mapThreadIdToReqCount.get(currThreadID) >= 50) {
-                guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID+ " because of amount of requests...");
+                guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of amount of requests...");
                 citingPapers = changeIP(currUrl, false, false);
             } else {
                 citingPapers = changeIP(currUrl, true, false);
@@ -576,7 +571,7 @@ class Crawler {
                         guiLabels.setLoadBar(pdfCounter / (double) limit);
                     } else {
                         simultaneousDownloadsGUI.updateStatus(pdfCounter + "/" + limit);
-                        simultaneousDownloadsGUI.updateProgressBar(0.3 + (pdfCounter / (double) limit)*0.7);
+                        simultaneousDownloadsGUI.updateProgressBar(0.3 + (pdfCounter / (double) limit) * 0.7);
                     }
                     if (pdfCounter >= limit) {
                         break;

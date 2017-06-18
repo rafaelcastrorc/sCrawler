@@ -19,9 +19,9 @@ import java.util.concurrent.Callable;
 
 /**
  * Created by rafaelcastro on 6/14/17.
- * Creates a search result window to display all the search results.
+ * Creates a search result window to display all the search results. Implements callable.
  */
-class SearchResultWindow implements Callable<Void>{
+class SearchResultWindow implements Callable<Void> {
 
     private String queryStr;
     ListView<Object> searchResultListView = new ListView<>();
@@ -35,55 +35,20 @@ class SearchResultWindow implements Callable<Void>{
 
 
     SearchResultWindow() {
-
     }
+
+    /**
+     * Sets the query string that had multiple search results.
+     * @param queryStr String with multiple matches
+     */
     void setQueryStr(String queryStr) {
         this.queryStr = queryStr;
     }
 
-    /**
-     * Displays a window with all the search results.
-     *
-     * @return true
-     */
-    void display(String queryStr) {
-        this.dialog = new Stage();
-        dialog.setTitle("ERROR: Multiple results found for a query");
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.initStyle(StageStyle.DECORATED);
-        dialog.setOnCloseRequest(Event::consume);
-        VBox layout = new VBox(5);
-        layout.setPadding((new Insets(5, 5, 8, 5)));
-        layout.setAlignment(Pos.CENTER);
-        layout.setStyle("-fx-background-color:  #afb0af");
-        Label title = new Label("Please select the correct search result.");
-        Label query = new Label("Query: " + queryStr);
-
-        title.setStyle("-fx-text-fill: black; -fx-font-size: 12pt");
-        query.setStyle("-fx-text-fill: black; -fx-font-size: 12pt");
-
-
-        select.setStyle("-fx-background-color: #7d9a4f; -fx-font-size: 12pt");
-        doNotDownload.setStyle("-fx-background-color: #7d9a4f; -fx-font-size: 12pt");
-
-
-        HBox hBox = new HBox(30);
-        hBox.setAlignment(Pos.CENTER);
-        hBox.getChildren().addAll(doNotDownload, select);
-
-
-        layout.getChildren().addAll(title, query, searchResultListView, hBox);
-
-        Scene dialogScene = new Scene(layout, 400, 250);
-        dialogScene.getStylesheets().add("Style.css");
-        dialogScene.getStylesheets().add("https://fonts.googleapis.com/css?family=Roboto");
-
-        dialog.setScene(dialogScene);
-        dialog.showAndWait();
-    }
 
     /**
      * Adds a search result.
+     *
      * @param e Object that represents a search result.
      */
     void addItemToListView(Object e) {
@@ -100,23 +65,23 @@ class SearchResultWindow implements Callable<Void>{
         dialog.close();
     }
 
-    public String getNumberOfCitations() {
+    String getNumberOfCitations() {
         return numberOfCitations;
     }
 
-    public String getCitingPapersURL() {
+    String getCitingPapersURL() {
         return citingPapersURL;
     }
 
-    public void store(String[] array) {
+    void store(String[] array) {
         this.numberOfCitations = array[1];
         this.citingPapersURL = array[0];
     }
 
 
-
     @Override
     public Void call() throws Exception {
+        //Displays the search result window
         this.dialog = new Stage();
         dialog.setTitle("ERROR: Multiple results found for a query");
         dialog.initModality(Modality.APPLICATION_MODAL);

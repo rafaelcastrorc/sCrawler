@@ -15,7 +15,6 @@ class Logger {
     private static BufferedWriter reportWriter;
 
 
-
     /**
      * Gets an instance of the Logger
      *
@@ -80,33 +79,17 @@ class Logger {
 
 
     /**
-     * Gets the file that contains the list of working proxies.
+     * Sets the file to be used to write the report.
      *
-     * @return File
+     * @param append   true if we are writing over an existing report, false otherwise.
+     * @param location folder location where the report should be stored.
+     * @throws IOException unable to write to file.
      */
-    File getListOfWorkingProxies() {
-        return new File("./AppData/ListOfWorkingProxies.txt");
-    }
-
-
-
-
-    /**
-     * Gets the file that contains the main report file
-     * @return File
-     */
-    File getMainReportWriterFile() {
-        return new File("./DownloadedPDFs/Report.txt");
-    }
-
-
-
-    public void setReportWriter(boolean append, String location) throws IOException {
+    void setReportWriter(boolean append, String location) throws IOException {
         if (append) {
-            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt", true));
-        }
-        else {
-            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/"+location+".txt", false));
+            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/" + location + ".txt", true));
+        } else {
+            reportWriter = new BufferedWriter(new FileWriter("./DownloadedPDFs/" + location + ".txt", false));
         }
     }
 
@@ -116,7 +99,7 @@ class Logger {
      * @param s String to write
      * @throws IOException Error writing to file
      */
-    public void writeReport(String s) throws IOException {
+    void writeReport(String s) throws IOException {
         try {
             reportWriter.write(s);
             reportWriter.flush();
@@ -127,14 +110,12 @@ class Logger {
     }
 
 
-
-
     /**
      * Closes the logger
      *
      * @throws IOException - unable to close
      */
-     void closeLoggers() throws IOException {
+    void closeLoggers() throws IOException {
         listOfProxiesWriter.flush();
         listOfProxiesWriter.close();
 

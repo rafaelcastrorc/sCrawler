@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * Created by rafaelcastro on 6/17/17.
  * GUI for the Simultaneous Downloads section, which keeps track of each individual download. There are at most 4
- * simultaneous downloads at a time, and each download has its own GUI group (T1, T2, T3, and T4). A GUI group consists
+ * simultaneous downloads at a time, and each download has its own GUI group (T1, T2, T3, ... Ti). A GUI group consists
  * of a label display the title of the article, a progress bar, and a label to display the status.
  */
 class SimultaneousDownloadsGUI {
@@ -33,23 +33,48 @@ class SimultaneousDownloadsGUI {
     private ProgressBar progressBarT4;
     private Label articleNameT4;
     private Label statusT4;
+    private ProgressBar progressBarT5;
+    private Label articleNameT5;
+    private Label statusT5;
+    private ProgressBar progressBarT6;
+    private Label articleNameT6;
+    private Label statusT6;
+    private ProgressBar progressBarT7;
+    private Label articleNameT7;
+    private Label statusT7;
+    private ProgressBar progressBarT8;
+    private Label articleNameT8;
+    private Label statusT8;
+    private ProgressBar progressBarT9;
+    private Label articleNameT9;
+    private Label statusT9;
+    private ProgressBar progressBarT10;
+    private Label articleNameT10;
+    private Label statusT10;
     //Maps a thread to the corresponding group it modifies (T1, T2, T3, or T4)
     private Map<Long, String> mapThreadToGroup;
 
+    /**
+     * Resets the counter to 0
+     */
     void resetCounter() {
         counter.reset();
     }
 
     SimultaneousDownloadsGUI() {
         this.counter = new AtomicCounter();
-        this.groups = new String[4];
+        this.groups = new String[10];
         this.mapThreadToGroup = Collections.synchronizedMap(new HashMap<Long, String>());
-        groups[0] = "T1";
-        groups[1] = "T2";
-        groups[2] = "T3";
-        groups[3] = "T4";
+        for (int i = 0; i < groups.length; i++) {
+            groups[i] = "T" + (i + 1);
+        }
     }
 
+    /**
+     * Adds the GUI for the multiple downloads to the screen
+     *
+     * @param scrollPane scroll panel where the GUI will be located
+     */
     void addGUI(ScrollPane scrollPane) {
         VBox vBox = new VBox(30);
         vBox.setAlignment(Pos.CENTER);
@@ -96,7 +121,64 @@ class SimultaneousDownloadsGUI {
 
         vBoxT4.getChildren().addAll(articleNameT4, progressBarT4, statusT4);
 
-        vBox.getChildren().addAll(vBoxT1, vBoxT2, vBoxT3, vBoxT4);
+
+        VBox vBoxT5 = new VBox(2);
+        vBoxT5.setAlignment(Pos.CENTER);
+        this.progressBarT5 = new ProgressBar();
+        this.articleNameT5 = new Label("4. Folder: Not set");
+        this.statusT5 = new Label("Status: Idle");
+        articleNameT5.setStyle("-fx-font-size: 9pt");
+        statusT5.setStyle("-fx-font-size: 9pt");
+        vBoxT5.getChildren().addAll(articleNameT5, progressBarT5, statusT5);
+
+        VBox vBoxT6 = new VBox(2);
+        vBoxT6.setAlignment(Pos.CENTER);
+        this.progressBarT6 = new ProgressBar();
+        this.articleNameT6 = new Label("4. Folder: Not set");
+        this.statusT6 = new Label("Status: Idle");
+        articleNameT6.setStyle("-fx-font-size: 9pt");
+        statusT6.setStyle("-fx-font-size: 9pt");
+        vBoxT6.getChildren().addAll(articleNameT6, progressBarT6, statusT6);
+
+
+        VBox vBoxT7 = new VBox(2);
+        vBoxT7.setAlignment(Pos.CENTER);
+        this.progressBarT7 = new ProgressBar();
+        this.articleNameT7 = new Label("4. Folder: Not set");
+        this.statusT7 = new Label("Status: Idle");
+        articleNameT7.setStyle("-fx-font-size: 9pt");
+        statusT7.setStyle("-fx-font-size: 9pt");
+        vBoxT7.getChildren().addAll(articleNameT7, progressBarT7, statusT7);
+
+        VBox vBoxT8 = new VBox(2);
+        vBoxT8.setAlignment(Pos.CENTER);
+        this.progressBarT8 = new ProgressBar();
+        this.articleNameT8 = new Label("4. Folder: Not set");
+        this.statusT8 = new Label("Status: Idle");
+        articleNameT8.setStyle("-fx-font-size: 9pt");
+        statusT8.setStyle("-fx-font-size: 9pt");
+        vBoxT8.getChildren().addAll(articleNameT8, progressBarT8, statusT8);
+
+        VBox vBoxT9 = new VBox(2);
+        vBoxT9.setAlignment(Pos.CENTER);
+        this.progressBarT9 = new ProgressBar();
+        this.articleNameT9 = new Label("4. Folder: Not set");
+        this.statusT9 = new Label("Status: Idle");
+        articleNameT9.setStyle("-fx-font-size: 9pt");
+        statusT9.setStyle("-fx-font-size: 9pt");
+        vBoxT9.getChildren().addAll(articleNameT9, progressBarT9, statusT9);
+
+
+        VBox vBoxT10 = new VBox(2);
+        vBoxT10.setAlignment(Pos.CENTER);
+        this.progressBarT10 = new ProgressBar();
+        this.articleNameT10 = new Label("4. Folder: Not set");
+        this.statusT10 = new Label("Status: Idle");
+        articleNameT10.setStyle("-fx-font-size: 9pt");
+        statusT10.setStyle("-fx-font-size: 9pt");
+        vBoxT10.getChildren().addAll(articleNameT10, progressBarT10, statusT10);
+
+        vBox.getChildren().addAll(vBoxT1, vBoxT2, vBoxT3, vBoxT4, vBoxT5, vBoxT6, vBoxT7, vBoxT8, vBoxT9, vBoxT10);
         scrollPane.setContent(vBox);
 
     }
@@ -113,19 +195,18 @@ class SimultaneousDownloadsGUI {
             String group = getGroup();
             mapThreadToGroup.put(threadID, group);
             return group;
-        }
-        else return mapThreadToGroup.get(threadID);
+        } else return mapThreadToGroup.get(threadID);
     }
 
     /**
      * Gets a group based on the counter
      *
-     * @return T1, T2, T3, or T4
+     * @return T1, T2, T3, ... , Ti
      */
     private synchronized String getGroup() {
         int selection = counter.value();
         counter.increment();
-        if (selection > 3) {
+        if (selection > 9) {
             counter.reset();
             selection = 0;
         }
@@ -155,6 +236,24 @@ class SimultaneousDownloadsGUI {
                 case "T4":
                     statusT4.setText("Status: " + s);
                     break;
+                case "T5":
+                    statusT5.setText("Status: " + s);
+                    break;
+                case "T6":
+                    statusT6.setText("Status: " + s);
+                    break;
+                case "T7":
+                    statusT7.setText("Status: " + s);
+                    break;
+                case "T8":
+                    statusT8.setText("Status: " + s);
+                    break;
+                case "T9":
+                    statusT9.setText("Status: " + s);
+                    break;
+                case "T10":
+                    statusT10.setText("Status: " + s);
+                    break;
             }
         }));
 
@@ -181,6 +280,24 @@ class SimultaneousDownloadsGUI {
                 case "T4":
                     progressBarT4.progressProperty().setValue(i);
                     break;
+                case "T5":
+                    progressBarT5.progressProperty().setValue(i);
+                    break;
+                case "T6":
+                    progressBarT6.progressProperty().setValue(i);
+                    break;
+                case "T7":
+                    progressBarT7.progressProperty().setValue(i);
+                    break;
+                case "T8":
+                    progressBarT8.progressProperty().setValue(i);
+                    break;
+                case "T9":
+                    progressBarT9.progressProperty().setValue(i);
+                    break;
+                case "T10":
+                    progressBarT10.progressProperty().setValue(i);
+                    break;
             }
         });
     }
@@ -205,6 +322,24 @@ class SimultaneousDownloadsGUI {
                     break;
                 case "T4":
                     articleNameT4.setText("Folder: " + s);
+                    break;
+                case "T5":
+                    articleNameT5.setText("Folder: " + s);
+                    break;
+                case "T6":
+                    articleNameT6.setText("Folder: " + s);
+                    break;
+                case "T7":
+                    articleNameT7.setText("Folder: " + s);
+                    break;
+                case "T8":
+                    articleNameT8.setText("Folder: " + s);
+                    break;
+                case "T9":
+                    articleNameT9.setText("Folder: " + s);
+                    break;
+                case "T10":
+                    articleNameT10.setText("Folder: " + s);
                     break;
             }
         });

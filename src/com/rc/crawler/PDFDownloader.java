@@ -15,7 +15,6 @@ import java.nio.channels.ReadableByteChannel;
  */
 class PDFDownloader {
     private GUILabelManagement guiLabels;
-    private String title = "";
     private String path = "";
 
 
@@ -45,11 +44,8 @@ class PDFDownloader {
         //Set request property to avoid error 403
         connection.setRequestProperty("User-Agent", "Chrome");
         int status = connection.getResponseCode();
-        if (status == 200) {
-        }
-
         if (status == 429) {
-            //If we have sent too many reuest to server, change proxy
+            //If we have sent too many request to server, change proxy
             String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
             connection.disconnect();
             guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
@@ -131,7 +127,6 @@ class PDFDownloader {
      * @return string with the name of the folder
      */
     String createUniqueFolder(String title) {
-        this.title = title;
         String[] titleWords = title.split(" ");
         String firstWord = titleWords[0];
         if (firstWord.length() < 3) {
