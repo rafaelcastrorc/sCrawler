@@ -46,8 +46,6 @@ class PDFDownloader {
         connection.setRequestProperty("User-Agent", "Chrome");
         int status = connection.getResponseCode();
         if (status == 200) {
-            System.out.println(url);
-
         }
 
         if (status == 429) {
@@ -55,10 +53,11 @@ class PDFDownloader {
             String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
             connection.disconnect();
             guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
+            System.out.println(url);
             java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
             //If server blocks us, then we connect via the current proxy we are using
             connection = (HttpURLConnection) urlObj.openConnection(proxy);
-            connection.setRequestProperty("User-Agent", "Chrome");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
             connection.setRequestProperty("Cookie", cookie);
             status = connection.getResponseCode();
         }
@@ -79,7 +78,7 @@ class PDFDownloader {
                 String newUrl = connection.getHeaderField("Location");
                 // open the new connection again
                 connection = (HttpURLConnection) new URL(newUrl).openConnection();
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+                connection.setRequestProperty("User-Agent", "Chrome");
                 status = connection.getResponseCode();
                 if (status == 429) {
                     String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
@@ -88,14 +87,13 @@ class PDFDownloader {
                     java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
                     //If server blocks us, then we connect via the current proxy we are using
                     connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
-                    connection.setRequestProperty("User-Agent", "Chrome");
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
                     connection.setRequestProperty("Cookie", cookie);
                     status = connection.getResponseCode();
 
                 }
                 if (status == 200) {
                     //Check if the url contains .pdf, if not, is not a pdf file
-                    System.out.println(newUrl);
                     if (!newUrl.endsWith("pdf")) {
                         throw new IOException("Invalid file");
                     }
@@ -161,7 +159,6 @@ class PDFDownloader {
         uniqueFileFolder.delete();
 
         path = nameOfFolder;
-        System.out.println(path);
         return nameOfFolder;
     }
 }

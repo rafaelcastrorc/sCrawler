@@ -1,12 +1,17 @@
 package com.rc.crawler;
 
+import javafx.beans.Observable;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Manages the different objects that the controller is listening to, to update the GUI.
+ * Manages the different objects that the controller is listening to, to update the main GUI.
  */
 class GUILabelManagement {
 
@@ -14,11 +19,22 @@ class GUILabelManagement {
     private StringProperty alertPopUp = new SimpleStringProperty();
     private StringProperty searchResultLabel = new SimpleStringProperty();
     private DoubleProperty loadBar = new SimpleDoubleProperty();
+    private DoubleProperty loadBarMultiple = new SimpleDoubleProperty();
     private StringProperty output = new SimpleStringProperty();
     private StringProperty outputMultiple = new SimpleStringProperty();
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
-    private StringProperty multipleSearchResult = new SimpleStringProperty();
+    private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());
+    private StringProperty numberOfPDFMultiple = new SimpleStringProperty();
+
+
+    public Map<Long, SearchResultWindow> getMapThreadToSearchResultW() {
+        return mapThreadToSearchResultW;
+    }
+
+    public void associateThreadToSearchResultW(Long threadID, SearchResultWindow window) {
+        this.mapThreadToSearchResultW.put(threadID, window);
+    }
 
 
     public StringProperty getOutputMultiple() {
@@ -40,7 +56,9 @@ class GUILabelManagement {
         return loadBar;
     }
 
-
+    DoubleProperty getLoadBarMultiple() {
+        return loadBarMultiple;
+    }
     StringProperty getOutput() {
         return output;
     }
@@ -52,9 +70,8 @@ class GUILabelManagement {
     StringProperty getNumberOfPDFs() {
         return numberOfPDF;
     }
-    public StringProperty getMultipleSearchResult() {
-        return multipleSearchResult;
-    }
+
+
 
 
     /**
@@ -114,16 +131,32 @@ class GUILabelManagement {
     }
 
     /**
+     * Sets the current number of PDFs downloaded in the appropiate label for multiple article mode
+     * @param numberOfPDF int with the number of PDFs downloaded
+     */
+    void setNumberOfPDFMultiple(String numberOfPDF) {
+        this.numberOfPDFMultiple.set(numberOfPDF);
+    }
+    /**
      * Adds a search result to a list view
      * @param result string with the search result
      */
     void setMultipleSearchResult(String result) {
-        this.multipleSearchResult.setValue(result);
+        SearchResultWindow curr = mapThreadToSearchResultW.get(Thread.currentThread().getId());
+        curr.addItemToListView(result);
     }
 
-    public void setOutputMultiple(String outputMultiple) {
+
+     void setOutputMultiple(String outputMultiple) {
         this.outputMultiple.set(outputMultiple);
     }
 
+    void setLoadBarMultiple(double loadBarMultiple) {
+        this.loadBarMultiple.set(loadBarMultiple);
+    }
 
+
+    public StringProperty getNumberOfPDFsMultiple() {
+        return numberOfPDFMultiple;
+    }
 }
