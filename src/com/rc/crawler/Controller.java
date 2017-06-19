@@ -103,7 +103,7 @@ public class Controller implements Initializable {
      * Performs all the operations to search for a paper in Google Scholar.
      * Method is called inside a task.
      *
-     * @param title title that we are looking for. Null if the method is not called from a thread
+     * @param title article that we are looking for.
      */
     private String[] search(String title, boolean isMultipleSearch) {
         updateSearchLabel("Loading...");
@@ -178,6 +178,10 @@ public class Controller implements Initializable {
     /**
      * Call the getPDFs method inside of crawler to start downloading PDFs.
      * Method is called inside a task.
+     *
+     * @param currTitle        Title that we want to download
+     * @param citingPaperURL   "cited by" URL
+     * @param isMultipleSearch true if the method is called inside of the multiple articles mode
      */
     private void download(String currTitle, String citingPaperURL, boolean isMultipleSearch) {
         try {
@@ -204,7 +208,9 @@ public class Controller implements Initializable {
         }
     }
 
-
+    /**
+     * Called when the user clicks the Upload button
+     */
     @FXML
     void uploadOnClick(Event e) {
         Node node = (Node) e.getSource();
@@ -214,13 +220,14 @@ public class Controller implements Initializable {
 
     }
 
+    /**
+     * Handles the logic to upload a file into the program.
+     */
     private void openFile() {
         Platform.runLater(() -> {
             FileChooser fileChooser = new FileChooser();
             configureFileChooser(fileChooser);
             File file = fileChooser.showOpenDialog(window);
-
-
             if (file == null) {
                 informationPanel("Please upload a file.");
             } else if (!file.exists() || !file.canRead()) {
@@ -240,17 +247,18 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.addGUI(scrollPanel);
                     singleThreadExecutor.submit(new DoWork("waitFor4Connections", null));
 
-
                 } catch (FileNotFoundException e) {
                     displayAlert(e.getMessage());
                 }
-
             }
-
         });
-
     }
 
+    /**
+     * Configures the types of files that are allowed to be upload (.txt or .csv)
+     *
+     * @param fileChooser the current fileChooser
+     */
     private void configureFileChooser(FileChooser fileChooser) {
         fileChooser.setTitle("Please select the file");
         FileChooser.ExtensionFilter extFilter = new FileChooser.ExtensionFilter("TXT files (*.txt)", "*.txt");
@@ -260,6 +268,9 @@ public class Controller implements Initializable {
         fileChooser.getExtensionFilters().add(extFilter);
     }
 
+    /**
+     * Called when the user clicks the Download button on the multiple articles section.
+     */
     @FXML
     void multipleDownloadOnClick() {
         progressBar.progressProperty().setValue(0);
@@ -293,7 +304,6 @@ public class Controller implements Initializable {
             displayAlert("Please only write numbers here.");
         }
     }
-
 
     /**
      * Adds or removes elements to the list of proxies that work
@@ -358,7 +368,6 @@ public class Controller implements Initializable {
                 String[] array = prev.split("/");
                 int total = Integer.parseInt(array[0]) + Integer.parseInt(text);
                 pdfsDownloadedMultiple.setText(total + "/" + array[1]);
-
             }
 
         });
@@ -446,7 +455,12 @@ public class Controller implements Initializable {
         alert.showAndWait();
     }
 
-
+    /**
+     * Handles the logic behind the Search Result Window
+     *
+     * @param title            title of the query with multiple matches
+     * @param isMultipleSearch boolean if it is called during a multiple search result window.
+     */
     private void displaySearchResults(String title, boolean isMultipleSearch) {
         Long currentThreadId = Thread.currentThread().getId();
         SearchResultWindow searchResultWindow = guiLabels.getMapThreadToSearchResultW().get(currentThreadId);
@@ -472,7 +486,6 @@ public class Controller implements Initializable {
                 searchResultWindow.close();
                 guiLabels.associateThreadToSearchResultW(currentThreadId, searchResultWindow);
                 mapThreadToTitle.put(currentThreadId, selection);
-
             }
         });
 
@@ -499,8 +512,6 @@ public class Controller implements Initializable {
                 displayAlert(e2.getMessage());
             }
         });
-
-
         FutureTask<Void> futureTask = new FutureTask<>(searchResultWindow);
         Platform.runLater(futureTask);
         if (isMultipleSearch) {
@@ -513,7 +524,7 @@ public class Controller implements Initializable {
     }
 
     /**
-     * Call upon star
+     * Call upon start.
      *
      * @param location  Location
      * @param resources ResourceBundle
@@ -545,8 +556,6 @@ public class Controller implements Initializable {
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
-
-
     }
 
 
