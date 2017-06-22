@@ -26,6 +26,10 @@ class ProxiesDownloader {
     private ArrayList<String> proxiesLists = new ArrayList<>();
 
 
+    /**
+     * Returns a list of websites that compiles proxies
+     * @param addMore true if we need to add more proxies (It adds them from the links we did not use before)
+     */
     private void getProxiesList(boolean addMore) {
         if (!addMore) {
             //working US only proxy list. All results displayed at once. (< 200)
@@ -90,6 +94,7 @@ class ProxiesDownloader {
             getProxiesList(addMore);
             //Iterate over all websites
             if (proxiesLists.isEmpty()) {
+                //If this happens, it means that there were no unused links, so we search through all the websites again
                 getProxiesList(false);
             }
             for (String url : proxiesLists) {

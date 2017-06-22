@@ -1,9 +1,6 @@
 package com.rc.crawler;
 
-import javafx.beans.property.DoubleProperty;
-import javafx.beans.property.SimpleDoubleProperty;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
+import javafx.beans.property.*;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,7 +21,6 @@ class GUILabelManagement {
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
     private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());
-    private StringProperty numberOfPDFMultiple = new SimpleStringProperty();
 
     StringProperty getOutputMultiple() {
         return outputMultiple;
@@ -60,10 +56,6 @@ class GUILabelManagement {
 
     StringProperty getNumberOfPDFs() {
         return numberOfPDF;
-    }
-
-    StringProperty getNumberOfPDFsMultiple() {
-        return numberOfPDFMultiple;
     }
 
     Map<Long, SearchResultWindow> getMapThreadToSearchResultW() {
@@ -131,15 +123,6 @@ class GUILabelManagement {
      */
     void setNumberOfPDF(String numberOfPDF) {
         this.numberOfPDF.set(numberOfPDF);
-    }
-
-    /**
-     * Sets the current number of PDFs downloaded in the appropriate label for multiple article mode
-     *
-     * @param numberOfPDF int with the number of PDFs downloaded
-     */
-    void setNumberOfPDFMultiple(String numberOfPDF) {
-        this.numberOfPDFMultiple.set(numberOfPDF);
     }
 
     /**

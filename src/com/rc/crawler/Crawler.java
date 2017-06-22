@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  */
 class Crawler {
     private final GUILabelManagement guiLabels;
-    private final SimultaneousDownloadsGUI simultaneousDownloadsGUI;
+    private SimultaneousDownloadsGUI simultaneousDownloadsGUI;
     //Counts number of requests
     private Integer[] listOfTimes;
     private Map<Long, Proxy> mapThreadIdToProxy = Collections.synchronizedMap(new HashMap<Long, Proxy>());
@@ -43,13 +43,13 @@ class Crawler {
     private Map<Long, Integer> mapThreadIdToReqCount = Collections.synchronizedMap(new HashMap<Long, Integer>());
     //Maps the different search results to their respective "cited by" URL
     private HashMap<String, String[]> searchResultToLink = new HashMap<>();
+    private boolean speedUp;
 
     /**
      * Constructor.
      */
-    Crawler(GUILabelManagement guiLabels, SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
+    Crawler(GUILabelManagement guiLabels) {
         this.guiLabels = guiLabels;
-        this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
         //Start getting the list of all proxies. Load progress bar up to 75%
         guiLabels.setLoadBar(0);
         guiLabels.setOutput("Initializing...");
@@ -77,7 +77,7 @@ class Crawler {
      */
     private void startConnectionThreads() {
 
-        executorService = Executors.newFixedThreadPool(11, new MyThreadFactory());
+        executorService = Executors.newFixedThreadPool(21, new MyThreadFactory());
         if (setOfProxyGathered.size() < 900) {
             //Add 1 request to get more proxies
             Request getMoreProxiesRequest = new Request(false, "getProxies");
@@ -88,7 +88,7 @@ class Crawler {
         List<Future<Proxy>> listOfFuture = new ArrayList<>();
         List<Callable<Proxy>> listOfRequests = new ArrayList<>();
         //Add 10 requests
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 8; i++) {
             listOfRequests.add(new Request(false, "getConnection"));
         }
         boolean isFirst = true;
@@ -423,9 +423,9 @@ class Crawler {
                 //Get an ip from the working list
                 Proxy proxyToUse = queueOfConnections.poll();
                 System.out.println("Getting new IP " + currThreadID + " " + proxyToUse.getProxy() + " " +
-                        proxyToUse.getPort()); //todo
+                        proxyToUse.getPort());
                 mapThreadIdToProxy.put(currThreadID, proxyToUse);
-                //Since we are using one, we need to find a replacement.
+                //Since we are using a new proxy, we need to find a replacement
                 Request request = new Request(true, "getConnection");
                 executorService.submit(request);
                 guiLabels.setNumberOfWorkingIPs("remove,none");
@@ -531,7 +531,7 @@ class Crawler {
             numberOfSearches++;
 
             //If 15 searches are made and no valid result is found, stop
-            if (numberOfSearches == 15) {
+            if (numberOfSearches == 10) {
                 guiLabels.setConnectionOutput("No more papers found.");
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("No more papers found.");
@@ -541,7 +541,9 @@ class Crawler {
                 }
                 break;
             }
-
+            if (!isMultipleSearch) {
+                guiLabels.setOutput("Downloading...");
+            }
             guiLabels.setConnectionOutput(String.valueOf("Number of requests from Thread " + currThreadID + ": " +
                     mapThreadIdToReqCount.get(currThreadID)));
             Elements linksInsidePaper = citingPapers.select("a[href]");
@@ -551,21 +553,34 @@ class Crawler {
                 text = link.text();
                 absLink = link.attr("abs:href");
                 if (text.contains("PDF")) {
-                    pdfCounter++;
-                    try {
-                        pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, mapThreadIdToProxy.get(currThreadID));
+                    int attempt = 0;
+                    //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
+                    //connect, use the proxy that is currently at the top of the queue, without removing it.
+                    while (attempt < 2) {
+                        pdfCounter++;
+                        try {
+                            Proxy proxyToUSe = mapThreadIdToProxy.get(currThreadID);
+                            if (attempt > 0) {
+                                proxyToUSe = queueOfConnections.peek();
+                            }
+                            pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, speedUp);
+                            File file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
+                                    + ".pdf");
+                            if (file.length() == 0 || !file.canRead()) {
+                                throw new IOException("File is invalid");
+                            }
+                            numberOfSearches = 0;
+                            break;
 
-                        File file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
-                                + ".pdf");
-                        if (file.length() == 0 || !file.canRead()) {
-                            throw new IOException("File is invalid");
+                        } catch (IOException e2) {
+                            guiLabels.setConnectionOutput("This file could not be downloaded, skipping...");
+                            pdfCounter--;
+                            attempt++;
+                            if (!e2.getMessage().contains("Error 403") && !e2.getMessage().contains("response code: 429") && !e2.getMessage().contains("Unable to tunnel through proxy.")) {
+                                System.out.println("Error: " + e2.getMessage());
+                                break;
+                            }
                         }
-                        numberOfSearches = 0;
-
-                    } catch (IOException e2) {
-                        System.out.println(e2.getMessage());
-                        guiLabels.setConnectionOutput("This file could not be downloaded, skipping...");
-                        pdfCounter--;
                     }
 
                     if (!isMultipleSearch) {
@@ -633,6 +648,18 @@ class Crawler {
         setOfProxyGathered.add(proxy);
     }
 
+    public void setGUI(SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
+        this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
+    }
+
+    /**
+     * Increases the download speed by not using proxies to download files
+     *
+     * @param speedUp true if the user wants to increase the speed. False otherwise.
+     */
+    public void increaseSpeed(boolean speedUp) {
+        this.speedUp = speedUp;
+    }
 
     /**
      * Implements Callable. Assigns a task to a thread.

@@ -140,3 +140,19 @@
 .scroll-pane > .viewport {
     -fx-background-color: transparent;
 }
+
+#jfx-radio-button {
+    -fx-selected-color: #7d9a4f;
+    -fx-unselected-color: #7d9a4f;
+
+}
+#jfx-radio-button .dot {
+    -fx-mark-highlight-color: #7d9a4f ;
+    -fx-mark-color: #7d9a4f ;
+
+
+}
+#jfx-rippler {
+    -fx-rippler-fill: #7d9a4f;
+}
+

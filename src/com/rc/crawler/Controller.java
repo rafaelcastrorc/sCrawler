@@ -1,6 +1,7 @@
 package com.rc.crawler;
 
 import com.jfoenix.controls.JFXButton;
+import com.jfoenix.controls.JFXRadioButton;
 import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
 
@@ -11,6 +12,7 @@ import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Label;
+import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.stage.*;
 import javafx.stage.Window;
@@ -42,7 +44,8 @@ public class Controller implements Initializable {
     private boolean hasSearchBeforeMultiple = false;
     private SimultaneousDownloadsGUI simultaneousDownloadsGUI;
     private ExecutorService executorServiceMultiple;
-
+    private int numOfConnectionsNeeded;
+    boolean speedUp = false;
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -73,8 +76,10 @@ public class Controller implements Initializable {
     private JFXButton downloadButtonMultiple;
     @FXML
     private JFXTextField numberOfPDFsMultiple;
-
-
+    @FXML
+    private JFXRadioButton increaseSpeedButton1;
+    @FXML
+    private JFXRadioButton increaseSpeedButton;
     @SuppressWarnings("WeakerAccess")
     public Controller() {
     }
@@ -192,8 +197,9 @@ public class Controller implements Initializable {
                 simultaneousDownloadsGUI.updateArticleName(path);
             }
             int numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), citingPaperURL, isMultipleSearch, pdfDownloader);
-
-            guiLabels.setNumberOfPDFMultiple(String.valueOf(numberOfPDFsDownloaded));
+            if (isMultipleSearch) {
+                updateNumberOfPDFsMultiple(numberOfPDFsDownloaded, false);
+            }
 
             Logger logger = Logger.getInstance();
             logger.setReportWriter(true, "Report");
@@ -244,8 +250,19 @@ public class Controller implements Initializable {
                     }
                     updateOutputMultiple("File has been submitted.");
                     downloadButtonMultiple.setDisable(false);
+                    if (articleNames.size() < 8) {
+                        simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
+                        simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(articleNames.size());
+                        crawler.setGUI(simultaneousDownloadsGUI);
+                        this.numOfConnectionsNeeded = articleNames.size();
+                    } else {
+                        simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
+                        simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(8);
+                        crawler.setGUI(simultaneousDownloadsGUI);
+                        this.numOfConnectionsNeeded = 8;
+                    }
                     simultaneousDownloadsGUI.addGUI(scrollPanel);
-                    singleThreadExecutor.submit(new DoWork("waitFor4Connections", null));
+                    singleThreadExecutor.submit(new DoWork("waitFor4Connections", String.valueOf(numOfConnectionsNeeded)));
 
                 } catch (FileNotFoundException e) {
                     displayAlert(e.getMessage());
@@ -282,24 +299,23 @@ public class Controller implements Initializable {
         if (matcher.find()) {
             simultaneousDownloadsGUI.resetCounter();
             numOfPDFToDownload = matcher.group();
-            //To download files simulateously using threads. Based on calculations and experimentation, 4 seems to be the ideal number.
+            //To download files simultaneously using threads. Based on calculations and experimentation, 4 seems to be the ideal number.
             if (!hasSearchBeforeMultiple) {
-                this.executorServiceMultiple = Executors.newFixedThreadPool(10, new MyThreadFactory());
+                this.executorServiceMultiple = Executors.newFixedThreadPool(8, new MyThreadFactory());
                 hasSearchBeforeMultiple = true;
             }
-            guiLabels.setOutputMultiple("Processing...");
+            //Restart pdf count
+            updateNumberOfPDFsMultiple(0, true);
+            updateOutputMultiple("Processing...");
             atomicCounter = new AtomicCounter();
             atomicCounter.reset();
             atomicCounter.setMaxNumber(articleNames.size());
             updateProgressBarMultiple(0.0);
             List<Future> futures = new ArrayList<>();
             for (String article : articleNames) {
-                //Re use task, and do has search before
                 DoWork task = new DoWork("multipleSearch", article);
                 futures.add(executorServiceMultiple.submit(task));
             }
-            System.out.println(articleNames.size());
-
         } else {
             displayAlert("Please only write numbers here.");
         }
@@ -355,19 +371,21 @@ public class Controller implements Initializable {
     /**
      * Updates the label with the number of PDFs downloaded in the multiple article mode
      *
-     * @param text String with the number of PDFs
+     * @param newVal int with the number of PDFs
      */
-    private void updateNumberOfPDFsMultiple(String text) {
+    private void updateNumberOfPDFsMultiple(int newVal, boolean isNewSearch) {
         Platform.runLater(() -> {
-            if (pdfsDownloadedMultiple.getText() == null || pdfsDownloadedMultiple.getText().isEmpty()) {
-                pdfsDownloadedMultiple.setText(text + "/" + articleNames.size() * Integer.parseInt(numOfPDFToDownload));
-
+            if (isNewSearch) {
+                pdfsDownloadedMultiple.setText("");
             } else {
-                String prev = pdfsDownloadedMultiple.getText();
-                //We update the value by increase the previous count
-                String[] array = prev.split("/");
-                int total = Integer.parseInt(array[0]) + Integer.parseInt(text);
-                pdfsDownloadedMultiple.setText(total + "/" + array[1]);
+                if (pdfsDownloadedMultiple.getText() == null || pdfsDownloadedMultiple.getText().isEmpty()) {
+                    pdfsDownloadedMultiple.setText(String.valueOf(newVal));
+                } else {
+                    String prev = pdfsDownloadedMultiple.getText();
+                    //We update the value by increase the previous count
+                    int total = Integer.parseInt(prev) + newVal;
+                    pdfsDownloadedMultiple.setText(String.valueOf(total));
+                }
             }
 
         });
@@ -547,10 +565,11 @@ public class Controller implements Initializable {
         } catch (IOException e) {
             displayAlert(e.getMessage());
         }
+        increaseSpeedButton.setSelectedColor(Color.web("#7d9a4f"));
+        increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
 
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
-        this.simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         DoWork task = new DoWork("initialize", null);
         Thread thread = new Thread(task);
@@ -560,13 +579,51 @@ public class Controller implements Initializable {
 
 
     /**
+     * Increases the download speed by not using a proxy to download the files.
+     */
+    @FXML
+    void increaseSpeedOnClick() {
+
+        if (speedUp) {
+            speedUp = false;
+            crawler.increaseSpeed(false);
+            Platform.runLater(() -> {
+                increaseSpeedButton.setSelected(false);
+                increaseSpeedButton1.setSelected(false);
+            });
+        } else {
+            Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.WARNING, "If you want to speed up the downloaded process," +
+                                " the program will download most of the files without using a proxy, so you will lose your anonymity." +
+                                "\nDo you want to continue?", ButtonType.YES, ButtonType.NO);
+                        alert.setHeaderText(null);
+                        alert.showAndWait();
+                        if (alert.getResult() == ButtonType.YES) {
+                            speedUp = true;
+                            crawler.increaseSpeed(true);
+                            increaseSpeedButton.setSelected(true);
+                            increaseSpeedButton1.setSelected(true);
+
+                        }
+                        else {
+                            increaseSpeedButton.setSelected(false);
+                            increaseSpeedButton1.setSelected(false);
+
+                        }
+                    }
+            );
+        }
+
+
+    }
+
+    /**
      * Inner Task class. Allows to perform computations in the background while keeping GUI responsive
      */
     class DoWork extends Task<Void> {
         //Type of task that will be performed
         private final String type;
         private String article;
-
 
         /**
          * Initializes new task. Takes as a parameter the type of task that will be performed. Task include: download, search, initialize, close, multipleSearch, and waitFor4Connections
@@ -596,10 +653,9 @@ public class Controller implements Initializable {
                     Platform.runLater(() -> loading.display());
 
                     int currQueueSize = crawler.getQueueOfConnections().size();
-                    System.out.println(currQueueSize);
-                    updateOutputMultiple("Connecting to 4 different proxies...");
+                    updateOutputMultiple("Connecting to " + Integer.valueOf(article) + " different proxies...");
 
-                    while (currQueueSize < 10) {
+                    while (currQueueSize < Integer.valueOf(article)) {
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {
@@ -613,9 +669,7 @@ public class Controller implements Initializable {
                     break;
                 case "multipleSearch":
                     //Add thread to a group
-                    System.out.println("Accessed!");
-                    String s = simultaneousDownloadsGUI.addThreadToGroup(Thread.currentThread().getId());
-                    System.out.println("Thread " + Thread.currentThread().getId() + " is in group " + s);
+                    int s = simultaneousDownloadsGUI.addThreadToGroup(Thread.currentThread().getId());
                     simultaneousDownloadsGUI.updateStatus("Searching...");
                     simultaneousDownloadsGUI.updateArticleName("Not set");
                     String url = "";
@@ -667,7 +721,6 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.updateStatus("Done");
                     atomicCounter.increment();
                     Double currPercentage = atomicCounter.value() / (double) atomicCounter.getMaxNumber();
-                    System.out.println(currPercentage);
                     if (currPercentage == 1) {
                         updateOutputMultiple("All files have been downloaded");
                     }
@@ -687,6 +740,7 @@ public class Controller implements Initializable {
                     break;
                 case "download":
                     //Traditional download
+                    progressBar.progressProperty().setValue(0);
                     download(mapThreadToTitle.get(Thread.currentThread().getId()), citingPapersURL, false);
                     progressBar.progressProperty().setValue(1);
                     break;
@@ -699,7 +753,7 @@ public class Controller implements Initializable {
                     loading = new LoadingWindow();
                     //Create a new loading box to display while application loads
                     Platform.runLater(() -> loading.display());
-                    crawler = new Crawler(guiLabels, simultaneousDownloadsGUI);
+                    crawler = new Crawler(guiLabels);
                     //For single article mode
                     guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> displayAlert(newValue));
                     guiLabels.getOutput().addListener((observable, oldValue, newValue) -> updateOutput(newValue));
@@ -711,7 +765,6 @@ public class Controller implements Initializable {
                     //For multiple article mode
                     guiLabels.getOutputMultiple().addListener((observable, oldValue, newValue) -> updateOutputMultiple(newValue));
                     guiLabels.getLoadBarMultiple().addListener((observable, oldValue, newValue) -> updateProgressBarMultiple(newValue.doubleValue()));
-                    guiLabels.getNumberOfPDFsMultiple().addListener(((observable, oldValue, newValue) -> updateNumberOfPDFsMultiple(String.valueOf(newValue))));
                     //Load the crawler
                     crawler.loadCrawler();
                     break;

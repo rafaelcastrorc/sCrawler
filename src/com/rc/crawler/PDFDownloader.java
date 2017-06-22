@@ -8,6 +8,8 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 6/14/17.
@@ -34,23 +36,30 @@ class PDFDownloader {
      * @param pdfCounter Number of PDFs downloaded
      * @param guiLabels  GUILabelManagement object
      * @param ipAndPort  Proxy with the current proxy being used
+     * @param speedUp    If true, program does not use proxies to download most files.
      * @throws IOException Unable to open link
      */
-    void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort) throws IOException {
+    void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp) throws IOException {
         URL urlObj = new URL(url);
         this.guiLabels = guiLabels;
-        HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
+        HttpURLConnection connection;
+        java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
+        if (!speedUp) {
+            connection= (HttpURLConnection) urlObj.openConnection(proxy);
+        }
+        else {
+             connection = (HttpURLConnection) urlObj.openConnection();
 
+        }
         //Set request property to avoid error 403
-        connection.setRequestProperty("User-Agent", "Chrome");
+        connection.setRequestProperty("User-Agent","Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
         int status = connection.getResponseCode();
+
         if (status == 429) {
             //If we have sent too many request to server, change proxy
             String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
             connection.disconnect();
             guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
-            System.out.println(url);
-            java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
             //If server blocks us, then we connect via the current proxy we are using
             connection = (HttpURLConnection) urlObj.openConnection(proxy);
             connection.setRequestProperty("User-Agent", "Mozilla/5.0");
@@ -67,20 +76,27 @@ class PDFDownloader {
                     || status == HttpURLConnection.HTTP_SEE_OTHER)
                 redirect = true;
         }
+        if (status == 403) {
+            throw new IOException("Error 403");
+        }
 
         if (redirect) {
             while (redirect) {
                 // get redirect url from "location" header field
                 String newUrl = connection.getHeaderField("Location");
                 // open the new connection again
-                connection = (HttpURLConnection) new URL(newUrl).openConnection();
+                if (!speedUp) {
+                    connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                }
+                else {
+                    connection = (HttpURLConnection) new URL(newUrl).openConnection();
+                }
                 connection.setRequestProperty("User-Agent", "Chrome");
                 status = connection.getResponseCode();
                 if (status == 429) {
                     String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
                     connection.disconnect();
                     guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
-                    java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
                     //If server blocks us, then we connect via the current proxy we are using
                     connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
                     connection.setRequestProperty("User-Agent", "Mozilla/5.0");

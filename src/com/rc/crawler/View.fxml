@@ -1,18 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.effect.*?>
-<?import javafx.scene.image.*?>
-<?import javafx.geometry.*?>
-<?import javafx.scene.shape.*?>
-<?import javafx.scene.canvas.*?>
-<?import javafx.scene.text.*?>
-<?import com.jfoenix.validation.*?>
-<?import com.jfoenix.controls.*?>
 <?import java.lang.*?>
-<?import java.util.*?>
-<?import javafx.scene.*?>
+<?import com.jfoenix.controls.*?>
+<?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
 
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" style="-fx-background-color: #434141;" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rc.crawler.Controller">
    <top>
@@ -122,6 +115,11 @@
                                                             <Font name="Roboto Light" size="16.0" />
                                                          </font>
                                                       </Label>
+                                                      <JFXRadioButton fx:id="increaseSpeedButton1" graphicTextGap="1.0" maxWidth="120.0" onAction="#increaseSpeedOnClick" prefHeight="20.0" prefWidth="120.0" text="Increase Speed">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </JFXRadioButton>
                                                    </children>
                                                 </HBox>
                                              </children>
@@ -167,7 +165,7 @@
                                                          <children>
                                                             <VBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="210.0" prefWidth="381.0" spacing="10.0" style="-fx-background-color: #afb0af;">
                                                                <children>
-                                                                  <Label prefHeight="79.0" prefWidth="361.0" text="1. Please select the file that contains all the articles you are trying to find the citing papers of" textAlignment="CENTER" wrapText="true">
+                                                                  <Label prefHeight="79.0" prefWidth="361.0" text="1. Please select the file that contains the article names." textAlignment="CENTER" wrapText="true">
                                                                      <font>
                                                                         <Font name="Roboto Light" size="16.0" />
                                                                      </font>
@@ -186,19 +184,19 @@
                                                                <children>
                                                                   <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="145.0" prefWidth="389.0" spacing="20.0" style="-fx-background-color: #afb0af;">
                                                                      <children>
-                                                                        <Label prefHeight="247.0" prefWidth="361.0" text="2. How many papers that cite each article you want to download?" textAlignment="CENTER" wrapText="true">
+                                                                        <Label prefHeight="247.0" prefWidth="361.0" text="2. How many papers that cite each article do you want to download?" textAlignment="CENTER" wrapText="true">
                                                                            <font>
                                                                               <Font name="Roboto Light" size="16.0" />
                                                                            </font>
                                                                         </Label>
                                                                         <HBox alignment="CENTER" nodeOrientation="LEFT_TO_RIGHT" spacing="10.0">
                                                                            <children>
-                                                                              <JFXTextField fx:id="numberOfPDFsMultiple" alignment="CENTER" focusColor="BLACK" prefHeight="28.0" prefWidth="200.0" promptText="Number of PDFs" unFocusColor="#515151">
+                                                                              <JFXTextField fx:id="numberOfPDFsMultiple" alignment="CENTER" focusColor="BLACK" prefHeight="28.0" prefWidth="107.0" promptText="Number of PDFs" unFocusColor="#515151">
                                                                                  <font>
                                                                                     <Font name="Roboto Light" size="16.0" />
                                                                                  </font>
                                                                               </JFXTextField>
-                                                                              <JFXButton fx:id="downloadButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#multipleDownloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
+                                                                              <JFXButton fx:id="downloadButtonMultiple" alignment="CENTER" cancelButton="true" disable="true" onAction="#multipleDownloadOnClick" prefHeight="32.0" prefWidth="105.0" style="-fx-background-color: #7d9a4f;" text="Download">
                                                                                  <font>
                                                                                     <Font name="Roboto Light" size="16.0" />
                                                                                  </font>
@@ -220,6 +218,11 @@
                                                                                     <Insets />
                                                                                  </HBox.margin>
                                                                               </Label>
+                                                                              <JFXRadioButton fx:id="increaseSpeedButton" graphicTextGap="1.0" maxWidth="120.0" onAction="#increaseSpeedOnClick" prefHeight="20.0" prefWidth="120.0" text="Increase Speed">
+                                                                                 <font>
+                                                                                    <Font name="Roboto Light" size="16.0" />
+                                                                                 </font>
+                                                                              </JFXRadioButton>
                                                                            </children>
                                                                         </HBox>
                                                                      </children>
@@ -244,7 +247,8 @@
                                                             <ScrollPane fx:id="scrollPanel" fitToWidth="true" pickOnBounds="false" prefHeight="240.0" prefWidth="210.0">
                                                                <opaqueInsets>
                                                                   <Insets />
-                                                               </opaqueInsets></ScrollPane>
+                                                               </opaqueInsets>
+                                                            </ScrollPane>
                                                          </children>
                                                       </VBox>
                                                    </children>
@@ -252,7 +256,8 @@
                                                 <ProgressBar fx:id="progressBarMultiple" maxWidth="1.7976931348623157E308" prefHeight="21.0" prefWidth="519.0" progress="0.0">
                                                    <padding>
                                                       <Insets right="8.0" />
-                                                   </padding></ProgressBar>
+                                                   </padding>
+                                                </ProgressBar>
                                                 <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="20.0" prefWidth="600.0" style="-fx-background-color: #434141;">
                                                    <children>
                                                       <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
@@ -272,7 +277,74 @@
                                                 </HBox>
                                              </children>
                                           </VBox>
-                                       </children></AnchorPane>
+                                       </children>
+                                    </AnchorPane>
+                                </content>
+                              </Tab>
+                              <Tab text=" Help">
+                                <content>
+                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" style="-fx-background-color: #434141;">
+                                       <children>
+                                          <Pane layoutX="-8.0" prefHeight="295.0" prefWidth="642.0" style="-fx-background-color: #e1e2e1;">
+                                             <children>
+                                                <VBox layoutX="13.0" layoutY="6.0" prefHeight="288.0" prefWidth="580.0" spacing="5.0">
+                                                   <children>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="26.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Purpose" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="47.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Find and download all the articles (available in PDF) that cite a given article that the user provides as input." textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="97.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="How?" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="118.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Using Google Scholar &quot;cited by&quot; future, the crawler goes through all the articles and downloads as many as requested. There are no limits!" textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="171.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="How to use Single Article mode?" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="192.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="First type the name of the article. Second, type how many papers that cite the article you want to download. Then press download." textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="245.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="How to use Multiple Articles mode?" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="266.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Works the same as Single Article mode, the only difference is that you need to input a .csv or .txt file that contains the article names. Each article name must be on a different line." textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="13.0" layoutY="319.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Where are the files downloaded?" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="13.0" layoutY="340.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="In the DownloadedPDFs folder, in the same location where the application file is. Inside, there is a file called Report.txt where you can find all the information about the downloaded files, including where to find each file." textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                   </children>
+                                                </VBox>
+                                             </children>
+                                          </Pane>
+                                       </children>
+                                    </AnchorPane>
                                 </content>
                               </Tab>
                            </tabs>
