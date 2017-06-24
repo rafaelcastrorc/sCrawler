@@ -1,5 +1,9 @@
 package com.rc.crawler;
 
+import org.apache.pdfbox.cos.COSDocument;
+import org.apache.pdfbox.io.RandomAccessBufferedFileInputStream;
+import org.apache.pdfbox.pdfparser.PDFParser;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -558,17 +562,29 @@ class Crawler {
                     //connect, use the proxy that is currently at the top of the queue, without removing it.
                     while (attempt < 2) {
                         pdfCounter++;
+                        File file = null;
                         try {
                             Proxy proxyToUSe = mapThreadIdToProxy.get(currThreadID);
                             if (attempt > 0) {
                                 proxyToUSe = queueOfConnections.peek();
                             }
                             pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, speedUp);
-                            File file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
+                            file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
                                     + ".pdf");
                             if (file.length() == 0 || !file.canRead()) {
                                 throw new IOException("File is invalid");
                             }
+                            //Check if pdf is a valid pdf file
+                            try {
+                                PDFParser parser = new PDFParser(new RandomAccessBufferedFileInputStream(file));
+                                parser.parse();
+                                COSDocument cosDoc = parser.getDocument();
+                                cosDoc.close();
+                            }
+                            catch (Exception e) {
+                                throw new IOException("File is invalid");
+                            }
+
                             numberOfSearches = 0;
                             break;
 
@@ -577,7 +593,13 @@ class Crawler {
                             pdfCounter--;
                             attempt++;
                             if (!e2.getMessage().contains("Error 403") && !e2.getMessage().contains("response code: 429") && !e2.getMessage().contains("Unable to tunnel through proxy.")) {
+                               //If it is NOT any of these three errors, then do not try to re-download it
                                 System.out.println("Error: " + e2.getMessage());
+                                if (e2.getMessage().equals("File is invalid")) {
+                                    if (file != null) {
+                                        file.delete();
+                                    }
+                                }
                                 break;
                             }
                         }
@@ -648,7 +670,7 @@ class Crawler {
         setOfProxyGathered.add(proxy);
     }
 
-    public void setGUI(SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
+    void setGUI(SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
     }
 
@@ -657,7 +679,7 @@ class Crawler {
      *
      * @param speedUp true if the user wants to increase the speed. False otherwise.
      */
-    public void increaseSpeed(boolean speedUp) {
+    void increaseSpeed(boolean speedUp) {
         this.speedUp = speedUp;
     }
 
