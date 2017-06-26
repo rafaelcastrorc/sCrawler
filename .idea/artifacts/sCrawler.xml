@@ -1,16 +1,19 @@
 <component name="ArtifactManager">
-  <artifact type="jar" build-on-make="true" name="sCrawler">
+  <artifact type="jar" name="sCrawler">
     <output-path>$PROJECT_DIR$/out/artifacts/sCrawler</output-path>
     <root id="archive" name="MyProjects.jar">
       <element id="module-output" name="MyProjects" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jfoenix.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/jsoup-1.10.2 (1).jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/fontbox-2.0.6.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/org-apache-commons-logging.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/bcprov-jdk14-1571.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/xmpbox-2.0.6.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/pdfbox-tools-2.0.6 (1).jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/pdfbox-2.0.6 (1).jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/preflight-2.0.6.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/joda-time-2.9.9.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/commons-io-2.5.jar" path-in-jar="/" />
-      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/junit/lib/junit-jupiter-api-5.0.0-M4.jar" path-in-jar="/" />
-      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/junit/lib/opentest4j-1.0.0-M2.jar" path-in-jar="/" />
-      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/testng/lib/testng.jar" path-in-jar="/" />
-      <element id="extracted-dir" path="$APPLICATION_HOME_DIR$/plugins/testng/lib/jcommander.jar" path-in-jar="/" />
-      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jfoenix.jar" path-in-jar="/" />
     </root>
   </artifact>
 </component>

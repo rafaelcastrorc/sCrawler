@@ -66,6 +66,7 @@ class Crawler {
      * the user can use the program.
      */
     void loadCrawler() {
+        System.out.println("loading crawler");
         //Retrieve n proxies (n = 600) before starting the program.
         getProxies();
         guiLabels.setOutput("Establishing connections...");
