@@ -3,7 +3,6 @@ package com.rc.crawler;
 import org.apache.pdfbox.cos.COSDocument;
 import org.apache.pdfbox.io.RandomAccessBufferedFileInputStream;
 import org.apache.pdfbox.pdfparser.PDFParser;
-import org.apache.pdfbox.pdmodel.PDDocument;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -598,6 +597,7 @@ class Crawler {
                                 System.out.println("Error: " + e2.getMessage());
                                 if (e2.getMessage().equals("File is invalid")) {
                                     if (file != null) {
+                                        //noinspection ResultOfMethodCallIgnored
                                         file.delete();
                                     }
                                 }

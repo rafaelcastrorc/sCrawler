@@ -45,7 +45,7 @@ public class Controller implements Initializable {
     private SimultaneousDownloadsGUI simultaneousDownloadsGUI;
     private ExecutorService executorServiceMultiple;
     private int numOfConnectionsNeeded;
-    boolean speedUp = false;
+    private boolean speedUp = false;
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -743,6 +743,8 @@ public class Controller implements Initializable {
                     progressBar.progressProperty().setValue(0);
                     download(mapThreadToTitle.get(Thread.currentThread().getId()), citingPapersURL, false);
                     progressBar.progressProperty().setValue(1);
+                    updateOutput("All files have been downloaded!");
+
                     break;
                 case "upload":
                     openFile();
