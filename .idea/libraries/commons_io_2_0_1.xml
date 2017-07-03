@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="bcprov-jdk14-1571">
+  <library name="commons.io_2.0.1">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/bcprov-jdk14-1571.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/commons.io_2.0.1.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

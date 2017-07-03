@@ -13,6 +13,9 @@ class Logger {
     private static BufferedWriter listOfProxiesWriter;
     private static Logger instance;
     private static BufferedWriter reportWriter;
+    private static BufferedWriter listOfFinishedPapers;
+    private static BufferedWriter filesNotDownloaded;
+
 
 
     /**
@@ -106,6 +109,79 @@ class Logger {
         } catch (IOException e) {
             throw new IOException("Cannot write to file");
 
+        }
+    }
+
+
+
+    /**
+     * Sets the file to write the papers that have been downloaded
+     *
+     * @param append if the file already exists and is valid, then append is true.
+     * @throws IOException unable to write to file
+     */
+    void setListOfFinishedPapers(boolean append) throws IOException {
+        if (append) {
+            listOfFinishedPapers = new BufferedWriter(new FileWriter("./AppData/CompletedDownloads.txt", true));
+        } else {
+            try {
+                File file = new File("./AppData/CompletedDownloads.txt");
+                listOfFinishedPapers = new BufferedWriter(new FileWriter(file));
+            } catch (IOException e) {
+                throw new IOException("Unable to create list of completed downloads");
+            }
+        }
+    }
+
+    /**
+     * Writes to the list of working proxies.
+     *
+     * @param s String to write
+     * @throws IOException Unable to write to file
+     */
+    void writeToListOfFinishedPapers(String s) throws IOException {
+        try {
+            listOfFinishedPapers.write(s);
+            listOfFinishedPapers.flush();
+        } catch (IOException e) {
+            throw new IOException("Cannot write to file");
+        }
+    }
+
+
+
+    /**
+     * Writes to the list of papers that could not be downloaded
+     *
+     * @param s String to write
+     * @throws IOException Unable to write to file
+     */
+    void writeToFilesNotDownoaded(String s) throws IOException {
+        try {
+            filesNotDownloaded.write(s);
+            filesNotDownloaded.flush();
+        } catch (IOException e) {
+            throw new IOException("Cannot write to file");
+        }
+    }
+
+
+    /**
+     * Sets the file to write the papers that have NOT been downloaded
+     *
+     * @param append if the file already exists and is valid, then append is true.
+     * @throws IOException unable to write to file
+     */
+    void setListOfNotDownloadedPapers(boolean append) throws IOException {
+        if (append) {
+            filesNotDownloaded = new BufferedWriter(new FileWriter("./DownloadedPDFs/FilesNotDownloaded.txt", true));
+        } else {
+            try {
+                File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
+                filesNotDownloaded = new BufferedWriter(new FileWriter(file));
+            } catch (IOException e) {
+                throw new IOException("Unable to create list of files not downloaded");
+            }
         }
     }
 

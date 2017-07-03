@@ -55,4 +55,11 @@ class AtomicCounter {
     int value() {
         return c.get();
     }
+
+    /**
+     * Decreases the value of the counter
+     */
+    void decrease() {
+        c.decrementAndGet();
+    }
 }

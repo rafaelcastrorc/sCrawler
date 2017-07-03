@@ -32,12 +32,14 @@ class ProxiesDownloader {
      */
     private void getProxiesList(boolean addMore) {
         if (!addMore) {
+            //Todo: add them randomly
+            proxiesLists.add("http://www.gatherproxy.com");
             //working US only proxy list. All results displayed at once. (< 200)
             proxiesLists.add("https://www.us-proxy.org");
             //Working international proxy list. All results displayed at once. (<300)
             proxiesLists.add("http://www.httptunnel.ge/ProxyListForFree.aspx");
             //Working international proxy list. All results displayed at once. (<150)
-            proxiesLists.add("https://hidemy.name/en/proxy-list");
+            proxiesLists.add("https://www.hidemy.name/en/proxy-list/");
             //Use for backup
             //International list, but it is divided in entries.
             proxiesLists.add("https://www.hide-my-ip.com/proxylist.shtml");
@@ -215,6 +217,20 @@ class ProxiesDownloader {
                         }
 
                     } catch (IOException e) {
+                        e.printStackTrace();
+                        if (e.getMessage().contains("Network is unreachable")) {
+                            //Check if there is internet connection
+                            System.out.println("Checking if there is internet connection...");
+                            while (!crawler.isThereConnection()) {
+                                try {
+                                    guiLabels.setOutput("No internet connection");
+                                    guiLabels.setOutputMultiple("No internet connection");
+                                    //Sleep for 30 seconds, try until connection is found
+                                    Thread.sleep(10 * 1000);
+                                } catch (InterruptedException ignored) {
+                                }
+                            }
+                        }
                         guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases. \nPlease make sure you have an internet connection.");
                     } catch (InterruptedException e) {
                         guiLabels.setConnectionOutput(e.getMessage());

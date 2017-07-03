@@ -19,7 +19,7 @@ public class View extends Application {
         //Loads all the necessary components to start the application
         FXMLLoader loader = new FXMLLoader(getClass().getResource("View.fxml"));
         Parent root = loader.load();
-        primaryStage.setTitle("Crawler");
+        primaryStage.setTitle(""+ getClass().getProtectionDomain().getCodeSource().getLocation());
         Scene loadingScene = new Scene(root);
         loadingScene.getStylesheets().add("Style.css");
         loadingScene.getStylesheets().add("https://fonts.googleapis.com/css?family=Roboto");

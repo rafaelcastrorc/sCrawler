@@ -8,8 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.*;
 
 /**
  * Created by rafaelcastro on 6/14/17.
@@ -39,99 +38,147 @@ class PDFDownloader {
      * @param speedUp    If true, program does not use proxies to download most files.
      * @throws IOException Unable to open link
      */
-    void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp) throws IOException {
-        URL urlObj = new URL(url);
-        this.guiLabels = guiLabels;
-        HttpURLConnection connection;
-        java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
-        if (!speedUp) {
-            connection= (HttpURLConnection) urlObj.openConnection(proxy);
+    void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp)
+            throws Exception {
+        DownloadPDFTask downloadPDFTask = new DownloadPDFTask(url, pdfCounter, guiLabels, ipAndPort, speedUp);
+        ExecutorService executorService = Executors.newSingleThreadExecutor(new MyThreadFactory());
+        Future<String> future =executorService.submit(downloadPDFTask);
+        String result;
+        try {
+            //Limit of 2 minute to download a file
+            result = future.get(2, TimeUnit.MINUTES);
+        } catch (Exception e){
+            future.cancel(true);
+            System.out.println("Timeout download: " + url);
+            result = "Timeout";
         }
-        else {
-             connection = (HttpURLConnection) urlObj.openConnection();
+        //If result is not empty, it means that an exception was thrown inside the thread, or there was a timeout
 
+        if (!result.isEmpty()) {
+            throw new IOException(result);
         }
-        //Set request property to avoid error 403
-        connection.setRequestProperty("User-Agent","Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
-        int status = connection.getResponseCode();
-
-        if (status == 429) {
-            //If we have sent too many request to server, change proxy
-            String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
-            connection.disconnect();
-            guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
-            //If server blocks us, then we connect via the current proxy we are using
-            connection = (HttpURLConnection) urlObj.openConnection(proxy);
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            connection.setRequestProperty("Cookie", cookie);
-            status = connection.getResponseCode();
-        }
-        connection.connect();
+    }
 
 
-        boolean redirect = false;
-        if (status != HttpURLConnection.HTTP_OK) {
-            if (status == HttpURLConnection.HTTP_MOVED_TEMP
-                    || status == HttpURLConnection.HTTP_MOVED_PERM
-                    || status == HttpURLConnection.HTTP_SEE_OTHER)
-                redirect = true;
-        }
-        if (status == 403) {
-            throw new IOException("Error 403");
+    /**
+     * Class to download PDF files using threads
+     */
+    class DownloadPDFTask implements Callable<String> {
+
+        private final String url;
+        private final int pdfCounter;
+        private final GUILabelManagement guiLabels;
+        private final Proxy ipAndPort;
+        private final boolean speedUp;
+
+        DownloadPDFTask(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp) {
+            this.url = url;
+            this.pdfCounter = pdfCounter;
+            this.guiLabels = guiLabels;
+            this.ipAndPort = ipAndPort;
+            this.speedUp = speedUp;
         }
 
-        if (redirect) {
-            while (redirect) {
-                // get redirect url from "location" header field
-                String newUrl = connection.getHeaderField("Location");
-                // open the new connection again
+        @Override
+        public String call() throws Exception {
+            String result = "";
+            try {
+                URL urlObj = new URL(url);
+                HttpURLConnection connection;
+                java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
+
                 if (!speedUp) {
-                    connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                    connection = (HttpURLConnection) urlObj.openConnection(proxy);
+                } else {
+                    connection = (HttpURLConnection) urlObj.openConnection();
+
                 }
-                else {
-                    connection = (HttpURLConnection) new URL(newUrl).openConnection();
-                }
-                connection.setRequestProperty("User-Agent", "Chrome");
-                status = connection.getResponseCode();
+                //Set request property to avoid error 403
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
+                int status = connection.getResponseCode();
+
                 if (status == 429) {
+                    //If we have sent too many request to server, change proxy
                     String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
                     connection.disconnect();
                     guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
                     //If server blocks us, then we connect via the current proxy we are using
-                    connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                    connection = (HttpURLConnection) urlObj.openConnection(proxy);
                     connection.setRequestProperty("User-Agent", "Mozilla/5.0");
                     connection.setRequestProperty("Cookie", cookie);
                     status = connection.getResponseCode();
-
                 }
-                if (status == 200) {
-                    //Check if the url contains .pdf, if not, is not a pdf file
-                    if (!newUrl.endsWith("pdf")) {
-                        throw new IOException("Invalid file");
-                    }
-                }
-
                 connection.connect();
-                ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
-                fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
+
+                boolean redirect = false;
                 if (status != HttpURLConnection.HTTP_OK) {
                     if (status == HttpURLConnection.HTTP_MOVED_TEMP
                             || status == HttpURLConnection.HTTP_MOVED_PERM
                             || status == HttpURLConnection.HTTP_SEE_OTHER)
                         redirect = true;
-                } else {
-                    redirect = false;
+                }
+                if (status == 403) {
+                    throw new IOException("Error 403");
                 }
 
+                if (redirect) {
+                    while (redirect) {
+                        // get redirect url from "location" header field
+                        String newUrl = connection.getHeaderField("Location");
+                        // open the new connection again
+                        if (!speedUp) {
+                            connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                        } else {
+                            connection = (HttpURLConnection) new URL(newUrl).openConnection();
+                        }
+                        connection.setRequestProperty("User-Agent", "Chrome");
+                        status = connection.getResponseCode();
+                        if (status == 429) {
+                            String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
+                            connection.disconnect();
+                            guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
+                            //If server blocks us, then we connect via the current proxy we are using
+                            connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                            connection.setRequestProperty("Cookie", cookie);
+                            status = connection.getResponseCode();
+
+                        }
+                        if (status == 200) {
+                            //Check if the url contains .pdf, if not, is not a pdf file
+                            if (!newUrl.endsWith("pdf")) {
+                                throw new IOException("Invalid file");
+                            }
+                        }
+
+                        connection.connect();
+                        ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                        FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
+                        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+
+                        if (status != HttpURLConnection.HTTP_OK) {
+                            if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                                    || status == HttpURLConnection.HTTP_MOVED_PERM
+                                    || status == HttpURLConnection.HTTP_SEE_OTHER)
+                                redirect = true;
+                        } else {
+                            redirect = false;
+                        }
+
+                    }
+                } else {
+
+                    ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                    FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
+                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+
+                }
+            }catch (Exception e) {
+                result = e.getMessage();
             }
-        } else {
 
-            ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-            FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
-            fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-
+            return result;
         }
     }
 
@@ -144,16 +191,19 @@ class PDFDownloader {
      */
     String createUniqueFolder(String title) {
         String[] titleWords = title.split(" ");
-        String firstWord = titleWords[0];
+        StringBuilder firstWord = new StringBuilder(titleWords[0]);
         if (firstWord.length() < 3) {
-            firstWord = firstWord + titleWords[1];
+            firstWord.append(titleWords[1]);
         }
         if (firstWord.length() > 3) {
-            firstWord = firstWord.substring(0, 3);
+            firstWord = new StringBuilder(firstWord.substring(0, 3));
+        }
+        while (firstWord.length() < 3) {
+            firstWord.append("a");
         }
         File uniqueFileFolder = null;
         try {
-            uniqueFileFolder = File.createTempFile(firstWord, null, new File("./DownloadedPDFs"));
+            uniqueFileFolder = File.createTempFile(firstWord.toString(), null, new File("./DownloadedPDFs"));
         } catch (IOException e) {
             guiLabels.setAlertPopUp("Unable to create output file");
         }
@@ -172,4 +222,6 @@ class PDFDownloader {
         path = nameOfFolder;
         return nameOfFolder;
     }
+
+
 }

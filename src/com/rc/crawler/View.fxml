@@ -7,12 +7,12 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 
-<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" style="-fx-background-color: #434141;" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rc.crawler.Controller">
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="430.0" prefWidth="600.0" style="-fx-background-color: #434141;" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rc.crawler.Controller">
    <top>
       <HBox alignment="BOTTOM_CENTER" prefHeight="39.0" prefWidth="600.0" BorderPane.alignment="CENTER">
          <children>
             <Region maxWidth="217.5" prefHeight="53.0" prefWidth="217.0" HBox.hgrow="ALWAYS" />
-            <Label prefHeight="53.0" prefWidth="165.0" text="sCrawler" textFill="WHITE">
+            <Label maxHeight="53.0" maxWidth="165.0" minHeight="53.0" minWidth="165.0" prefHeight="53.0" prefWidth="165.0" text="Scrawler" textFill="WHITE">
                <font>
                   <Font name="Roboto Thin" size="43.0" />
                </font>
@@ -82,57 +82,121 @@
                                                 <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
                                              </padding>
                                           </VBox>
-                                          <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="135.0" prefWidth="600.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
-                                             <children>
-                                                <Label text="2. How many papers that cite the article you want to download?">
-                                                   <font>
-                                                      <Font name="Roboto Light" size="16.0" />
-                                                   </font>
-                                                </Label>
-                                                <HBox alignment="CENTER_LEFT" nodeOrientation="LEFT_TO_RIGHT" spacing="10.0">
-                                                   <children>
-                                                      <JFXTextField fx:id="numberOfPDFs" alignment="CENTER" focusColor="BLACK" prefHeight="28.0" prefWidth="200.0" promptText="Number of PDFs" unFocusColor="#515151">
-                                                         <font>
-                                                            <Font name="Roboto Light" size="16.0" />
-                                                         </font>
-                                                      </JFXTextField>
-                                                      <JFXButton fx:id="downloadButton" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
-                                                         <font>
-                                                            <Font name="Roboto Light" size="16.0" />
-                                                         </font>
-                                                      </JFXButton>
-                                                   </children>
-                                                </HBox>
-                                                <HBox prefHeight="100.0" prefWidth="200.0">
-                                                   <children>
-                                                      <Label text="PDFs Downloaded: ">
-                                                         <font>
-                                                            <Font name="Roboto Light" size="16.0" />
-                                                         </font>
-                                                      </Label>
-                                                      <Label fx:id="pdfsDownloadedLabel">
-                                                         <font>
-                                                            <Font name="Roboto Light" size="16.0" />
-                                                         </font>
-                                                      </Label>
-                                                      <JFXRadioButton fx:id="increaseSpeedButton1" graphicTextGap="1.0" maxWidth="120.0" onAction="#increaseSpeedOnClick" prefHeight="20.0" prefWidth="120.0" text="Increase Speed">
-                                                         <font>
-                                                            <Font name="Roboto Light" size="16.0" />
-                                                         </font>
-                                                      </JFXRadioButton>
-                                                   </children>
-                                                </HBox>
-                                             </children>
-                                             <padding>
-                                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                                             </padding>
-                                          </VBox>
+                                          <JFXTabPane>
+                                             <tabs>
+                                                <Tab text="Download The Article">
+                                                  <content>
+                                                    <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="135.0" prefWidth="200.0">
+                                                         <children>
+                                                            <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="135.0" prefWidth="600.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
+                                                               <padding>
+                                                                  <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                                                               </padding>
+                                                               <children>
+                                                                  <Label text="2. How many different versions of the article (in PDF) do you want to download?">
+                                                                     <font>
+                                                                        <Font name="Roboto Light" size="16.0" />
+                                                                     </font>
+                                                                  </Label>
+                                                                  <HBox alignment="CENTER_LEFT" nodeOrientation="LEFT_TO_RIGHT" spacing="10.0">
+                                                                     <children>
+                                                                        <JFXTextField fx:id="numberOfPDFs1" alignment="CENTER" focusColor="BLACK" prefHeight="28.0" prefWidth="200.0" promptText="Number of PDFs" unFocusColor="#515151">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </JFXTextField>
+                                                                        <JFXButton fx:id="downloadButton1" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </JFXButton>
+                                                                     </children>
+                                                                  </HBox>
+                                                                  <HBox prefHeight="100.0" prefWidth="200.0">
+                                                                     <children>
+                                                                        <Label text="PDFs Downloaded: ">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </Label>
+                                                                        <Label fx:id="pdfsDownloadedLabel1">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </Label>
+                                                                        <JFXRadioButton fx:id="increaseSpeedButton11" graphicTextGap="1.0" maxWidth="120.0" onAction="#increaseSpeedOnClick" prefHeight="20.0" prefWidth="120.0" text="Increase Speed">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </JFXRadioButton>
+                                                                     </children>
+                                                                  </HBox>
+                                                               </children>
+                                                            </VBox>
+                                                         </children></AnchorPane>
+                                                  </content>
+                                                </Tab>
+                                                <Tab text="Download Articles That Cite This Article">
+                                                  <content>
+                                                    <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                                         <children>
+                                                            <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="135.0" prefWidth="600.0" spacing="20.0" style="-fx-background-color: #e1e2e1;">
+                                                               <children>
+                                                                  <Label text="2. How many papers that cite the article you want to download?">
+                                                                     <font>
+                                                                        <Font name="Roboto Light" size="16.0" />
+                                                                     </font>
+                                                                  </Label>
+                                                                  <HBox alignment="CENTER_LEFT" nodeOrientation="LEFT_TO_RIGHT" spacing="10.0">
+                                                                     <children>
+                                                                        <JFXTextField fx:id="numberOfPDFs" alignment="CENTER" focusColor="BLACK" prefHeight="28.0" prefWidth="200.0" promptText="Number of PDFs" unFocusColor="#515151">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </JFXTextField>
+                                                                        <JFXButton fx:id="downloadButton" alignment="CENTER" cancelButton="true" disable="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </JFXButton>
+                                                                     </children>
+                                                                  </HBox>
+                                                                  <HBox prefHeight="100.0" prefWidth="200.0">
+                                                                     <children>
+                                                                        <Label text="PDFs Downloaded: ">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </Label>
+                                                                        <Label fx:id="pdfsDownloadedLabel">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </Label>
+                                                                        <JFXRadioButton fx:id="increaseSpeedButton1" graphicTextGap="1.0" maxWidth="120.0" onAction="#increaseSpeedOnClick" prefHeight="20.0" prefWidth="120.0" text="Increase Speed">
+                                                                           <font>
+                                                                              <Font name="Roboto Light" size="16.0" />
+                                                                           </font>
+                                                                        </JFXRadioButton>
+                                                                     </children>
+                                                                  </HBox>
+                                                               </children>
+                                                               <padding>
+                                                                  <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                                                               </padding>
+                                                            </VBox>
+                                                         </children>
+                                                      </AnchorPane>
+                                                  </content>
+                                                </Tab>
+                                             </tabs>
+                                          </JFXTabPane>
                                           <ProgressBar fx:id="progressBar" maxWidth="1.7976931348623157E308" prefHeight="21.0" prefWidth="591.0" progress="0.0">
                                              <padding>
                                                 <Insets right="8.0" />
                                              </padding>
                                           </ProgressBar>
-                                          <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="25.0" prefWidth="600.0" style="-fx-background-color: #434141;">
+                                          <HBox maxHeight="25.0" minHeight="25.0" minWidth="-Infinity" prefHeight="25.0" prefWidth="600.0" style="-fx-background-color: #434141;">
                                              <children>
                                                 <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
                                                    <font>
@@ -165,7 +229,7 @@
                                                          <children>
                                                             <VBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="210.0" prefWidth="381.0" spacing="10.0" style="-fx-background-color: #afb0af;">
                                                                <children>
-                                                                  <Label prefHeight="79.0" prefWidth="361.0" text="1. Please select the file that contains the article names." textAlignment="CENTER" wrapText="true">
+                                                                  <Label maxHeight="40.0" minHeight="40.0" prefHeight="40.0" prefWidth="361.0" text="1. Please select the file that contains the article names." textAlignment="CENTER" wrapText="true">
                                                                      <font>
                                                                         <Font name="Roboto Light" size="16.0" />
                                                                      </font>
@@ -184,7 +248,7 @@
                                                                <children>
                                                                   <VBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="145.0" prefWidth="389.0" spacing="20.0" style="-fx-background-color: #afb0af;">
                                                                      <children>
-                                                                        <Label prefHeight="247.0" prefWidth="361.0" text="2. How many papers that cite each article do you want to download?" textAlignment="CENTER" wrapText="true">
+                                                                        <Label maxHeight="50.0" minHeight="45.0" prefHeight="50.0" prefWidth="361.0" text="2. How many papers that cite each article do you want to download?" textAlignment="CENTER" wrapText="true">
                                                                            <font>
                                                                               <Font name="Roboto Light" size="16.0" />
                                                                            </font>
@@ -287,7 +351,7 @@
                                        <children>
                                           <Pane layoutX="-8.0" prefHeight="295.0" prefWidth="642.0" style="-fx-background-color: #e1e2e1;">
                                              <children>
-                                                <VBox layoutX="13.0" layoutY="6.0" prefHeight="288.0" prefWidth="580.0" spacing="5.0">
+                                                <VBox layoutX="13.0" layoutY="6.0" maxHeight="288.0" minHeight="288.0" prefHeight="288.0" prefWidth="580.0" spacing="5.0">
                                                    <children>
                                                       <Text fill="#282828" layoutX="14.0" layoutY="26.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Purpose" wrappingWidth="382.01849365234375">
                                                          <font>

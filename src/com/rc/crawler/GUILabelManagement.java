@@ -20,6 +20,7 @@ class GUILabelManagement {
     private StringProperty outputMultiple = new SimpleStringProperty();
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
+    private IntegerProperty numberOfPDFsMultiple = new SimpleIntegerProperty();
     private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());
 
     StringProperty getOutputMultiple() {
@@ -56,6 +57,10 @@ class GUILabelManagement {
 
     StringProperty getNumberOfPDFs() {
         return numberOfPDF;
+    }
+
+    IntegerProperty getNumberOfPDFsMultiple() {
+        return numberOfPDFsMultiple;
     }
 
     Map<Long, SearchResultWindow> getMapThreadToSearchResultW() {
@@ -144,6 +149,17 @@ class GUILabelManagement {
         this.outputMultiple.set(outputMultiple);
     }
 
+
+    /**
+     * Sets the number of PDFs downloaded in multiple article mode
+     *
+     * @param number integer with the number of PDFs
+     */
+    void setNumberOfPDFsMultiple(int number) {
+        this.numberOfPDFsMultiple.set(number);
+    }
+
+
     /**
      * Sets the load bar percentage to 1
      */
@@ -160,5 +176,6 @@ class GUILabelManagement {
     void associateThreadToSearchResultW(Long threadID, SearchResultWindow window) {
         this.mapThreadToSearchResultW.put(threadID, window);
     }
+
 
 }
