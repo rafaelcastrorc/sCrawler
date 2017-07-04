@@ -53,7 +53,6 @@ class PDFDownloader {
             result = "Timeout";
         }
         //If result is not empty, it means that an exception was thrown inside the thread, or there was a timeout
-
         if (!result.isEmpty()) {
             throw new IOException(result);
         }
@@ -120,8 +119,8 @@ class PDFDownloader {
                 }
                 if (status == 403) {
                     throw new IOException("Error 403");
-                }
 
+                }
                 if (redirect) {
                     while (redirect) {
                         // get redirect url from "location" header field

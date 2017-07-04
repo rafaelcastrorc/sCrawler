@@ -66,6 +66,7 @@ class Crawler {
         ExecutorService connectionVerifier = Executors.newSingleThreadExecutor(new MyThreadFactory());
         connectionVerifier.submit((Runnable) () -> {
             boolean lostConnection = false;
+            //noinspection InfiniteLoopStatement
             while (true) {
                 try {
                     URL url = new URL("http://www.google.com");
@@ -161,7 +162,7 @@ class Crawler {
                     guiLabels.setNumberOfWorkingIPs("add," + curr.getProxy() + " Port: " + curr.getPort());
                     guiLabels.setConnectionOutput("Other proxies : " + curr.getProxy());
                 }
-            } catch (Exception ex) {
+            } catch (Exception ignored) {
             }
         }
     }
@@ -308,9 +309,13 @@ class Crawler {
      *
      * @param keyword         String with the title of the document
      * @param hasSearchBefore has the user press the button search before
+     * @param isMultipleSearch is the search being done in multiple article mode
+     * @param type "searchForArticle" or "searchForCitedBy". Retrieves a different URL depending on if we are trying to
+     *             download the paper itself or the papers that cite the paper
+     *
      * @return array with 2 elements. First element represents the numOfCitations, the second is the citingPapersURL
      */
-    String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch) {
+    String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch, String type) {
         int invalidAttempts = 0;
         //Replace space by + in the keyword as in the google search url
         keyword = keyword.replace(" ", "+");
@@ -318,6 +323,7 @@ class Crawler {
         String url = "https://scholar.google.com/scholar?hl=en&q=" + keyword;
         String numOfCitations = "";
         String citingPapersURL = "";
+        String paperVersionsURL = "";
 
         boolean found = false;
         while (!found) {
@@ -328,6 +334,7 @@ class Crawler {
                 }
                 numOfCitations = "";
                 citingPapersURL = "";
+                paperVersionsURL = "";
                 found = true;
             } else {
                 Document doc = changeIP(url, hasSearchBefore, false);
@@ -343,59 +350,132 @@ class Crawler {
                     guiLabels.setConnectionOutput("Number of requests from Thread " + currThread + ": " +
                             mapThreadIdToReqCount.get(currThread));
                 }
-
-
                 String text = "";
                 String absLink = "";
                 Elements links = doc.select("a[href]");
-                for (Element link : links) {
-                    text = link.text();
-                    absLink = link.attr("abs:href");
-
-                    if (text.contains("Cited by")) {
-                        found = true;
-                        break;
+                if (type.equals("searchForCitedBy")) {
+                    //If we are searching for the articles that cite the article
+                    for (Element link : links) {
+                        text = link.text();
+                        absLink = link.attr("abs:href");
+                        if (text.contains("Cited by")) {
+                            found = true;
+                            break;
+                        }
                     }
+                } else {
+                    //If we are searching for the article itself
+                    String baseURI = "https://scholar.google.com";
+                    Pattern pattern = Pattern.compile("<a href=([^<])*All \\d* versions</a>");
+                    Matcher matcher = pattern.matcher(doc.html());
+                    //Get the first match
+                    if (matcher.find()) {
+                        //Get just the link
+                        Pattern linkPattern =  Pattern.compile("/[^\"]*");
+                        Matcher linkMatcher = linkPattern.matcher(matcher.group());
+                        if (linkMatcher.find()) {
+                            paperVersionsURL = baseURI + linkMatcher.group();
+                            System.out.println("Different version URL = "+ paperVersionsURL);
+                        }
+                    }
+                    if (paperVersionsURL.isEmpty()) {
+                        //There is no "Version" feature for this article
+
+                        //Try finding the PDF by scrapping the website
+                        //Todo:
+
+                        //We could not retrieve a URL, so we won't be able to get the pdf from gscholar
+                        if (!isMultipleSearch) {
+                            guiLabels.setSearchResultLabel("Could not find the PDF versions of this paper");
+                        }
+
+                    }
+
                 }
 
                 numOfCitations = text;
                 citingPapersURL = absLink;
 
+                //Check if there is more than 1 result for a given search
                 if (!doc.toString().contains("1 result") && !doc.toString().contains("Showing the best result for " +
-                        "this" +
-                        " search")) {
+                        "this search")) {
                     if (!isMultipleSearch) {
-                        guiLabels.setSearchResultLabel("ERROR: There was more than 1 result found for your" +
-                                " given query");
+                        guiLabels.setSearchResultLabel("There was more than 1 result found");
                     }
                     numOfCitations = "There was more than 1 result found for your given query";
 
+
                     boolean searchResultFound = false;
                     String searchResult = "";
-                    for (Element link : links) {
-                        text = link.text();
-                        absLink = link.attr("abs:href");
-                        Pattern pattern =
-                                Pattern.compile("((www\\.)?scholar\\.google\\.com)|(www\\.(support\\.)?google\\.com)");
-                        Matcher matcher = pattern.matcher(absLink);
-                        if (!matcher.find()) {
+                    if (type.equals("searchForCitedBy")) {
+                        for (Element link : links) {
                             text = link.text();
-                            Pattern pattern2 = Pattern.compile("\\[HTML]|\\[PDF]");
-                            Matcher matcher2 = pattern2.matcher(text);
-                            if (!matcher2.find() && !text.equals("Provide feedback")) {
-                                searchResult = text;
-                                //Adds a search result to the search result window
+                            absLink = link.attr("abs:href");
+                            Pattern pattern =
+                                    Pattern.compile("((www\\.)?scholar\\.google\\.com)|(www\\.(support\\.)?google\\.com)");
+
+                            Matcher matcher = pattern.matcher(absLink);
+                            if (!matcher.find()) {
+                                text = link.text();
+                                Pattern pattern2 = Pattern.compile("\\[HTML]|\\[PDF]");
+                                Matcher matcher2 = pattern2.matcher(text);
+                                if (!matcher2.find() && !text.equals("Provide feedback")) {
+                                    searchResult = text;
+                                    //Adds a search result to the search result window
+                                    guiLabels.setMultipleSearchResult(text);
+                                    searchResultFound = true;
+
+                                }
+                            } else if (searchResultFound) {
+                                if (text.contains("Cited by")) {
+                                    searchResultToLink.put(searchResult, new String[]{absLink, text});
+                                    searchResultFound = false;
+
+                                }
+
+                            }
+                        }
+                    }
+                    else {
+                        //Go through all the search results, without filtering the type
+                        Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">).+?(?=(<div " +
+                                "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
+                        Matcher gScholarSRMatcher = gScholarSearchResult.matcher(doc.html());
+                        String baseURI = "https://scholar.google.com";
+                        paperVersionsURL = "";
+                        //Look for all the files that contain a version, if they don't, add the URL of the site
+                        while (gScholarSRMatcher.find()) {
+                            //Get the link of the search result and the text
+                            Pattern linkAndTextPattern = Pattern.compile("http(s)?:/[^<]*");
+                            Matcher linkAndTextMatcher = linkAndTextPattern.matcher(gScholarSRMatcher.group());
+                            text = "";
+                            if (linkAndTextMatcher.find()) {
+                                //First the link
+                                Pattern linkPattern = Pattern.compile("http(s)?:/[^\"]*");
+                                Matcher linkPatternMatcher = linkPattern.matcher(linkAndTextMatcher.group());
+                                paperVersionsURL = linkPatternMatcher.group();
+                                //Then text
+                                text = linkAndTextMatcher.group();
+                                text = text.replace(paperVersionsURL, "");
+                                text = text.replaceAll("\"[^>]*>", "");
                                 guiLabels.setMultipleSearchResult(text);
-                                searchResultFound = true;
 
-                            }
-                        } else if (searchResultFound) {
-                            if (text.contains("Cited by")) {
-                                searchResultToLink.put(searchResult, new String[]{absLink, text});
-                                searchResultFound = false;
-
+                                searchResultToLink.put(text, new String[]{paperVersionsURL, text});
                             }
 
+                            //Try finding the "Version" feature for a given search result.
+                            Pattern pattern = Pattern.compile("<a href=([^<])*All \\d* versions</a>");
+                            Matcher matcher = pattern.matcher(gScholarSRMatcher.group());
+                            //Get the first match
+                            if (matcher.find()) {
+                                //Get the link to the "All x versions" feature of GS for the curr article
+                                Pattern linkPattern = Pattern.compile("/[^\"]*");
+                                Matcher linkMatcher = linkPattern.matcher(matcher.group());
+                                if (linkMatcher.find()) {
+                                    paperVersionsURL = baseURI + linkMatcher.group();
+                                    searchResultToLink.put(text, new String[]{paperVersionsURL, text});
+                                }
+                            }
                         }
                     }
                 }
@@ -723,9 +803,9 @@ class Crawler {
                             pdfCounter--;
                             atomicCounter.decrease();
                             attempt++;
-                            if (e2 == null || e2.getMessage() == null || (!e2.getMessage().contains("Error 403") &&
-                                    !e2.getMessage().contains("response code: 429") && !e2.getMessage().contains
-                                    ("Unable to tunnel through proxy."))) {
+                            if (e2.getMessage() == null || !e2.getMessage().contains("Error 403") && !e2.getMessage()
+                                    .contains("response code: 429") && !e2.getMessage().contains
+                                    ("Unable to tunnel through proxy.")) {
                                 //If it is NOT any of these three errors, then do not try to re-download it
                                 System.out.println("Error: " + e2.getMessage());
                                 if (file != null) {
@@ -842,16 +922,10 @@ class Crawler {
     /**
      * Resets the counter of PDFs
      */
-    public void resetCounter() {
+    void resetCounter() {
         atomicCounter.reset();
     }
 
-    /**
-     * Resets the counter of PDFs
-     */
-    public void decreaseCounter() {
-        atomicCounter.decrease();
-    }
 
     /**
      * Implements Callable. Assigns a task to a thread.
