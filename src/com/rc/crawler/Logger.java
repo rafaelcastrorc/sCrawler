@@ -156,7 +156,7 @@ class Logger {
      * @param s String to write
      * @throws IOException Unable to write to file
      */
-    void writeToFilesNotDownoaded(String s) throws IOException {
+    void writeToFilesNotDownloaded(String s) throws IOException {
         try {
             filesNotDownloaded.write(s);
             filesNotDownloaded.flush();
@@ -182,6 +182,69 @@ class Logger {
             } catch (IOException e) {
                 throw new IOException("Unable to create list of files not downloaded");
             }
+        }
+    }
+
+    /**
+     * Adds a file that was not found to the report, the list of files not found, and to the list of completed downloads
+     * @param file File that was not found
+     * @param originalArticle Query inputted by the user
+     * @param typeOfSearch Type of search used
+     */
+    void writeToLogFileNotFound(File file, String originalArticle, String typeOfSearch) {
+
+        try {
+            //Add to the report
+            setReportWriter(true, "Report");
+            writeReport("\n-Could not find paper ("+typeOfSearch +"): " + originalArticle + "\n");
+            //Add to list of files not downloaded
+            if (file.exists() && file.canRead()) {
+                setListOfNotDownloadedPapers(true);
+            } else {
+                setListOfNotDownloadedPapers(false);
+            }
+            writeToFilesNotDownloaded("\n" + originalArticle + " - Error: File was not found ("+typeOfSearch+")");
+
+            //Add to list of finished downloads
+            file = new File("./AppData/CompletedDownloads.txt");
+            if (file.exists() && file.canRead()) {
+                setListOfFinishedPapers(true);
+            } else {
+                setListOfFinishedPapers(false);
+            }
+            writeToListOfFinishedPapers("\n" +"["+typeOfSearch+"]"+originalArticle);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Adds a file that was not downloaded by the user (in the Search Result Window) to the list of files not found and
+     * to the list of completed downloads
+     * @param file File that was not found
+     * @param originalArticle Query inputted by the user
+     * @param typeOfSearch Type of search used
+     */
+    void fileNotDownloadedSearchResultWindow(File file, String originalArticle, String typeOfSearch) {
+        try {
+            if (file.exists() && file.canRead()) {
+
+                setListOfNotDownloadedPapers(true);
+            } else {
+                setListOfNotDownloadedPapers(false);
+            }
+            writeToFilesNotDownloaded("\n" + originalArticle + " - Error: File was not " +
+                    "found (Search Window) ("+typeOfSearch+")");
+
+            file = new File("./AppData/CompletedDownloads.txt");
+            if (file.exists() && file.canRead()) {
+                setListOfFinishedPapers(true);
+            } else {
+                setListOfFinishedPapers(false);
+            }
+            writeToListOfFinishedPapers("\n"  +"["+typeOfSearch+"]"+ originalArticle);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 

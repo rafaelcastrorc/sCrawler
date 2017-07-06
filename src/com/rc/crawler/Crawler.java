@@ -14,7 +14,6 @@ import org.jsoup.select.Elements;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
@@ -79,8 +78,6 @@ class Crawler {
                             guiLabels.setOutput("Online!");
                             guiLabels.setOutputMultiple("Online!");
                         }
-                        System.out.println("connected");
-
                     }
                 } catch (Exception exception) {
                     thereIsConnection = false;
@@ -307,12 +304,12 @@ class Crawler {
     /**
      * Search for an article in Google Scholar
      *
-     * @param keyword         String with the title of the document
-     * @param hasSearchBefore has the user press the button search before
+     * @param keyword          String with the title of the document
+     * @param hasSearchBefore  has the user press the button search before
      * @param isMultipleSearch is the search being done in multiple article mode
-     * @param type "searchForArticle" or "searchForCitedBy". Retrieves a different URL depending on if we are trying to
-     *             download the paper itself or the papers that cite the paper
-     *
+     * @param type             "searchForArticle" or "searchForCitedBy". Retrieves a different URL depending on if we
+     *                        are trying to
+     *                         download the paper itself or the papers that cite the paper
      * @return array with 2 elements. First element represents the numOfCitations, the second is the citingPapersURL
      */
     String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch, String type) {
@@ -328,8 +325,9 @@ class Crawler {
         boolean found = false;
         while (!found) {
             if (invalidAttempts >= 2) {
+                //Program was unable to search for the query
                 if (!isMultipleSearch) {
-                    guiLabels.setSearchResultLabel("Could not find paper, please try writing more specific " +
+                    guiLabels.setSearchResultLabel(type+",Could not find paper, please try writing more specific " +
                             "information");
                 }
                 numOfCitations = "";
@@ -350,140 +348,31 @@ class Crawler {
                     guiLabels.setConnectionOutput("Number of requests from Thread " + currThread + ": " +
                             mapThreadIdToReqCount.get(currThread));
                 }
-                String text = "";
-                String absLink = "";
                 Elements links = doc.select("a[href]");
-                if (type.equals("searchForCitedBy")) {
-                    //If we are searching for the articles that cite the article
-                    for (Element link : links) {
-                        text = link.text();
-                        absLink = link.attr("abs:href");
-                        if (text.contains("Cited by")) {
-                            found = true;
-                            break;
-                        }
-                    }
-                } else {
-                    //If we are searching for the article itself
-                    String baseURI = "https://scholar.google.com";
-                    Pattern pattern = Pattern.compile("<a href=([^<])*All \\d* versions</a>");
-                    Matcher matcher = pattern.matcher(doc.html());
-                    //Get the first match
-                    if (matcher.find()) {
-                        //Get just the link
-                        Pattern linkPattern =  Pattern.compile("/[^\"]*");
-                        Matcher linkMatcher = linkPattern.matcher(matcher.group());
-                        if (linkMatcher.find()) {
-                            paperVersionsURL = baseURI + linkMatcher.group();
-                            System.out.println("Different version URL = "+ paperVersionsURL);
-                        }
-                    }
-                    if (paperVersionsURL.isEmpty()) {
-                        //There is no "Version" feature for this article
-
-                        //Try finding the PDF by scrapping the website
-                        //Todo:
-
-                        //We could not retrieve a URL, so we won't be able to get the pdf from gscholar
-                        if (!isMultipleSearch) {
-                            guiLabels.setSearchResultLabel("Could not find the PDF versions of this paper");
-                        }
-
-                    }
-
-                }
-
-                numOfCitations = text;
-                citingPapersURL = absLink;
+                SingleSearchResultFinder finder = new SingleSearchResultFinder(guiLabels, simultaneousDownloadsGUI, doc);
+                //Analyze the current search result
+                found = finder.findSingleSearchResult(links, type, url, isMultipleSearch);
+                paperVersionsURL = finder.getPaperVersionsURL();
+                numOfCitations = finder.getText();
+                citingPapersURL = finder.getAbsLink();
 
                 //Check if there is more than 1 result for a given search
-                if (!doc.toString().contains("1 result") && !doc.toString().contains("Showing the best result for " +
-                        "this search")) {
-                    if (!isMultipleSearch) {
-                        guiLabels.setSearchResultLabel("There was more than 1 result found");
-                    }
+                MultipleSearchResultsFinder finderMultiple = new MultipleSearchResultsFinder(doc, isMultipleSearch,
+                        guiLabels, type);
+                if (finderMultiple.findMultipleSearchResult(links, searchResultToLink)){
                     numOfCitations = "There was more than 1 result found for your given query";
-
-
-                    boolean searchResultFound = false;
-                    String searchResult = "";
-                    if (type.equals("searchForCitedBy")) {
-                        for (Element link : links) {
-                            text = link.text();
-                            absLink = link.attr("abs:href");
-                            Pattern pattern =
-                                    Pattern.compile("((www\\.)?scholar\\.google\\.com)|(www\\.(support\\.)?google\\.com)");
-
-                            Matcher matcher = pattern.matcher(absLink);
-                            if (!matcher.find()) {
-                                text = link.text();
-                                Pattern pattern2 = Pattern.compile("\\[HTML]|\\[PDF]");
-                                Matcher matcher2 = pattern2.matcher(text);
-                                if (!matcher2.find() && !text.equals("Provide feedback")) {
-                                    searchResult = text;
-                                    //Adds a search result to the search result window
-                                    guiLabels.setMultipleSearchResult(text);
-                                    searchResultFound = true;
-
-                                }
-                            } else if (searchResultFound) {
-                                if (text.contains("Cited by")) {
-                                    searchResultToLink.put(searchResult, new String[]{absLink, text});
-                                    searchResultFound = false;
-
-                                }
-
-                            }
-                        }
-                    }
-                    else {
-                        //Go through all the search results, without filtering the type
-                        Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">).+?(?=(<div " +
-                                "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
-                        Matcher gScholarSRMatcher = gScholarSearchResult.matcher(doc.html());
-                        String baseURI = "https://scholar.google.com";
-                        paperVersionsURL = "";
-                        //Look for all the files that contain a version, if they don't, add the URL of the site
-                        while (gScholarSRMatcher.find()) {
-                            //Get the link of the search result and the text
-                            Pattern linkAndTextPattern = Pattern.compile("http(s)?:/[^<]*");
-                            Matcher linkAndTextMatcher = linkAndTextPattern.matcher(gScholarSRMatcher.group());
-                            text = "";
-                            if (linkAndTextMatcher.find()) {
-                                //First the link
-                                Pattern linkPattern = Pattern.compile("http(s)?:/[^\"]*");
-                                Matcher linkPatternMatcher = linkPattern.matcher(linkAndTextMatcher.group());
-                                paperVersionsURL = linkPatternMatcher.group();
-                                //Then text
-                                text = linkAndTextMatcher.group();
-                                text = text.replace(paperVersionsURL, "");
-                                text = text.replaceAll("\"[^>]*>", "");
-                                guiLabels.setMultipleSearchResult(text);
-
-                                searchResultToLink.put(text, new String[]{paperVersionsURL, text});
-                            }
-
-                            //Try finding the "Version" feature for a given search result.
-                            Pattern pattern = Pattern.compile("<a href=([^<])*All \\d* versions</a>");
-                            Matcher matcher = pattern.matcher(gScholarSRMatcher.group());
-                            //Get the first match
-                            if (matcher.find()) {
-                                //Get the link to the "All x versions" feature of GS for the curr article
-                                Pattern linkPattern = Pattern.compile("/[^\"]*");
-                                Matcher linkMatcher = linkPattern.matcher(matcher.group());
-                                if (linkMatcher.find()) {
-                                    paperVersionsURL = baseURI + linkMatcher.group();
-                                    searchResultToLink.put(text, new String[]{paperVersionsURL, text});
-                                }
-                            }
-                        }
-                    }
                 }
+
                 invalidAttempts++;
                 hasSearchBefore = true;
             }
         }
-        return new String[]{numOfCitations, citingPapersURL};
+        if (type.equals("searchForCitedBy")) {
+            return new String[]{numOfCitations, citingPapersURL};
+        }
+        else {
+            return new String[]{numOfCitations, paperVersionsURL};
+        }
 
     }
 
@@ -492,7 +381,7 @@ class Crawler {
      *
      * @return ArrayList with all the links
      */
-    private ArrayList<String> getAllLinks(String citingPapersURL) {
+    private ArrayList<String> getAllLinks(String citingPapersURL, String typeOfSearch) {
         ArrayList<String> list = new ArrayList<>();
         Pattern pattern = Pattern.compile("=\\d*");
         Matcher matcher = pattern.matcher(citingPapersURL);
@@ -501,15 +390,45 @@ class Crawler {
             paperID = matcher.group();
             paperID = paperID.replace("=", "");
         }
-        //Add 1-10 results
-        list.add(citingPapersURL);
-        for (int i = 10; i < 1000 + 1; i = i + 10) {
-            String sb = "https://scholar.google.com/scholar?start=" + i +
-                    "&hl=en&oe=ASCII&as_sdt=5,39&sciodt=0,39&cites=" + paperID + "&scipsc=";
-            list.add(sb);
+        if (typeOfSearch.equals("searchForCitedBy")) {
+            //Add the first result
+            list.add(citingPapersURL);
+            //Add all possible search results
+            for (int i = 10; i < 1000 + 1; i = i + 10) {
+                String sb = "https://scholar.google.com/scholar?start=" + i +
+                        "&hl=en&oe=ASCII&as_sdt=5,39&sciodt=0,39&cites=" + paperID + "&scipsc=";
+                list.add(sb);
 
+            }
+            return list;
         }
-        return list;
+        else  {
+            //If this is true, then we iterate though all the different versions available
+            if (citingPapersURL.contains("cluster")) {
+                System.out.println("Case 2.1: Searching for version and main website url");
+                String[] array = citingPapersURL.split("∆");
+                String versionURL = array[0];
+                String firstSearchResultURL = array[1];
+                list.add(firstSearchResultURL);
+                list.add(versionURL);
+                //Add all possible search results
+                for (int i = 10; i < 1000 + 1; i = i + 10) {
+                    String sb = "https://scholar.google.com/scholar?start=" + i +
+                            "&hl=en&as_sdt=0,39&cluster=" + paperID;
+                    list.add(sb);
+
+                }
+                return list;
+            }
+            else {
+                System.out.println("Case 2.2 Searching for search result and main website url");
+                //Add the SR as well as the link of the search result
+                String[] array = citingPapersURL.split("∆");
+                list.add(array[1]);
+                list.add(array[0]);
+                return list;
+            }
+        }
     }
 
     /**
@@ -676,9 +595,11 @@ class Crawler {
      * Downloads the number of pdf requested
      *
      * @param limit max number of PDFs to download
+     * @param typeOfSearch
      * @throws Exception Problem downloading or reading a file
      */
-    int getPDFs(int limit, String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader) throws
+    int getPDFs(int limit, String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader, String
+            typeOfSearch) throws
             Exception {
         Long currThreadID = Thread.currentThread().getId();
         //Keeps track of the number of searches done
@@ -687,12 +608,14 @@ class Crawler {
             guiLabels.setOutput("Downloading...");
         }
         int pdfCounter = 0;
-        //Go though all links
-        ArrayList<String> list = getAllLinks(citingPapersURL);
+        //Go though all the search result links
+        ArrayList<String> list = getAllLinks(citingPapersURL, typeOfSearch);
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Please search of an author before downloading");
         }
+        boolean isFirst = true;
         for (String currUrl : list) {
+            System.out.println("URL used:" + currUrl);
             if (pdfCounter >= limit) {
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("All PDFs available have been downloaded");
@@ -734,9 +657,11 @@ class Crawler {
                 simultaneousDownloadsGUI.updateStatus("No PDF found (" + numberOfSearches + " attempt(s))");
             }
 
-
-            //If 10 searches are made and no valid result is found, stop
-            if (numberOfSearches == 10) {
+            Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
+                    "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
+            Matcher gScholarSRMatcher = gScholarSearchResult.matcher(citingPapers.html());
+            //If the search result is empty, or  10 google searches are made and no valid result is found, stop.
+            if (!isFirst && !gScholarSRMatcher.find() || numberOfSearches == 10) {
                 guiLabels.setConnectionOutput("No more papers found.");
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("No more papers found.");
@@ -746,6 +671,8 @@ class Crawler {
                 }
                 break;
             }
+            isFirst = false;
+
             if (!isMultipleSearch) {
                 guiLabels.setOutput("Downloading...");
             }
@@ -753,6 +680,7 @@ class Crawler {
                 guiLabels.setConnectionOutput(String.valueOf("Number of requests from Thread " + currThreadID + ": " +
                         mapThreadIdToReqCount.get(currThreadID)));
             }
+            //Go through all the links of the search result, and find links that contain PDFs
             Elements linksInsidePaper = citingPapers.select("a[href]");
             String text;
             String absLink;
@@ -820,7 +748,7 @@ class Crawler {
                     }
 
                     if (!isMultipleSearch) {
-                        guiLabels.setNumberOfPDF(pdfCounter + "/" + limit);
+                        guiLabels.setNumberOfPDF(typeOfSearch+","+pdfCounter + "/" + limit);
                         guiLabels.setLoadBar(pdfCounter / (double) limit);
                     } else {
                         simultaneousDownloadsGUI.updateStatus(pdfCounter + "/" + limit);

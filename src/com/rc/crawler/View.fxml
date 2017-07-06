@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import java.lang.*?>
 <?import com.jfoenix.controls.*?>
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
+
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="430.0" prefWidth="600.0" style="-fx-background-color: #434141;" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rc.crawler.Controller">
    <top>
       <HBox alignment="BOTTOM_CENTER" prefHeight="39.0" prefWidth="600.0" BorderPane.alignment="CENTER">
@@ -86,7 +88,7 @@
                                                                               <Font name="Roboto Light" size="16.0" />
                                                                            </font>
                                                                         </JFXTextField>
-                                                                        <JFXButton fx:id="downloadButtonSFA" alignment="CENTER" cancelButton="true" onAction="#downloadOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
+                                                                        <JFXButton fx:id="downloadButtonSFA" alignment="CENTER" cancelButton="true" onAction="#downloadSFAOnClick" style="-fx-background-color: #7d9a4f;" text="Download">
                                                                            <font>
                                                                               <Font name="Roboto Light" size="16.0" />
                                                                            </font>
@@ -105,7 +107,7 @@
                                                                               <Font name="Roboto Light" size="16.0" />
                                                                            </font>
                                                                         </Label>
-                                                                        <Label fx:id="pdfsDownloadedLabel1">
+                                                                        <Label fx:id="pdfsDownloadedLabelSFA">
                                                                            <font>
                                                                               <Font name="Roboto Light" size="16.0" />
                                                                            </font>
@@ -416,7 +418,7 @@
                      <children>
                         <HBox prefHeight="335.0" prefWidth="599.0" spacing="15.0" style="-fx-background-color: #e1e2e1;" AnchorPane.bottomAnchor="10.0" AnchorPane.topAnchor="0.0">
                            <children>
-                              <ScrollPane hbarPolicy="NEVER" prefViewportHeight="315.0" prefViewportWidth="176.0" vbarPolicy="NEVER">
+                              <ScrollPane hbarPolicy="NEVER" maxHeight="350.0" minHeight="350.0" prefHeight="350.0" prefViewportHeight="315.0" prefViewportWidth="176.0" vbarPolicy="NEVER">
                                  <content>
                                     <Text fx:id="workingProxyOutput" fill="#282828" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" wrappingWidth="175.4346923828125">
                                        <font>
@@ -425,7 +427,7 @@
                                     </Text>
                                  </content>
                               </ScrollPane>
-                              <ScrollPane hbarPolicy="NEVER" maxHeight="310.0" prefHeight="310.0" prefViewportHeight="310.0" prefViewportWidth="412.0" prefWidth="389.0" vbarPolicy="ALWAYS">
+                              <ScrollPane hbarPolicy="NEVER" maxHeight="350.0" minHeight="350.0" prefHeight="350.0" prefViewportHeight="310.0" prefViewportWidth="412.0" prefWidth="389.0" vbarPolicy="ALWAYS">
                                  <content>
                                     <Text fx:id="connectionOutput" fill="#282828" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" wrappingWidth="382.01849365234375">
                                        <font>

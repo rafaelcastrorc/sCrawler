@@ -56,9 +56,13 @@ public class Controller implements Initializable {
     @FXML
     private Label pdfsDownloadedLabel;
     @FXML
+    private Label pdfsDownloadedLabelSFA;
+    @FXML
     private Label pdfsDownloadedMultiple;
     @FXML
     private JFXTextField numberOfPDFs;
+    @FXML
+    private JFXTextField numberOfPDFsSFA;
     @FXML
     private JFXButton downloadButton;
     @FXML
@@ -69,6 +73,8 @@ public class Controller implements Initializable {
     private JFXTextField inputText;
     @FXML
     private Label searchLabel;
+    @FXML
+    private Label searchLabelSFA;
     @FXML
     private Text workingProxyOutput;
     @FXML
@@ -87,35 +93,17 @@ public class Controller implements Initializable {
     }
 
     /**
-     * Called when the click button is pressed. Creates a new task to start searching
-     */
-    @FXML
-    void searchOnClick() {
-
-        String text = inputText.getText();
-        if (text.isEmpty()) {
-            displayAlert("Please write a title");
-        } else {
-            //Display loading message dialog
-            informationPanel("Loading...");
-            updateOutput("Searching...");
-            //Create a new task to perform search in background
-            DoWork task = new DoWork("search", text, "searchForCitedBy");
-            singleThreadExecutor.submit((Runnable) task);
-        }
-    }
-
-
-    /**
      * Performs all the operations to search for a paper in Google Scholar.
      * Method is called inside a task.
      *
-     * @param title article that we are looking for.
+     * @param title            article that we are looking for.
      * @param isMultipleSearch true if we are searching for multiple articles, using multiple article mode.
-     *
+     * @param typeOfSearch     searchForArticle" or "searchForCitedBy". Retrieves a different URL depending on if we
+     *                         are trying to
+     *                         download the paper itself or the papers that cite the paper
      */
-    private String[] search(String title, boolean isMultipleSearch, String searchType) {
-        updateSearchLabel("Loading...");
+    private String[] search(String title, boolean isMultipleSearch, String typeOfSearch) {
+        updateSearchLabel(typeOfSearch + ",Loading...");
         SearchResultWindow searchResultWindow = new SearchResultWindow();
         guiLabels.associateThreadToSearchResultW(Thread.currentThread().getId(), searchResultWindow);
         //Array containing the number of citations and the url of the citing articles
@@ -127,16 +115,15 @@ public class Controller implements Initializable {
         }
         String[] result;
         try {
-            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch,searchType);
+            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
         } catch (Exception e) {
             //If there was a problem searching, try searching again
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ignored) {
             }
-            System.out.println("ERROR: There was an error searching " + title + ", trying again" + e.getMessage());
             e.printStackTrace();
-            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, searchType);
+            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
         }
         String numberOfCitations = null;
         try {
@@ -149,14 +136,6 @@ public class Controller implements Initializable {
         if (numberOfCitations == null || numberOfCitations.isEmpty() || numberOfCitations.equals
                 ("Provide feedback")) {
             updateOutput("Could not find paper...");
-            Logger logger = Logger.getInstance();
-            try {
-                logger.setReportWriter(true, "Report");
-                logger.writeReport("\n-Could not find paper: " + title + "\n");
-            } catch (IOException e) {
-                displayAlert(e.getMessage());
-            }
-
         } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
 
             //DELETE////////////////////------------------
@@ -172,7 +151,8 @@ public class Controller implements Initializable {
 
                     Long currentThreadId = Thread.currentThread().getId();
                     if (crawler.getSearchResultToLink().get(selection) == null) {
-                        //If it could not find the article in the crawler, then we did not find the sr
+                        //If it could not find the article in the crawler, then we did not find
+                        // the sr
                         selection = "";
 
                     } else {
@@ -183,23 +163,15 @@ public class Controller implements Initializable {
                         mapThreadToTitle.put(currentThreadId, selection);
                     }
 
-                } if (selection.isEmpty()) {
+                }
+                if (selection.isEmpty()) {
                     result[0] = "Provide feedback";
                     updateOutput("Could not find paper...");
-                    Logger logger = Logger.getInstance();
-                    try {
-                        logger.setReportWriter(true, "Report");
-                        logger.writeReport("\n-Could not find paper: " + title + "\n");
-                    } catch (IOException e) {
-                        displayAlert(e.getMessage());
-                    }
                 }
             }
-                //////////////////////////------------------------------
-
-
+            //////////////////////////------------------------------
             else {
-                displaySearchResults(title, isMultipleSearch);
+                displaySearchResults(title, isMultipleSearch, typeOfSearch);
             }
         } else {
             updateOutput("Paper found!");
@@ -209,7 +181,6 @@ public class Controller implements Initializable {
 
             downloadButton.setDisable(false);
         }
-        //this.hasSearchedBefore = true;
         updateOutput("Done searching");
         return result;
 
@@ -245,17 +216,45 @@ public class Controller implements Initializable {
         }
     }
 
+    @FXML
+    void downloadSFAOnClick() {
+        String articleName = inputText.getText();
+        if (articleName.isEmpty()) {
+            displayAlert("Please write a title");
+            return;
+        }
+        String text = numberOfPDFsSFA.getText();
+        //Make sure that only numbers are accepted
+        Pattern numbersOnly = Pattern.compile("^[0-9]+$");
+        Matcher matcher = numbersOnly.matcher(text);
+
+        if (matcher.find()) {
+            numOfPDFToDownload = matcher.group();
+            try {
+                DoWork task = new DoWork("download", articleName, "searchForTheArticle");
+                singleThreadExecutor.submit((Runnable) task);
+            } catch (Exception e1) {
+                displayAlert(e1.getMessage());
+            }
+
+        } else {
+            displayAlert("Please only write numbers here.");
+        }
+    }
+
 
     /**
      * Call the getPDFs method inside of crawler to start downloading PDFs.
      * Method is called inside a task.
-     *  @param currTitle        Title that we want to download
-     * @param citingPaperURL   "cited by" URL
+     *
+     * @param currTitle        Title that we want to download
+     * @param URL              "cited by" URL or "Versions" URL
      * @param isMultipleSearch true if the method is called inside of the multiple articles mode
      * @param originalArticle  Title of the article inputted by the user
-     * @param searchForCitedBy
+     * @param typeOfSearch     The type of search that was performed
      */
-    private void download(String currTitle, String citingPaperURL, boolean isMultipleSearch, String originalArticle, String searchForCitedBy) {
+    private void download(String currTitle, String URL, boolean isMultipleSearch, String originalArticle,
+                          String typeOfSearch) {
         try {
             PDFDownloader pdfDownloader = new PDFDownloader();
             //Generate a unique folder name
@@ -265,18 +264,41 @@ public class Controller implements Initializable {
             }
             int numberOfPDFsDownloaded;
 
-            numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), citingPaperURL,
-                    isMultipleSearch, pdfDownloader);
-
+            numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), URL,
+                    isMultipleSearch, pdfDownloader, typeOfSearch);
 
             Logger logger = Logger.getInstance();
+
+            if (numberOfPDFsDownloaded == 0) {
+                //Add to list of files not downloaded
+                File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
+                if (file.exists() && file.canRead()) {
+                    logger.setListOfNotDownloadedPapers(true);
+                } else {
+                    logger.setListOfNotDownloadedPapers(false);
+                }
+                if (typeOfSearch.equals("searchForCitedBy"))
+                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: No articles that cite " +
+                            "this paper were found in PDF (" + typeOfSearch + ")");
+                else {
+                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: Could not find any PDF " +
+                            "version of the article(" + typeOfSearch + ")");
+                }
+
+            }
+
+            //Add the information to the Report, and list of completed downloads
             logger.setReportWriter(true, "Report");
-            logger.writeReport("\n-Paper downloaded: " + currTitle + "\n   Number of PDFs downloaded: " +
+            logger.writeReport("\n-Paper downloaded(" + typeOfSearch + "): " + currTitle + "\n   Number of PDFs " +
+                    "downloaded: " +
+
                     numberOfPDFsDownloaded + "/" + numOfPDFToDownload +
                     "\n     Folder path: " + path + "\n");
 
             logger.setReportWriter(false, path + "/ArticleName");
-            logger.writeReport("Searched paper: " + currTitle);
+            logger.writeReport("\nSearched paper: " + currTitle);
+            logger.writeReport("\nType of Search: " + typeOfSearch);
+
 
             //Add download to list of completed downloads
             File file = new File("./AppData/CompletedDownloads.txt");
@@ -285,8 +307,11 @@ public class Controller implements Initializable {
             } else {
                 logger.setListOfFinishedPapers(false);
             }
-            logger.writeToListOfFinishedPapers("\n" + originalArticle);
+            logger.writeToListOfFinishedPapers("\n" + "[" + typeOfSearch + "]" + originalArticle);
+
         } catch (Exception e) {
+
+            //Add the information to the List of files not downloaded, and the report
             displayAlert("There was an error downloading a file");
             e.printStackTrace();
             Logger logger = Logger.getInstance();
@@ -297,12 +322,17 @@ public class Controller implements Initializable {
                 } else {
                     logger.setListOfNotDownloadedPapers(false);
                 }
-                logger.writeToFilesNotDownoaded("\n" + originalArticle + " - Error: There was an error " +
-                        "downloading the articles that cite this paper");
+                if (typeOfSearch.equals("searchForCitedBy"))
+                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: There was an error " +
+                            "downloading the articles that cite this paper(" + typeOfSearch + ")");
+                else {
+                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: There was an error " +
+                            "downloading this paper(" + typeOfSearch + ")");
+                }
 
                 //Add to report
                 logger.setReportWriter(true, "Report");
-                logger.writeReport("\n-Could not download paper: " + originalArticle + "\n");
+                logger.writeReport("\n-Could not download paper (" + typeOfSearch + "): " + originalArticle + "\n");
 
             } catch (IOException e2) {
                 displayAlert(e2.getMessage());
@@ -345,6 +375,7 @@ public class Controller implements Initializable {
                 Scanner finishedDownloads;
                 try {
                     finishedDownloads = new Scanner(listOfFinishedDownloads);
+                    //Todo: ask user if they want to use such list. If so, add the files with the search mode used
 
                     while (finishedDownloads.hasNextLine()) {
                         String line = finishedDownloads.nextLine();
@@ -497,10 +528,23 @@ public class Controller implements Initializable {
     /**
      * Updates the label with the number of PDFs downloaded in the single article mode
      *
-     * @param text String with the number of PDFs
+     * @param text String with the type of search and the number of PDFs, separated by a comma
      */
     private void updateNumberOfPDFs(String text) {
-        Platform.runLater(() -> pdfsDownloadedLabel.setText(text));
+        if (text != null) {
+            String[] array = text.split(",");
+            if (array[0].equals("searchForCitedBy")) {
+                Platform.runLater(() -> {
+                    pdfsDownloadedLabel.setText(array[1]);
+                });
+            } else {
+                ;
+                Platform.runLater(() -> {
+                    pdfsDownloadedLabelSFA.setText(array[1]);
+                });
+
+            }
+        }
     }
 
     /**
@@ -518,7 +562,16 @@ public class Controller implements Initializable {
      * @param s String with the search result
      */
     private void updateSearchLabel(String s) {
-        Platform.runLater(() -> searchLabel.setText(s));
+        if (s != null) {
+            String[] array = s.split(",");
+
+            if (array[0].equals("searchForCitedBy")) {
+                Platform.runLater(() -> searchLabel.setText(array[1]));
+            } else {
+                Platform.runLater(() -> searchLabelSFA.setText(array[1]));
+            }
+        }
+
     }
 
 
@@ -599,7 +652,7 @@ public class Controller implements Initializable {
      * @param title            title of the query with multiple matches
      * @param isMultipleSearch boolean if it is called during a multiple search result window.
      */
-    private void displaySearchResults(String title, boolean isMultipleSearch) {
+    private void displaySearchResults(String title, boolean isMultipleSearch, String typeOfSearch) {
         Long currentThreadId = Thread.currentThread().getId();
         SearchResultWindow searchResultWindow = guiLabels.getMapThreadToSearchResultW().get(currentThreadId);
         searchResultWindow.setQueryStr(title);
@@ -616,7 +669,7 @@ public class Controller implements Initializable {
                 if (!isMultipleSearch) {
                     //If is not multiple search, store url globally
                     citingPapersURL = array[0];
-                    updateSearchLabel(array[1]);
+                    updateSearchLabel(typeOfSearch + "," + array[1]);
                 }
                 //Update search label to display result
                 searchResultWindow.store(array);
@@ -644,7 +697,7 @@ public class Controller implements Initializable {
             }
             try {
                 logger.setReportWriter(true, "Report");
-                logger.writeReport("\n-Paper not downloaded: " + currTitle + "\n");
+                logger.writeReport("\n-Paper not downloaded(" + typeOfSearch + "): " + currTitle + "\n");
             } catch (IOException e2) {
                 displayAlert(e2.getMessage());
             }
@@ -652,11 +705,11 @@ public class Controller implements Initializable {
         FutureTask<Void> futureTask = new FutureTask<>(searchResultWindow);
         Platform.runLater(futureTask);
 
-            try {
-                futureTask.get();
-            } catch (InterruptedException | ExecutionException e) {
-                displayAlert("Thread was interrupted " + e.getMessage());
-            }
+        try {
+            futureTask.get();
+        } catch (InterruptedException | ExecutionException e) {
+            displayAlert("Thread was interrupted " + e.getMessage());
+        }
 
     }
 
@@ -689,6 +742,7 @@ public class Controller implements Initializable {
         }
         increaseSpeedButton.setSelectedColor(Color.web("#7d9a4f"));
         increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
+        //Todo: add the third button
 
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
@@ -746,7 +800,7 @@ public class Controller implements Initializable {
     class DoWork extends Task<Void> implements Callable {
         //Type of task that will be performed
         private final String type;
-        private final String searchType;
+        private final String typeOfSearch;
         private String article;
         private String originalArticle;
 
@@ -756,15 +810,15 @@ public class Controller implements Initializable {
          * download, search, initialize, close, multipleSearch, and waitFor4Connections
          * And the title of the article associated with the thread.
          *
-         * @param type    String with the type of task
-         * @param article Article associated with the thread
+         * @param type         String with the type of task
+         * @param article      Article associated with the thread
          * @param typeOfSearch Search for the article itself, or for the articles that cite the article
          */
         DoWork(String type, String article, String typeOfSearch) {
             this.type = type;
             this.article = article;
             this.originalArticle = article;
-            this.searchType = typeOfSearch;
+            this.typeOfSearch = typeOfSearch;
         }
 
         /**
@@ -804,9 +858,9 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.updateArticleName("Not set");
                     String url = "";
                     simultaneousDownloadsGUI.updateProgressBar(0.0);
-                    String[] result = search(article, true, searchType);
+                    String[] result = search(article, true, typeOfSearch);
                     String numOfCitations = result[0];
-                    if (atomicCounter.value() == articleNames.size()-7) {
+                    if (atomicCounter.value() == articleNames.size() - 7) {
                         System.out.println("stop here");
                     }
 
@@ -819,31 +873,10 @@ public class Controller implements Initializable {
                         System.out.println("Current counter val: " + atomicCounter.value());
                         Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                         //Add to the list of files that could not be downloaded
-                        Logger logger = Logger.getInstance();
                         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                        try {
-                            if (file.exists() && file.canRead()) {
-
-                                logger.setListOfNotDownloadedPapers(true);
-                            } else {
-                                logger.setListOfNotDownloadedPapers(false);
-                            }
-                            logger.writeToFilesNotDownoaded("\n" + originalArticle + " - Error: File was not found.");
-
-                            file = new File("./AppData/CompletedDownloads.txt");
-                            if (file.exists() && file.canRead()) {
-                                logger.setListOfFinishedPapers(true);
-                            } else {
-                                logger.setListOfFinishedPapers(false);
-                            }
-                            logger.writeToListOfFinishedPapers("\n" + originalArticle);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-
+                        Logger logger = Logger.getInstance();
+                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch);
                         //Also add download to list of completed downloads since we have already processed it
-
-
                         if (currPercentage >= 0.99) {
                             updateOutputMultiple("All files have been downloaded");
                         }
@@ -866,26 +899,7 @@ public class Controller implements Initializable {
                             }
                             File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
                             Logger logger = Logger.getInstance();
-                            try {
-                                if (file.exists() && file.canRead()) {
-
-                                    logger.setListOfNotDownloadedPapers(true);
-                                } else {
-                                    logger.setListOfNotDownloadedPapers(false);
-                                }
-                                logger.writeToFilesNotDownoaded("\n" + originalArticle + " - Error: File was not " +
-                                        "found (Search Window).");
-
-                                file = new File("./AppData/CompletedDownloads.txt");
-                                if (file.exists() && file.canRead()) {
-                                    logger.setListOfFinishedPapers(true);
-                                } else {
-                                    logger.setListOfFinishedPapers(false);
-                                }
-                                logger.writeToListOfFinishedPapers("\n" + originalArticle);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch);
                             updateProgressBarMultiple(currPercentage);
                             break;
                         } else {
@@ -919,7 +933,7 @@ public class Controller implements Initializable {
                     }
                     Logger logger = Logger.getInstance();
                     updateOutput("Searching...");
-                    result = search(article, false, searchType);
+                    result = search(article, false, typeOfSearch);
                     numOfCitations = result[0];
                     //In case the title changed, then retrieve the new article name
                     article = mapThreadToTitle.get(Thread.currentThread().getId());
@@ -927,29 +941,12 @@ public class Controller implements Initializable {
 
                     if (numOfCitations.isEmpty() || numOfCitations.equals("Provide feedback")) {
                         //We don't download if this happens and omit the file
-                       updateSearchLabel("File was not found");
+                        updateSearchLabel(typeOfSearch + ",File was not found");
                         guiLabels.setOutput("File was not found");
 
                         //Add it to the list of files not downloaded and to the files completed
                         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                        try {
-                            if (file.exists() && file.canRead()) {
-                                logger.setListOfNotDownloadedPapers(true);
-                            } else {
-                                logger.setListOfNotDownloadedPapers(false);
-                            }
-                            logger.writeToFilesNotDownoaded("\n" + originalArticle + " - Error: File was not found.");
-
-                            file = new File("./AppData/CompletedDownloads.txt");
-                            if (file.exists() && file.canRead()) {
-                                logger.setListOfFinishedPapers(true);
-                            } else {
-                                logger.setListOfFinishedPapers(false);
-                            }
-                            logger.writeToListOfFinishedPapers("\n" + originalArticle);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
+                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch);
                         break;
 
                     } else if (numOfCitations.equals("There was more than 1 result found for your given query")) {
@@ -958,39 +955,19 @@ public class Controller implements Initializable {
                                 .currentThread().getId());
                         if (searchResultWindow.getNumberOfCitations().equals("File not downloaded")) {
                             guiLabels.setOutput("File was not downloaded");
-                            updateSearchLabel("File was not downloaded");
+                            updateSearchLabel(typeOfSearch + ",File was not downloaded");
                             File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                            try {
-                                if (file.exists() && file.canRead()) {
-
-                                    logger.setListOfNotDownloadedPapers(true);
-                                } else {
-                                    logger.setListOfNotDownloadedPapers(false);
-                                }
-                                logger.writeToFilesNotDownoaded("\n" + originalArticle + " - Error: File was not " +
-                                        "found (Search Window).");
-
-                                file = new File("./AppData/CompletedDownloads.txt");
-                                if (file.exists() && file.canRead()) {
-                                    logger.setListOfFinishedPapers(true);
-                                } else {
-                                    logger.setListOfFinishedPapers(false);
-                                }
-                                logger.writeToListOfFinishedPapers("\n" + originalArticle);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch);
                             break;
-                        }
-                        else {
-                            updateSearchLabel("Search result selected");
+                        } else {
+                            updateSearchLabel(typeOfSearch + ",Search result selected");
                         }
                     }
-
+                    updateSearchLabel(typeOfSearch + ",Done searching");
                     //Downloads articles that cite a given article
                     progressBar.progressProperty().setValue(0);
                     download(mapThreadToTitle.get(Thread.currentThread().getId()), citingPapersURL, false,
-                            originalArticle, "searchForCitedBy");
+                            originalArticle, typeOfSearch);
                     progressBar.progressProperty().setValue(1);
                     updateOutput("All files have been downloaded!");
                     break;
