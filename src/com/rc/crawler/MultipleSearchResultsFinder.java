@@ -4,6 +4,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,9 +28,12 @@ class MultipleSearchResultsFinder {
     }
 
     boolean findMultipleSearchResult(Elements links, HashMap<String, String[]> searchResultToLink) {
+
         boolean result = false;
         String searchResultURL = "";
-        if (!doc.toString().contains("1 result") && !doc.toString().contains("Showing the best result for " +
+        Pattern searchFor1Result = Pattern.compile("\\b1 result\\b");
+        Matcher resultMatcher = searchFor1Result.matcher(doc.toString());
+        if (!resultMatcher.find() && !doc.toString().contains("Showing the best result for " +
                 "this search")) {
             if (!isMultipleSearch) {
                 guiLabels.setSearchResultLabel(type+",There was more than 1 result found");
@@ -77,7 +81,7 @@ class MultipleSearchResultsFinder {
                 while (gScholarSRMatcher.find()) {
                     String gsSearchResult = gScholarSRMatcher.group();
                     //Get the link of the search result and the text
-                    Pattern linkAndTextPattern = Pattern.compile("http(s)?:/[^<]*");
+                    Pattern linkAndTextPattern = Pattern.compile("http(s)?:/.+?(?=</a>)");
                     Matcher linkAndTextMatcher = linkAndTextPattern.matcher(gsSearchResult);
                     text = "";
                     while (linkAndTextMatcher.find()) {
@@ -88,16 +92,19 @@ class MultipleSearchResultsFinder {
                         if (linkPatternMatcher.find()) {
                             try {
                                 searchResultURL = linkPatternMatcher.group();
-                                //Retrieve the tex
+                                //Retrieve the text
                                 text = linkAndText;
                                 text = text.replace(searchResultURL, "");
                                 text = text.replaceAll("\"[^>]*>", "");
+                                text = text.replaceAll("<(/)?\\D>", "");
+                                if (text.contains("span class")) {
+                                    text = "";
+                                }
                                 if (!text.isEmpty()) {
                                     guiLabels.setMultipleSearchResult(text);
                                     result = true;
-                                    //Get the url for searching the current selection
                                     String keyword = text.replace(" ", "+");
-                                    //Search google scholar
+                                    //Get the url for searching the current selection
                                     String url = "https://scholar.google.com/scholar?hl=en&q=" + keyword;
                                     //Add the URL of the google search and the URL of the first search result
                                     paperVersionsURL = url + "∆" + searchResultURL;

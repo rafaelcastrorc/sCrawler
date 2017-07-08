@@ -6,7 +6,6 @@ import org.apache.pdfbox.pdfparser.PDFParser;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -45,12 +44,32 @@ class Crawler {
     //Stores proxies tht have over 50 requests, but work, to use them later
     private List<Proxy> listOfWorkingProxies;
     //Maps thread id to the number of request for the given proxy being used in that thread
-    private Map<Long, Integer> mapThreadIdToReqCount = Collections.synchronizedMap(new HashMap<Long, Integer>());
+    private Map<String, Map<Proxy, Integer>> mapWebsiteToReqCountFromProxy = Collections.synchronizedMap(new
+            HashMap<String, Map<Proxy, Integer>>());
+
     //Maps the different search results to their respective "cited by" URL
     private HashMap<String, String[]> searchResultToLink = new HashMap<>();
     private boolean speedUp;
     private AtomicCounter atomicCounter = new AtomicCounter();
     private boolean thereIsConnection = true;
+
+    public Map<Long, Proxy> getMapThreadIdToProxy() {
+        return mapThreadIdToProxy;
+    }
+
+    public Map<String, Map<Proxy, Integer>> getMapWebsiteToReqCountFromProxy() {
+        return mapWebsiteToReqCountFromProxy;
+    }
+
+    public boolean isThreadGettingMoreProxies() {
+        return threadIsGettingMoreProxies;
+    }
+
+    public void setThreadIsGettingMoreProxies(boolean threadIsGettingMoreProxies) {
+        this.threadIsGettingMoreProxies = threadIsGettingMoreProxies;
+    }
+
+    private boolean threadIsGettingMoreProxies = false;
 
     /**
      * Constructor.
@@ -118,7 +137,7 @@ class Crawler {
         executorService = Executors.newFixedThreadPool(21, new MyThreadFactory());
         if (setOfProxyGathered.size() < 900) {
             //Add 1 request to get more proxies
-            Request getMoreProxiesRequest = new Request(false, "getProxies");
+            Request getMoreProxiesRequest = new Request(false, "getProxies", this, guiLabels);
             executorService.submit(getMoreProxiesRequest);
         }
 
@@ -127,7 +146,7 @@ class Crawler {
         List<Callable<Proxy>> listOfRequests = new ArrayList<>();
         //Add 10 requests
         for (int i = 0; i < 10; i++) {
-            listOfRequests.add(new Request(false, "getConnection"));
+            listOfRequests.add(new Request(false, "getConnection", this, guiLabels));
         }
         boolean isFirst = true;
         for (Callable<Proxy> request : listOfRequests) {
@@ -279,7 +298,7 @@ class Crawler {
     /**
      * Gets more unique proxies.
      */
-    private void getMoreProxies() {
+    void getMoreProxies() {
         if (setOfAllProxiesEver.size() > 1700) {
             //delete all the proxies and start all over
             System.out.println("Restarting all lists of proxies");
@@ -288,6 +307,7 @@ class Crawler {
             setOfAllProxiesEver = Collections.synchronizedSet(new HashSet<Proxy>());
             listOfWorkingProxies = Collections.synchronizedList(new ArrayList<Proxy>());
             proxiesDownloader.getProxiesFromWebsite(1000, 0, guiLabels, this, false);
+            mapWebsiteToReqCountFromProxy = new HashMap<>();
 
         } else if (listOfWorkingProxies.size() == 0) {
             proxiesDownloader.getProxiesFromWebsite(1000, setOfProxyGathered.size(), guiLabels, this, true);
@@ -307,8 +327,8 @@ class Crawler {
      * @param keyword          String with the title of the document
      * @param hasSearchBefore  has the user press the button search before
      * @param isMultipleSearch is the search being done in multiple article mode
-     * @param type             "searchForArticle" or "searchForCitedBy". Retrieves a different URL depending on if we
-     *                        are trying to
+     * @param type             "searchForTheArticle" or "searchForCitedBy". Retrieves a different URL depending on if we
+     *                         are trying to
      *                         download the paper itself or the papers that cite the paper
      * @return array with 2 elements. First element represents the numOfCitations, the second is the citingPapersURL
      */
@@ -327,7 +347,7 @@ class Crawler {
             if (invalidAttempts >= 2) {
                 //Program was unable to search for the query
                 if (!isMultipleSearch) {
-                    guiLabels.setSearchResultLabel(type+",Could not find paper, please try writing more specific " +
+                    guiLabels.setSearchResultLabel(type + ",Could not find paper, please try writing more specific " +
                             "information");
                 }
                 numOfCitations = "";
@@ -342,14 +362,33 @@ class Crawler {
                     doc = changeIP(url, false, false);
 
                 }
-                Long currThread = Thread.currentThread().getId();
-                mapThreadIdToReqCount.put(currThread, mapThreadIdToReqCount.get(currThread) + 1);
-                if (mapThreadIdToReqCount.get(currThread) != null) {
-                    guiLabels.setConnectionOutput("Number of requests from Thread " + currThread + ": " +
-                            mapThreadIdToReqCount.get(currThread));
+                //Check if doc contains "Did you mean to search for..." If so, redirect the corrected search
+                if (doc.html().contains("Did you mean to search for:")) {
+                    System.out.println("Redirecting to corrected search result");
+                    Pattern redirectPattern = Pattern.compile("Did you mean( to search for)?:.*<a href=\"[^\"]*");
+                    Matcher redirectMatcher = redirectPattern.matcher(doc.html());
+                    if (redirectMatcher.find()) {
+                        String correctedURL = redirectMatcher.group();
+                        correctedURL = correctedURL.replaceAll("Did you mean( to search for)?:.*<a href=\"", "");
+                        correctedURL = correctedURL.replaceAll("/scholar.*(q=)", "https://scholar.google" +
+                                ".com/scholar?hl=en&as_sdt=0,39&q=");
+                        url = correctedURL;
+                        System.out.println("Redirected url "+ url);
+                        doc = changeIP(url, hasSearchBefore, false);
+                    }
+
                 }
+
+                Long currThread = Thread.currentThread().getId();
+                //Increase request of current proxy
+                String baseURL = addRequestToMapOfRequests(url, mapThreadIdToProxy.get(currThread));
+                //Display
+                guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + mapThreadIdToProxy.get
+                        (currThread).getProxy() +" = " + getNumberOfRequestFromMap(url, mapThreadIdToProxy.get
+                        (currThread)));
                 Elements links = doc.select("a[href]");
-                SingleSearchResultFinder finder = new SingleSearchResultFinder(guiLabels, simultaneousDownloadsGUI, doc);
+                SingleSearchResultFinder finder = new SingleSearchResultFinder(guiLabels, simultaneousDownloadsGUI,
+                        doc);
                 //Analyze the current search result
                 found = finder.findSingleSearchResult(links, type, url, isMultipleSearch);
                 paperVersionsURL = finder.getPaperVersionsURL();
@@ -359,7 +398,7 @@ class Crawler {
                 //Check if there is more than 1 result for a given search
                 MultipleSearchResultsFinder finderMultiple = new MultipleSearchResultsFinder(doc, isMultipleSearch,
                         guiLabels, type);
-                if (finderMultiple.findMultipleSearchResult(links, searchResultToLink)){
+                if (finderMultiple.findMultipleSearchResult(links, searchResultToLink)) {
                     numOfCitations = "There was more than 1 result found for your given query";
                 }
 
@@ -369,8 +408,7 @@ class Crawler {
         }
         if (type.equals("searchForCitedBy")) {
             return new String[]{numOfCitations, citingPapersURL};
-        }
-        else {
+        } else {
             return new String[]{numOfCitations, paperVersionsURL};
         }
 
@@ -401,15 +439,16 @@ class Crawler {
 
             }
             return list;
-        }
-        else  {
+        } else {
             //If this is true, then we iterate though all the different versions available
             if (citingPapersURL.contains("cluster")) {
                 System.out.println("Case 2.1: Searching for version and main website url");
                 String[] array = citingPapersURL.split("∆");
                 String versionURL = array[0];
-                String firstSearchResultURL = array[1];
-                list.add(firstSearchResultURL);
+                if (array.length == 2) {
+                    String firstSearchResultURL = array[1];
+                    list.add(firstSearchResultURL);
+                }
                 list.add(versionURL);
                 //Add all possible search results
                 for (int i = 10; i < 1000 + 1; i = i + 10) {
@@ -419,12 +458,13 @@ class Crawler {
 
                 }
                 return list;
-            }
-            else {
+            } else {
                 System.out.println("Case 2.2 Searching for search result and main website url");
                 //Add the SR as well as the link of the search result
                 String[] array = citingPapersURL.split("∆");
-                list.add(array[1]);
+                if (array.length == 2) {
+                    list.add(array[1]);
+                }
                 list.add(array[0]);
                 return list;
             }
@@ -438,163 +478,15 @@ class Crawler {
      * @param hasSearchBefore has the user click the search button before
      * @return Document
      */
-    private Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
-        long currThreadID = Thread.currentThread().getId();
-        //Check internet connection first
-        if (!thereIsConnection) {
-            guiLabels.setAlertPopUp("Could not connect, please check your internet connection");
-            guiLabels.setOutput("No internet connection");
-            guiLabels.setOutputMultiple("No internet connection");
-        }
-        while (!thereIsConnection) {
-            try {
-                //Sleep for 30 seconds, try until connection is found
-                Thread.sleep(10 * 1000);
-            } catch (InterruptedException ignored) {
-            }
-        }
-
-        if (setOfProxyGathered.size() < 50) {
-            try {
-                //If there are less than 50 proxies remaining, we add more
-                //But first we check if we have connection
-                while (!thereIsConnection) {
-                    guiLabels.setOutput("No internet connection");
-                    guiLabels.setOutputMultiple("No internet connection");
-                    //Sleep for 30 seconds, try until connection is found
-                    Thread.sleep(10 * 1000);
-                }
-            } catch (InterruptedException ignored) {
-            }
-            getMoreProxies();
-        }
-
-        if (hasSearchBefore && mapThreadIdToReqCount.get(currThreadID) <= 50) {
-            //If has searched before and it worked, then use previous ip
-            Proxy ipAndPort = mapThreadIdToProxy.get(currThreadID);
-            try {
-                return Jsoup.connect(url).proxy(ipAndPort.getProxy(), ipAndPort.getPort()).userAgent("Mozilla").get();
-            } catch (IOException e2) {
-                guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
-                        ".\nChanging" +
-                        " to a different one");
-                guiLabels.setConnectionOutput(e2.getMessage());
-
-            }
-        }
-
-        //Connect to the next working IP if the number of request is >50 or the proxy no longer works
-        if (queueOfConnections.size() > 0 && !comesFromThread) {
-
-            if (mapThreadIdToReqCount.get(currThreadID) != null && mapThreadIdToReqCount.get(currThreadID) > 50) {
-                //If we have used this proxy too many times, we save it for later
-                guiLabels.setConnectionOutput("Proxy has more than 50 requests. Replacing it, and saving it to the " +
-                        "list of working proxies.");
-                listOfWorkingProxies.add(mapThreadIdToProxy.get(currThreadID));
-            }
-            boolean connected = false;
-            Document doc = null;
-            while (!connected) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                //Get an ip from the working list
-                Proxy proxyToUse = queueOfConnections.poll();
-                //If the proxy is null, then trying finding a new one
-                while (proxyToUse == null) {
-                    //Since we are using a new proxy, we need to find a replacement
-                    Request request = new Request(true, "getConnection");
-                    executorService.submit(request);
-                    guiLabels.setNumberOfWorkingIPs("remove,none");
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    proxyToUse = queueOfConnections.poll();
-
-                }
-
-                System.out.println("Getting new IP " + currThreadID + " " + proxyToUse.getProxy() + " " +
-                        proxyToUse.getPort());
-                mapThreadIdToProxy.put(currThreadID, proxyToUse);
-                //Since we are using a new proxy, we need to find a replacement
-                //If there are already 20 proxies in the queue, then don't add more
-                if (queueOfConnections.size() <= 20) {
-                    Request request = new Request(true, "getConnection");
-                    executorService.submit(request);
-                    guiLabels.setNumberOfWorkingIPs("remove,none");
-                }
-
-                try {
-                    doc = Jsoup.connect(url).proxy(proxyToUse.getProxy(), proxyToUse.getPort()).userAgent("Mozilla")
-                            .get();
-                    guiLabels.setConnectionOutput("Successfully connected to proxy from queue.\nAdding a new thread " +
-                            "to" +
-                            " find a new connection");
-                    if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
-                        throw new IllegalArgumentException("Google flagged your IP as a bot. Changing to a different " +
-                                "one");
-                    }
-                    connected = true;
-                } catch (Exception e) {
-                    guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
-                            "queue.");
-                    guiLabels.setConnectionOutput(e.getMessage());
-                }
-            }
-            mapThreadIdToReqCount.put(Thread.currentThread().getId(), 1);
-            return doc;
-        }
-        //The only way to get to here is if it is one of the threads trying to find a new connection
-        //Establish a new connection
-        if (mapThreadIdToReqCount.get(currThreadID) != null) {
-            guiLabels.setConnectionOutput(String.valueOf("Number of requests Thread " + currThreadID + ": " +
-                    mapThreadIdToReqCount.get(currThreadID)));
-        }
-
-        boolean connected = false;
-        Document doc = null;
-        boolean thereWasAnError = false;
-        Proxy proxyToBeUsed;
-        while (!connected) {
-            while (!thereIsConnection) {
-                //First sleep thread to make sure we actually have connection before this happens
-                try {
-                    guiLabels.setOutput("No internet connection");
-                    guiLabels.setOutputMultiple("No internet connection");
-                    Thread.sleep(10 * 1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            proxyToBeUsed = addConnection();
-
-            try {
-                if (!thereWasAnError) {
-                    guiLabels.setConnectionOutput("Connecting to Proxy...");
-                }
-                doc = Jsoup.connect(url).proxy(proxyToBeUsed.getProxy(), proxyToBeUsed.getPort()).userAgent
-                        ("Mozilla").get();
-                if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
-                    throw new IllegalArgumentException();
-                }
-                connected = true;
-                mapThreadIdToProxy.put(Thread.currentThread().getId(), proxyToBeUsed);
-
-            } catch (Exception e) {
-                thereWasAnError = true;
-            }
-        }
-        return doc;
+    Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
+        ChangeProxy changeProxy = new ChangeProxy(guiLabels, this);
+        return changeProxy.getProxy(url, hasSearchBefore, comesFromThread);
     }
 
     /**
      * Downloads the number of pdf requested
      *
-     * @param limit max number of PDFs to download
+     * @param limit        max number of PDFs to download
      * @param typeOfSearch
      * @throws Exception Problem downloading or reading a file
      */
@@ -613,14 +505,17 @@ class Crawler {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Please search of an author before downloading");
         }
+        //isFirst is true if it is the first URL of the list
         boolean isFirst = true;
         for (String currUrl : list) {
-            System.out.println("URL used:" + currUrl);
             if (pdfCounter >= limit) {
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("All PDFs available have been downloaded");
                 }
                 break;
+            }
+            if (currUrl.contains("pdf+html")) {
+                currUrl = currUrl.replaceAll("pdf\\+html", "pdf");
             }
             int timeToWait = getTimeToWait();
             guiLabels.setConnectionOutput("Waiting " + timeToWait + " seconds before going to the search results");
@@ -636,7 +531,7 @@ class Crawler {
 
             //Increase counter for every new google link
             Document citingPapers;
-            if (mapThreadIdToReqCount.get(currThreadID) >= 50) {
+            if (getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get(currThreadID))>= 50) {
                 guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
                         " amount of requests...");
                 citingPapers = changeIP(currUrl, false, false);
@@ -644,13 +539,29 @@ class Crawler {
                 citingPapers = changeIP(currUrl, true, false);
             }
 
+            if (citingPapers == null) {
+                continue;
+            }
+
+            //Verify that Google has not flagged the proxy
             if (citingPapers.text().contains("Sorry, we can't verify that you're not a robot")) {
                 //In case you been flagged as a bot even before searching
                 guiLabels.setConnectionOutput("Google flagged thread " + currThreadID + " proxy as a bot." +
                         "\nChanging to a different one");
                 citingPapers = changeIP(currUrl, false, false);
+                if (citingPapers == null) {
+                    continue;
+                }
             }
-            mapThreadIdToReqCount.put(currThreadID, mapThreadIdToReqCount.get(currThreadID) + 1);
+
+            //Add request to current website
+            String baseURL = addRequestToMapOfRequests(currUrl, mapThreadIdToProxy.get(currThreadID));
+            //Display
+            guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + mapThreadIdToProxy.get
+                    (currThreadID).getProxy() +" = " + getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get
+                    (currThreadID)));
+
+
             numberOfSearches++;
 
             if (numberOfSearches > 2 && isMultipleSearch) {
@@ -671,15 +582,12 @@ class Crawler {
                 }
                 break;
             }
-            isFirst = false;
 
             if (!isMultipleSearch) {
                 guiLabels.setOutput("Downloading...");
             }
-            if (mapThreadIdToReqCount.get(currThreadID) != null) {
-                guiLabels.setConnectionOutput(String.valueOf("Number of requests from Thread " + currThreadID + ": " +
-                        mapThreadIdToReqCount.get(currThreadID)));
-            }
+
+
             //Go through all the links of the search result, and find links that contain PDFs
             Elements linksInsidePaper = citingPapers.select("a[href]");
             String text;
@@ -687,6 +595,9 @@ class Crawler {
             for (Element link : linksInsidePaper) {
                 text = link.text();
                 absLink = link.attr("abs:href");
+                if (absLink.contains("pdf+html")) {
+                    absLink = absLink.replaceAll("pdf\\+html", "pdf");
+                }
                 if (text.contains("PDF")) {
                     int attempt = 0;
                     //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
@@ -696,6 +607,7 @@ class Crawler {
                         atomicCounter.increment();
                         File file = null;
                         try {
+
                             Proxy proxyToUSe = mapThreadIdToProxy.get(currThreadID);
                             if (attempt > 0) {
                                 proxyToUSe = queueOfConnections.peek();
@@ -731,36 +643,48 @@ class Crawler {
                             pdfCounter--;
                             atomicCounter.decrease();
                             attempt++;
-                            if (e2.getMessage() == null || !e2.getMessage().contains("Error 403") && !e2.getMessage()
-                                    .contains("response code: 429") && !e2.getMessage().contains
-                                    ("Unable to tunnel through proxy.")) {
-                                //If it is NOT any of these three errors, then do not try to re-download it
+
+                            //If it is NOT any of these three errors, then do not try to re-download it
+                            if (e2.getMessage() == null  || !e2.getMessage().contains("Error 403") &&
+                                    !e2.getMessage().contains("response code: 429") &&
+                                    !e2.getMessage().contains("Unable to tunnel through proxy.")) {
                                 System.out.println("Error: " + e2.getMessage());
                                 if (file != null) {
+                                    //If the file was created, delete it
                                     //noinspection ResultOfMethodCallIgnored
                                     file.delete();
                                 }
                                 break;
-                            } else {
-                                System.out.println("Trying to download again");
                             }
+
                         }
                     }
 
+
                     if (!isMultipleSearch) {
-                        guiLabels.setNumberOfPDF(typeOfSearch+","+pdfCounter + "/" + limit);
+                        guiLabels.setNumberOfPDF(typeOfSearch + "," + pdfCounter + "/" + limit);
                         guiLabels.setLoadBar(pdfCounter / (double) limit);
                     } else {
                         simultaneousDownloadsGUI.updateStatus(pdfCounter + "/" + limit);
                         simultaneousDownloadsGUI.updateProgressBar(0.3 + (pdfCounter / (double) limit) * 0.7);
-                        guiLabels.setNumberOfPDFsMultiple(atomicCounter.value());
+
+                        guiLabels.setNumberOfPDFsMultiple(typeOfSearch+","+atomicCounter.value());
 
                     }
                     if (pdfCounter >= limit) {
                         break;
                     }
+
+                    //If is the first URL, and the URL is not a google search result, then after finding the
+                    //first PDF stop since you can end up downloading PDFs that are not part of the query
+                    if (isFirst && typeOfSearch.equals("searchForTheArticle")) {
+                        break;
+
+                    }
                 }
             }
+            isFirst = false;
+
         }
         return pdfCounter;
     }
@@ -771,7 +695,7 @@ class Crawler {
      *
      * @return Proxy
      */
-    private synchronized Proxy addConnection() {
+    synchronized Proxy addConnection() {
         try {
             Thread.sleep(1000);
         } catch (InterruptedException ignored) {
@@ -781,16 +705,98 @@ class Crawler {
         Proxy curr = listOfProxiesGathered.get(randomIndex);
         //If it is still in the set,  it has not yet been used.
         while (!setOfProxyGathered.contains(curr)) {
-            randomIndex = new Random().nextInt(listOfProxiesGathered.size());
-            curr = listOfProxiesGathered.get(randomIndex);
+            boolean valid = false;
+            while (!valid) {
+                try {
+                    randomIndex = new Random().nextInt(listOfProxiesGathered.size());
+                    valid = true;
+                    curr = listOfProxiesGathered.get(randomIndex);
+                } catch (IllegalArgumentException e) {
+                    valid = false;
+                    try {
+                        Thread.sleep(10*1000);
+                    } catch (InterruptedException ignored) {
+                    }
+                }
+            }
         }
         //Remove from set
         setOfProxyGathered.remove(curr);
         //Remove from list
         listOfProxiesGathered.remove(randomIndex);
         guiLabels.setConnectionOutput("Number of Proxies available: " + setOfProxyGathered.size());
+        while (setOfProxyGathered.size() < 50) {
+            try {
+                Thread.sleep(10*1000);
+            } catch (InterruptedException e) {
+            }
+        }
+
 
         return curr;
+    }
+
+    String addRequestToMapOfRequests(String url, Proxy proxy) {
+        //Get base url
+        Pattern pattern = Pattern.compile("^.+?[^/:](?=[?/]|$)");
+        Matcher matcher = pattern.matcher(url);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("There was a problem finding base URL");
+        }
+        String baseURL = matcher.group();
+        //See if it exist in the map
+        if (mapWebsiteToReqCountFromProxy.get(baseURL) == null) {
+           //If it does not, create a new map and add a new entry
+            Map<Proxy,Integer> map = new HashMap<>();
+            map.put(proxy, 1);
+            mapWebsiteToReqCountFromProxy.put(baseURL, map);
+        }
+        else {
+            Map<Proxy, Integer> map = mapWebsiteToReqCountFromProxy.get(baseURL);
+            map.merge(proxy, 1, (a, b) -> a + b);
+            mapWebsiteToReqCountFromProxy.put(baseURL, map);
+        }
+        return baseURL;
+    }
+
+    int getNumberOfRequestFromMap(String url, Proxy proxy) {
+        //Get base url
+        Pattern pattern = Pattern.compile("^.+?[^/:](?=[?/]|$)");
+        Matcher matcher = pattern.matcher(url);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("There was a problem finding base URL");
+        }
+        String baseURL = matcher.group();
+        if (mapWebsiteToReqCountFromProxy.get(baseURL) == null) {
+            return 0;
+        }
+        else {
+            if (mapWebsiteToReqCountFromProxy.get(baseURL).get(proxy) == null) {
+                return 0;
+            }
+            else return mapWebsiteToReqCountFromProxy.get(baseURL).get(proxy);
+
+        }
+    }
+
+    /**
+     * Increases the download speed by not using proxies to download files
+     *
+     * @param speedUp true if the user wants to increase the speed. False otherwise.
+     */
+    void increaseSpeed(boolean speedUp) {
+        this.speedUp = speedUp;
+    }
+
+    /**
+     * Resets the counter of PDFs
+     */
+    void resetCounter() {
+        atomicCounter.reset();
+    }
+
+    void addToSetOfAllProxiesEver(Proxy proxy) {
+        setOfAllProxiesEver.add(proxy);
     }
 
     /**
@@ -810,31 +816,6 @@ class Crawler {
     }
 
 
-    void setListOfProxiesGathered(Proxy proxy) {
-        listOfProxiesGathered.add(proxy);
-    }
-
-    void setSetOfProxyGathered(Proxy proxy) {
-        setOfProxyGathered.add(proxy);
-    }
-
-    void setGUI(SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
-        this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
-    }
-
-    /**
-     * Increases the download speed by not using proxies to download files
-     *
-     * @param speedUp true if the user wants to increase the speed. False otherwise.
-     */
-    void increaseSpeed(boolean speedUp) {
-        this.speedUp = speedUp;
-    }
-
-    void addToSetOfAllProxiesEver(Proxy proxy) {
-        setOfAllProxiesEver.add(proxy);
-    }
-
     ConcurrentLinkedQueue<Proxy> getQueueOfConnections() {
         return queueOfConnections;
     }
@@ -847,54 +828,28 @@ class Crawler {
         return searchResultToLink;
     }
 
-    /**
-     * Resets the counter of PDFs
-     */
-    void resetCounter() {
-        atomicCounter.reset();
+    Set<Proxy> getSetOfProxyGathered() {
+        return setOfProxyGathered;
     }
 
+    List<Proxy> getListOfWorkingProxies() {
+        return listOfWorkingProxies;
+    }
 
-    /**
-     * Implements Callable. Assigns a task to a thread.
-     * Find new working proxy and adds it to the queue.
-     */
-    class Request implements Callable<Proxy> {
-        private final String type;
-        private boolean atRuntime = false;
+    ExecutorService getExecutorService() {
+        return executorService;
+    }
 
-        Request(boolean atRuntime, String type) {
-            this.atRuntime = atRuntime;
-            this.type = type;
-        }
+    void setListOfProxiesGathered(Proxy proxy) {
+        listOfProxiesGathered.add(proxy);
+    }
 
-        @Override
-        public Proxy call() throws Exception {
-            if (type.equals("getProxies")) {
-                getMoreProxies();
-                return null;
-            } else if (type.equals("getConnection")) {
-                guiLabels.setConnectionOutput("Thread " + Thread.currentThread().getId() + " is trying to connect");
-                // Try to Establish connection
-                boolean valid = false;
-                while (!valid) {
-                    try {
-                        changeIP("https://scholar.google" +
-                                ".com/scholar?hl=en&q=interesting+articles&btnG=&as_sdt=1%2C39&as_sdtp=", false, true);
-                        valid = true;
-                    } catch (Exception ignored) {
-                    }
-                }
-                if (atRuntime) {
-                    //If it is at runtime, add it to the queue from here
-                    Proxy temp = mapThreadIdToProxy.get(Thread.currentThread().getId());
-                    queueOfConnections.add(temp);
-                    guiLabels.setNumberOfWorkingIPs("add," + temp.getProxy() + " Port: " + temp.getPort());
-                }
-                return mapThreadIdToProxy.get(Thread.currentThread().getId());
-            }
-            return null;
-        }
+    void setSetOfProxyGathered(Proxy proxy) {
+        setOfProxyGathered.add(proxy);
+    }
+
+    void setGUI(SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
+        this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
     }
 
     /**

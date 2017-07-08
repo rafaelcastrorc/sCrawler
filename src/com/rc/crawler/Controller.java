@@ -6,6 +6,7 @@ import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
 
 import javafx.concurrent.Task;
+import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -30,12 +31,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Controller implements Initializable {
-    private String numOfPDFToDownload;
+    String numOfPDFToDownload;
     private LoadingWindow loading;
-    private volatile Crawler crawler;
+    volatile Crawler crawler;
     private Window window;
     private HashSet<String> articleNames;
-    private HashSet<String> alreadyDownloadedPapers;
     private Map<Long, String> mapThreadToTitle = Collections.synchronizedMap(new HashMap<Long, String>());
     private Map<Long, Boolean> mapThreadToBool = Collections.synchronizedMap(new HashMap<Long, Boolean>());
     private GUILabelManagement guiLabels;
@@ -47,6 +47,7 @@ public class Controller implements Initializable {
     private ExecutorService executorServiceMultiple;
     private int numOfConnectionsNeeded;
     private boolean speedUp = false;
+    private File submittedFile;
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -59,6 +60,8 @@ public class Controller implements Initializable {
     private Label pdfsDownloadedLabelSFA;
     @FXML
     private Label pdfsDownloadedMultiple;
+    @FXML
+    private Label pdfsDownloadedMultipleSFA;
     @FXML
     private JFXTextField numberOfPDFs;
     @FXML
@@ -82,7 +85,11 @@ public class Controller implements Initializable {
     @FXML
     private JFXButton downloadButtonMultiple;
     @FXML
+    private JFXButton downloadButtonMultipleSFA;
+    @FXML
     private JFXTextField numberOfPDFsMultiple;
+    @FXML
+    private JFXTextField numberOfPDFsMultipleSFA;
     @FXML
     private JFXRadioButton increaseSpeedButton1;
     @FXML
@@ -98,7 +105,7 @@ public class Controller implements Initializable {
      *
      * @param title            article that we are looking for.
      * @param isMultipleSearch true if we are searching for multiple articles, using multiple article mode.
-     * @param typeOfSearch     searchForArticle" or "searchForCitedBy". Retrieves a different URL depending on if we
+     * @param typeOfSearch     "searchForTheArticle" or "searchForCitedBy". Retrieves a different URL depending on if we
      *                         are trying to
      *                         download the paper itself or the papers that cite the paper
      */
@@ -144,7 +151,7 @@ public class Controller implements Initializable {
             try {
                 selection = (String) searchResultWindow.searchResultListView.getItems().get(0);
                 System.out.println("Selection: " + selection);
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
             if (isMultipleSearch) {
                 if (!selection.isEmpty()) {
@@ -152,7 +159,7 @@ public class Controller implements Initializable {
                     Long currentThreadId = Thread.currentThread().getId();
                     if (crawler.getSearchResultToLink().get(selection) == null) {
                         //If it could not find the article in the crawler, then we did not find
-                        // the sr
+                        // the search result
                         selection = "";
 
                     } else {
@@ -255,6 +262,12 @@ public class Controller implements Initializable {
      */
     private void download(String currTitle, String URL, boolean isMultipleSearch, String originalArticle,
                           String typeOfSearch) {
+        String paperDownloaded;
+        if (currTitle.equals(originalArticle)) {
+            paperDownloaded = currTitle;
+        } else {
+            paperDownloaded = originalArticle + " (Selected in SW: " + currTitle + ")";
+        }
         try {
             PDFDownloader pdfDownloader = new PDFDownloader();
             //Generate a unique folder name
@@ -278,10 +291,10 @@ public class Controller implements Initializable {
                     logger.setListOfNotDownloadedPapers(false);
                 }
                 if (typeOfSearch.equals("searchForCitedBy"))
-                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: No articles that cite " +
+                    logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: No articles that cite " +
                             "this paper were found in PDF (" + typeOfSearch + ")");
                 else {
-                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: Could not find any PDF " +
+                    logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any PDF " +
                             "version of the article(" + typeOfSearch + ")");
                 }
 
@@ -289,14 +302,15 @@ public class Controller implements Initializable {
 
             //Add the information to the Report, and list of completed downloads
             logger.setReportWriter(true, "Report");
-            logger.writeReport("\n-Paper downloaded(" + typeOfSearch + "): " + currTitle + "\n   Number of PDFs " +
+            logger.writeReport("\n-Paper downloaded(" + typeOfSearch + "): " + paperDownloaded + "\n   Number of PDFs" +
+                    " " +
                     "downloaded: " +
 
                     numberOfPDFsDownloaded + "/" + numOfPDFToDownload +
                     "\n     Folder path: " + path + "\n");
 
             logger.setReportWriter(false, path + "/ArticleName");
-            logger.writeReport("\nSearched paper: " + currTitle);
+            logger.writeReport("\nSearched paper: " + paperDownloaded);
             logger.writeReport("\nType of Search: " + typeOfSearch);
 
 
@@ -307,7 +321,11 @@ public class Controller implements Initializable {
             } else {
                 logger.setListOfFinishedPapers(false);
             }
-            logger.writeToListOfFinishedPapers("\n" + "[" + typeOfSearch + "]" + originalArticle);
+            //We use the original article name for the list of finished papers.
+            //We only add it to the list if it is in multiple search mode
+            if (isMultipleSearch) {
+                logger.writeToListOfFinishedPapers("\n" + "[" + typeOfSearch + "]" + originalArticle);
+            }
 
         } catch (Exception e) {
 
@@ -323,16 +341,16 @@ public class Controller implements Initializable {
                     logger.setListOfNotDownloadedPapers(false);
                 }
                 if (typeOfSearch.equals("searchForCitedBy"))
-                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: There was an error " +
+                    logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: There was an error " +
                             "downloading the articles that cite this paper(" + typeOfSearch + ")");
                 else {
-                    logger.writeToFilesNotDownloaded("\n" + originalArticle + " - Error: There was an error " +
+                    logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: There was an error " +
                             "downloading this paper(" + typeOfSearch + ")");
                 }
 
                 //Add to report
                 logger.setReportWriter(true, "Report");
-                logger.writeReport("\n-Could not download paper (" + typeOfSearch + "): " + originalArticle + "\n");
+                logger.writeReport("\n-Could not download paper (" + typeOfSearch + "): " + paperDownloaded + "\n");
 
             } catch (IOException e2) {
                 displayAlert(e2.getMessage());
@@ -369,31 +387,21 @@ public class Controller implements Initializable {
                 displayAlert("File is empty");
             } else {
                 articleNames = new HashSet<>();
-                alreadyDownloadedPapers = new HashSet<>();
-                //Check if the list contains articles that have already been downloaded
-                File listOfFinishedDownloads = new File("./AppData/CompletedDownloads.txt");
-                Scanner finishedDownloads;
                 try {
-                    finishedDownloads = new Scanner(listOfFinishedDownloads);
-                    //Todo: ask user if they want to use such list. If so, add the files with the search mode used
-
-                    while (finishedDownloads.hasNextLine()) {
-                        String line = finishedDownloads.nextLine();
-                        alreadyDownloadedPapers.add(line);
-                    }
-                    finishedDownloads.close();
-                } catch (FileNotFoundException ignored) {
-                }
-                try {
+                    //Check if there are at least 8 files to have enough connections for each file
                     Scanner scanner = new Scanner(file);
                     while (scanner.hasNextLine()) {
                         String line = scanner.nextLine();
-                        if (!alreadyDownloadedPapers.contains(line)) {
-                            articleNames.add(line);
+                        articleNames.add(line);
+                        if (articleNames.size() > 8) {
+                            break;
                         }
                     }
+                    this.submittedFile = file;
                     updateOutputMultiple("File has been submitted.");
                     downloadButtonMultiple.setDisable(false);
+                    downloadButtonMultipleSFA.setDisable(false);
+
                     if (articleNames.size() < 8) {
                         simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
                         simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(articleNames.size());
@@ -434,58 +442,83 @@ public class Controller implements Initializable {
      * Called when the user clicks the Download button on the multiple articles section.
      */
     @FXML
-    void multipleDownloadOnClick() {
+    void multipleDownloadOnClick(ActionEvent event) {
+        Object source = event.getSource();
+        String buttonUsed = "";
+        String typeOfSearch = "";
+        if (source instanceof Button) { //should always be true in your example
+            Button clickedBtn = (Button) source; // that's the button that was clicked
+            System.out.println(clickedBtn.getId()); // prints the id of the button
+            buttonUsed = clickedBtn.getId();
+        }
+        String text;
+
+        if (buttonUsed.equals("downloadButtonMultiple")) {
+            typeOfSearch = "searchForCitedBy";
+           text = numberOfPDFsMultiple.getText();
+        } else {
+            typeOfSearch = "searchForTheArticle";
+            text = numberOfPDFsMultipleSFA.getText();
+
+        }
+        //Show number of files that have been already downloaded, then ask if he wants to continue
         progressBar.progressProperty().setValue(0);
-        String text = numberOfPDFsMultiple.getText();
         //Make sure that only numbers are accepted
         Pattern numbersOnly = Pattern.compile("^[0-9]+$");
         Matcher matcher = numbersOnly.matcher(text);
-
         if (matcher.find()) {
-            simultaneousDownloadsGUI.resetCounter();
-            numOfPDFToDownload = matcher.group();
-            //To download files simultaneously using threads. Based on calculations and experimentation, 4 seems to
-            // be the ideal number.
-            if (!hasSearchBeforeMultiple) {
-                this.executorServiceMultiple = Executors.newFixedThreadPool(8, new MyThreadFactory());
-                hasSearchBeforeMultiple = true;
-            }
-            //Restart pdf count
-            crawler.resetCounter();
-            updateOutputMultiple("Processing...");
-            atomicCounter = new AtomicCounter();
-            atomicCounter.reset();
-            atomicCounter.setMaxNumber(articleNames.size());
-            System.out.println("Number of articles: " + articleNames.size());
-
-            CompletionService<Void> taskCompletionService = new ExecutorCompletionService<>(executorServiceMultiple);
-            updateProgressBarMultiple(0.0);
-            List<Future> futures = new ArrayList<>();
-            for (String article : articleNames) {
-                DoWork task = new DoWork("multipleSearch", article, null);
-                futures.add(taskCompletionService.submit(task));
-            }
-            Task task = new Task() {
-                @Override
-                protected Object call() throws Exception {
-                    int n = futures.size();
-                    for (int i = 0; i < n; ++i) {
-                        try {
-                            taskCompletionService.take();
-                        } catch (InterruptedException ignored) {
-                        }
-                    }
-                    return null;
-                }
-            };
-            ExecutorService executorService2 = Executors.newSingleThreadExecutor(new MyThreadFactory());
-            executorService2.submit(task);
-
-
+            SetupFile setup = new SetupFile(typeOfSearch, submittedFile, this, matcher.group());
+            //Set up the list of files to download appropriately
+            FutureTask<Void> futureTask = new FutureTask<>(setup);
+            Platform.runLater(futureTask);
         } else {
             displayAlert("Please only write numbers here.");
         }
+
     }
+
+    void startMultipleDownloads(HashSet<String> articleNames, String numOfPDFToDownload, String typeOfSearch){
+        this.articleNames = articleNames;
+        simultaneousDownloadsGUI.resetCounter();
+        this.numOfPDFToDownload = numOfPDFToDownload;
+        //To download files simultaneously using threads. Based on calculations and experimentation, 4 seems to
+        // be the ideal number.
+        if (!hasSearchBeforeMultiple) {
+            this.executorServiceMultiple = Executors.newFixedThreadPool(8, new MyThreadFactory());
+            hasSearchBeforeMultiple = true;
+        }
+        //Restart pdf count
+        crawler.resetCounter();
+        updateOutputMultiple("Processing...");
+        atomicCounter = new AtomicCounter();
+        atomicCounter.reset();
+        atomicCounter.setMaxNumber(articleNames.size());
+        updateOutputMultiple("Number of articles to download: "+ articleNames.size());
+
+        CompletionService<Void> taskCompletionService = new ExecutorCompletionService<>(executorServiceMultiple);
+        updateProgressBarMultiple(0.0);
+        List<Future> futures = new ArrayList<>();
+        for (String article : articleNames) {
+            Controller.DoWork task = new Controller.DoWork("multipleSearch", article, typeOfSearch);
+            futures.add(taskCompletionService.submit(task));
+        }
+        Task task = new Task() {
+            @Override
+            protected Object call() throws Exception {
+                int n = futures.size();
+                for (int i = 0; i < n; ++i) {
+                    try {
+                        taskCompletionService.take();
+                    } catch (InterruptedException ignored) {
+                    }
+                }
+                return null;
+            }
+        };
+        ExecutorService executorService2 = Executors.newSingleThreadExecutor(new MyThreadFactory());
+        executorService2.submit(task);
+    }
+
 
     /**
      * Adds or removes elements to the list of proxies that work
@@ -534,14 +567,9 @@ public class Controller implements Initializable {
         if (text != null) {
             String[] array = text.split(",");
             if (array[0].equals("searchForCitedBy")) {
-                Platform.runLater(() -> {
-                    pdfsDownloadedLabel.setText(array[1]);
-                });
+                Platform.runLater(() -> pdfsDownloadedLabel.setText(array[1]));
             } else {
-                ;
-                Platform.runLater(() -> {
-                    pdfsDownloadedLabelSFA.setText(array[1]);
-                });
+                Platform.runLater(() -> pdfsDownloadedLabelSFA.setText(array[1]));
 
             }
         }
@@ -552,8 +580,13 @@ public class Controller implements Initializable {
      *
      * @param newVal int with the number of PDFs
      */
-    private void updateNumberOfPDFsMultiple(int newVal) {
-        Platform.runLater(() -> pdfsDownloadedMultiple.setText(String.valueOf(newVal)));
+    private void updateNumberOfPDFsMultiple(String newVal) {
+        String[] array = newVal.split(",");
+        if (array[0].equals("searchForCitedBy")) {
+            Platform.runLater(() -> pdfsDownloadedMultiple.setText(array[1]));
+        } else {
+            Platform.runLater(() -> pdfsDownloadedMultipleSFA.setText(array[1]));
+        }
     }
 
     /**
@@ -630,7 +663,7 @@ public class Controller implements Initializable {
      *
      * @param message String with the message to output
      */
-    private void updateOutputMultiple(String message) {
+    void updateOutputMultiple(String message) {
         Platform.runLater(() -> outputMultiple.setText(message));
     }
 
@@ -742,7 +775,7 @@ public class Controller implements Initializable {
         }
         increaseSpeedButton.setSelectedColor(Color.web("#7d9a4f"));
         increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
-        //Todo: add the third button
+        //Todo: add the third and 4th  button
 
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
@@ -752,6 +785,7 @@ public class Controller implements Initializable {
         thread.setDaemon(true);
         thread.start();
     }
+
 
 
     /**
@@ -790,8 +824,6 @@ public class Controller implements Initializable {
                     }
             );
         }
-
-
     }
 
     /**
@@ -875,7 +907,7 @@ public class Controller implements Initializable {
                         //Add to the list of files that could not be downloaded
                         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
                         Logger logger = Logger.getInstance();
-                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch);
+                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch, true);
                         //Also add download to list of completed downloads since we have already processed it
                         if (currPercentage >= 0.99) {
                             updateOutputMultiple("All files have been downloaded");
@@ -899,7 +931,7 @@ public class Controller implements Initializable {
                             }
                             File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
                             Logger logger = Logger.getInstance();
-                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch);
+                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch, true);
                             updateProgressBarMultiple(currPercentage);
                             break;
                         } else {
@@ -914,7 +946,7 @@ public class Controller implements Initializable {
                     }
                     simultaneousDownloadsGUI.updateStatus("Starting to download articles...");
                     simultaneousDownloadsGUI.updateProgressBar(0.3);
-                    download(article, url, true, originalArticle, "searchForCitedBy");
+                    download(article, url, true, originalArticle, typeOfSearch);
                     simultaneousDownloadsGUI.updateProgressBar(1.0);
                     simultaneousDownloadsGUI.updateStatus("Done");
                     atomicCounter.increment();
@@ -946,7 +978,7 @@ public class Controller implements Initializable {
 
                         //Add it to the list of files not downloaded and to the files completed
                         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch);
+                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch, false);
                         break;
 
                     } else if (numOfCitations.equals("There was more than 1 result found for your given query")) {
@@ -957,7 +989,7 @@ public class Controller implements Initializable {
                             guiLabels.setOutput("File was not downloaded");
                             updateSearchLabel(typeOfSearch + ",File was not downloaded");
                             File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch);
+                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch, false);
                             break;
                         } else {
                             updateSearchLabel(typeOfSearch + ",Search result selected");
@@ -1001,7 +1033,7 @@ public class Controller implements Initializable {
                     guiLabels.getLoadBarMultiple().addListener((observable, oldValue, newValue) ->
                             updateProgressBarMultiple(newValue.doubleValue()));
                     guiLabels.getNumberOfPDFsMultiple().addListener((observable, oldValue, newValue) ->
-                            updateNumberOfPDFsMultiple(newValue.intValue()));
+                            updateNumberOfPDFsMultiple(newValue));
                     //Load the crawler
                     crawler.loadCrawler();
                     break;

@@ -3,6 +3,7 @@ package com.rc.crawler;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -28,11 +29,11 @@ class ProxiesDownloader {
 
     /**
      * Returns a list of websites that compiles proxies
+     *
      * @param addMore true if we need to add more proxies (It adds them from the links we did not use before)
      */
     private void getProxiesList(boolean addMore) {
         if (!addMore) {
-            //Todo: add them randomly
             proxiesLists.add("http://www.gatherproxy.com");
             //working US only proxy list. All results displayed at once. (< 200)
             proxiesLists.add("https://www.us-proxy.org");
@@ -65,7 +66,8 @@ class ProxiesDownloader {
      * @param addMore                   true if the program is trying to add more proxies.
      */
     @SuppressWarnings("Duplicates")
-    synchronized int getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter, GUILabelManagement guiLabels, Crawler crawler, boolean addMore) {
+    synchronized int getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter, GUILabelManagement
+            guiLabels, Crawler crawler, boolean addMore) {
 
         //Set a new file, if there was one before, overwrite it
         Logger logger = Logger.getInstance();
@@ -117,13 +119,15 @@ class ProxiesDownloader {
                     try {
 
                         if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
-                            doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
+                            doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
+                                    "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
                             mainPage = false;
                         } else {
                             //Sleep random periods before requesting info from website
                             timeToWait = getTimeToWait();
                             Thread.sleep(timeToWait * 1000);
-                            doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
+                            doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1;" +
+                                    " en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
                         }
                         areThereMoreEntries = false;
                         //Check if there are links to find more table entries
@@ -146,8 +150,10 @@ class ProxiesDownloader {
                         //Get the data from the table
                         Elements table = doc.select("table");
                         Elements rows = table.select("tr");
-                        Pattern ips = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b");
-                        Pattern ipAndPort = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b:\\d{2,4}");
+                        Pattern ips = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}" +
+                                "(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b");
+                        Pattern ipAndPort = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\" +
+                                ".){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b:\\d{2,4}");
                         for (int i = 1; i < rows.size(); i++) { //first row is the col names so skip it.
                             Element row = rows.get(i);
                             Elements cols = row.select("td");
@@ -166,7 +172,8 @@ class ProxiesDownloader {
                                     Proxy nProxy = new Proxy(ip, port);
 
                                     if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
-                                        //See if the set of all proxies does not contain this one, if it does not, then we can add it
+                                        //See if the set of all proxies does not contain this one, if it does not,
+                                        // then we can add it
                                         logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy.getPort());
                                         crawler.setSetOfProxyGathered(nProxy);
                                         crawler.setListOfProxiesGathered(nProxy);
@@ -187,7 +194,8 @@ class ProxiesDownloader {
                                         Proxy nProxy = new Proxy(array[0], Integer.valueOf(array[1]));
                                         //add as long as it is not already in the set
                                         if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
-                                            logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy.getPort());
+                                            logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy
+                                                    .getPort());
                                             crawler.setSetOfProxyGathered(nProxy);
                                             crawler.setListOfProxiesGathered(nProxy);
                                             crawler.addToSetOfAllProxiesEver(nProxy);
@@ -211,16 +219,18 @@ class ProxiesDownloader {
                         Double d = (proxyCounter1 / (double) numberOfProxiesToDownload) * 0.7;
                         if (!addMore) {
                             guiLabels.setLoadBar(d);
-                            guiLabels.setOutput("Proxies downloaded: " + proxyCounter1 + "/" + numberOfProxiesToDownload);
+                            guiLabels.setOutput("Proxies downloaded: " + proxyCounter1 + "/" +
+                                    numberOfProxiesToDownload);
                         } else {
-                            guiLabels.setConnectionOutput("Proxies downloaded: " + proxyCounter1 + "/" + numberOfProxiesToDownload);
+                            guiLabels.setConnectionOutput("Proxies downloaded: " + proxyCounter1 + "/" +
+                                    numberOfProxiesToDownload);
                         }
 
-                    } catch (IOException e) {
+                    } catch (HttpStatusException ignored) {
+                    } catch (Exception e) {
                         e.printStackTrace();
                         if (e.getMessage().contains("Network is unreachable")) {
                             //Check if there is internet connection
-                            System.out.println("Checking if there is internet connection...");
                             while (!crawler.isThereConnection()) {
                                 try {
                                     guiLabels.setOutput("No internet connection");
@@ -231,9 +241,8 @@ class ProxiesDownloader {
                                 }
                             }
                         }
-                        guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases. \nPlease make sure you have an internet connection.");
-                    } catch (InterruptedException e) {
-                        guiLabels.setConnectionOutput(e.getMessage());
+                        guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases. \nPlease make sure " +
+                                "you have an internet connection.");
                     }
                 }
             }

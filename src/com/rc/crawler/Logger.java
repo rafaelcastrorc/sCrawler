@@ -191,7 +191,7 @@ class Logger {
      * @param originalArticle Query inputted by the user
      * @param typeOfSearch Type of search used
      */
-    void writeToLogFileNotFound(File file, String originalArticle, String typeOfSearch) {
+    void writeToLogFileNotFound(File file, String originalArticle, String typeOfSearch, boolean isMultipleSearch) {
 
         try {
             //Add to the report
@@ -212,7 +212,9 @@ class Logger {
             } else {
                 setListOfFinishedPapers(false);
             }
-            writeToListOfFinishedPapers("\n" +"["+typeOfSearch+"]"+originalArticle);
+            if (isMultipleSearch) {
+                writeToListOfFinishedPapers("\n" + "[" + typeOfSearch + "]" + originalArticle);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -225,7 +227,8 @@ class Logger {
      * @param originalArticle Query inputted by the user
      * @param typeOfSearch Type of search used
      */
-    void fileNotDownloadedSearchResultWindow(File file, String originalArticle, String typeOfSearch) {
+    void fileNotDownloadedSearchResultWindow(File file, String originalArticle, String typeOfSearch, boolean
+            isMultipleSearch) {
         try {
             if (file.exists() && file.canRead()) {
 
@@ -242,7 +245,9 @@ class Logger {
             } else {
                 setListOfFinishedPapers(false);
             }
-            writeToListOfFinishedPapers("\n"  +"["+typeOfSearch+"]"+ originalArticle);
+            if (isMultipleSearch) {
+                writeToListOfFinishedPapers("\n" + "[" + typeOfSearch + "]" + originalArticle);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

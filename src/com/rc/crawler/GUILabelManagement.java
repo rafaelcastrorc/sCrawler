@@ -20,7 +20,7 @@ class GUILabelManagement {
     private StringProperty outputMultiple = new SimpleStringProperty();
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
-    private IntegerProperty numberOfPDFsMultiple = new SimpleIntegerProperty();
+    private StringProperty numberOfPDFsMultiple = new SimpleStringProperty();
     private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());
 
     StringProperty getOutputMultiple() {
@@ -59,7 +59,7 @@ class GUILabelManagement {
         return numberOfPDF;
     }
 
-    IntegerProperty getNumberOfPDFsMultiple() {
+    StringProperty getNumberOfPDFsMultiple() {
         return numberOfPDFsMultiple;
     }
 
@@ -153,9 +153,9 @@ class GUILabelManagement {
     /**
      * Sets the number of PDFs downloaded in multiple article mode
      *
-     * @param number integer with the number of PDFs
+     * @param number typeOfSearch,intWithNumOfPDFs
      */
-    void setNumberOfPDFsMultiple(int number) {
+    void setNumberOfPDFsMultiple(String number) {
         this.numberOfPDFsMultiple.set(number);
     }
 

@@ -92,7 +92,6 @@ class SingleSearchResultFinder {
                     paperVersionsURL = baseURI + linkMatcher.group();
                     //Put the Version URL and the first search result URL together
                     paperVersionsURL = paperVersionsURL + "∆" + firstSearchResultURL;
-                    System.out.println("Different version URL = " + paperVersionsURL);
                     text = "found";
                     found = true;
                 }

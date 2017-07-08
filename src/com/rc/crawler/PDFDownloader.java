@@ -144,12 +144,6 @@ class PDFDownloader {
                             status = connection.getResponseCode();
 
                         }
-                        if (status == 200) {
-                            //Check if the url contains .pdf, if not, is not a pdf file
-                            if (!newUrl.endsWith("pdf")) {
-                                throw new IOException("Invalid file");
-                            }
-                        }
 
                         connection.connect();
                         ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
@@ -174,6 +168,8 @@ class PDFDownloader {
 
                 }
             }catch (Exception e) {
+                System.out.println("Error when downloading pdf:");
+                e.printStackTrace();
                 result = e.getMessage();
             }
 
