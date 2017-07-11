@@ -1,14 +1,14 @@
 package com.rc.crawler;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.URL;
+import org.jsoup.nodes.Document;
+
+import java.io.*;
+import java.net.*;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 6/14/17.
@@ -17,7 +17,7 @@ import java.util.concurrent.*;
 class PDFDownloader {
     private GUILabelManagement guiLabels;
     private String path = "";
-
+    private Crawler crawler;
 
     /**
      * Gets the folder where the files are going to be stored for a given query
@@ -40,13 +40,14 @@ class PDFDownloader {
      */
     void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp)
             throws Exception {
+        this.guiLabels = guiLabels;
         DownloadPDFTask downloadPDFTask = new DownloadPDFTask(url, pdfCounter, guiLabels, ipAndPort, speedUp);
         ExecutorService executorService = Executors.newSingleThreadExecutor(new MyThreadFactory());
         Future<String> future =executorService.submit(downloadPDFTask);
         String result;
         try {
             //Limit of 2 minute to download a file
-            result = future.get(2, TimeUnit.MINUTES);
+            result = future.get(3, TimeUnit.MINUTES);
         } catch (Exception e){
             future.cancel(true);
             System.out.println("Timeout download: " + url);
@@ -58,13 +59,17 @@ class PDFDownloader {
         }
     }
 
+    public void setCrawler(Crawler crawler) {
+        this.crawler = crawler;
+    }
+
 
     /**
      * Class to download PDF files using threads
      */
     class DownloadPDFTask implements Callable<String> {
 
-        private final String url;
+        private String url;
         private final int pdfCounter;
         private final GUILabelManagement guiLabels;
         private final Proxy ipAndPort;
@@ -94,6 +99,7 @@ class PDFDownloader {
                 }
                 //Set request property to avoid error 403
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
+                connection.setRequestProperty("Referer", "https://scholar.google.com/");
                 int status = connection.getResponseCode();
 
                 if (status == 429) {
@@ -104,11 +110,40 @@ class PDFDownloader {
                     //If server blocks us, then we connect via the current proxy we are using
                     connection = (HttpURLConnection) urlObj.openConnection(proxy);
                     connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    connection.setRequestProperty("Referer", "https://scholar.google.com/");
                     connection.setRequestProperty("Cookie", cookie);
                     status = connection.getResponseCode();
                 }
                 connection.connect();
 
+////                Verify if there is a javascript redirect//
+//                Pattern redirectPattern = Pattern.compile("Automatic (R|r)edirection .* JavaScript disabled.*");
+//               try {
+//                   Matcher matcher = redirectPattern.matcher(URLConnectionReader(url));
+//                   if (matcher.find()) {
+//                       Pattern newURL = Pattern.compile("URL=[^\"]*");
+//                       Matcher matcher1 = newURL.matcher(matcher.group());
+//                       if (matcher1.find()) {
+//                           String redirectedURL = matcher1.group();
+//                           url = redirectedURL;
+//                           Pattern baseURL = Pattern.compile("^.+?[^/:](?=[?/]|$)");
+//                           Matcher baseURLMatcher = baseURL.matcher(url);
+//                           if (baseURLMatcher.find()) {
+//                               redirectedURL = redirectedURL.replaceAll("URL=", baseURLMatcher.group());
+//                               urlObj = new URL(redirectedURL);
+//                               connection = (HttpURLConnection) urlObj.openConnection();
+//                               connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
+//
+//                               connection.setRequestProperty("Referer", "https://scholar.google.com/");
+//                               connection.connect();
+//                               matcher = redirectPattern.matcher(URLConnectionReader(redirectedURL));
+//
+//
+//                           }
+//                       }
+//                   }
+//               } catch (Exception e) {
+//               }
 
                 boolean redirect = false;
                 if (status != HttpURLConnection.HTTP_OK) {
@@ -125,6 +160,7 @@ class PDFDownloader {
                     while (redirect) {
                         // get redirect url from "location" header field
                         String newUrl = connection.getHeaderField("Location");
+                        url = newUrl;
                         // open the new connection again
                         if (!speedUp) {
                             connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
@@ -161,15 +197,13 @@ class PDFDownloader {
 
                     }
                 } else {
-
                     ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
                     FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
                     fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
                 }
             }catch (Exception e) {
-                System.out.println("Error when downloading pdf:");
-                e.printStackTrace();
+                //e.printStackTrace();
                 result = e.getMessage();
             }
 
@@ -216,6 +250,35 @@ class PDFDownloader {
 
         path = nameOfFolder;
         return nameOfFolder;
+    }
+
+    private String URLConnectionReader(String url) {
+        URL urlObj = null;
+        try {
+            urlObj = new URL(url);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+        URLConnection yc;
+        StringBuilder sb = null;
+        try {
+            yc = urlObj.openConnection();
+            BufferedReader in = null;
+            in = new BufferedReader(new InputStreamReader(yc.getInputStream()));
+
+            String inputLine;
+            sb = null;
+            sb = new StringBuilder();
+            while ((inputLine = in.readLine()) != null) {
+                sb.append(inputLine);
+                System.out.println(inputLine);
+            }
+            in.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return sb.toString();
     }
 
 

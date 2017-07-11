@@ -120,7 +120,7 @@ class ProxiesDownloader {
 
                         if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
                             doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
-                                    "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
+                                    "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").timeout(15*1000).get();
                             mainPage = false;
                         } else {
                             //Sleep random periods before requesting info from website
@@ -228,7 +228,6 @@ class ProxiesDownloader {
 
                     } catch (HttpStatusException ignored) {
                     } catch (Exception e) {
-                        e.printStackTrace();
                         if (e.getMessage().contains("Network is unreachable")) {
                             //Check if there is internet connection
                             while (!crawler.isThereConnection()) {

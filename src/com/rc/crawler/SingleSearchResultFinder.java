@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
  * one.
  */
 class SingleSearchResultFinder {
+    private Crawler crawler;
     private final GUILabelManagement guiLabels;
     private final SimultaneousDownloadsGUI simultaneousDownloadsGUI;
     private Document doc;
@@ -22,8 +23,10 @@ class SingleSearchResultFinder {
     private String absLink = "";
 
 
-    SingleSearchResultFinder(GUILabelManagement guiLabels, SimultaneousDownloadsGUI simultaneousDownloadsGUI,
+    SingleSearchResultFinder(Crawler crawler, GUILabelManagement guiLabels, SimultaneousDownloadsGUI
+            simultaneousDownloadsGUI,
                              Document doc) {
+        this.crawler = crawler;
         this.guiLabels = guiLabels;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
         this.doc = doc;
@@ -40,6 +43,8 @@ class SingleSearchResultFinder {
     boolean findSingleSearchResult(Elements links, String type, String url,
                                    boolean isMultipleSearch) {
         String firstSearchResultURL = "";
+        String fullViewURL = "";
+        String htmlFileURL = "";
         if (type.equals("searchForCitedBy")) {
             //If we are searching for the articles that cite the article
             for (Element link : links) {
@@ -62,14 +67,27 @@ class SingleSearchResultFinder {
                 Matcher linkAndTextMatcher = linkAndTextPattern.matcher(gsSearchResult);
                 text = "";
                 while (linkAndTextMatcher.find()) {
-                    //Retrieve the link
+                    //Retrieve the link of the first search result website
                     String linkAndText = linkAndTextMatcher.group();
                     Pattern linkPattern = Pattern.compile("http(s)?:/[^\"]*");
                     Matcher linkPatternMatcher = linkPattern.matcher(linkAndText);
                     if (linkPatternMatcher.find()) {
                         try {
-                            //Gets the url of the first search result
                             firstSearchResultURL = linkPatternMatcher.group();
+                            text = linkAndText;
+                            text = text.replace(firstSearchResultURL, "");
+                            text = text.replaceAll("\"[^>]*>", "");
+                            text = text.replaceAll("<(/)?\\D>", "");
+                            if (text.contains("span class")) {
+                                text = "";
+                            }
+                            if (text.contains("Full View")) {
+                                firstSearchResultURL = firstSearchResultURL.replaceAll("amp;", "");
+                                firstSearchResultURL = firstSearchResultURL.replaceAll("&nossl=1", "");
+                                fullViewURL = firstSearchResultURL;
+                                fullViewURL = formatFullView(fullViewURL);
+                                text = "";
+                            }
                             if (!text.isEmpty()) {
                                 break;
                             }
@@ -90,15 +108,20 @@ class SingleSearchResultFinder {
                 Matcher linkMatcher = linkPattern.matcher(matcher.group());
                 if (linkMatcher.find()) {
                     paperVersionsURL = baseURI + linkMatcher.group();
-                    //Put the Version URL and the first search result URL together
-                    paperVersionsURL = paperVersionsURL + "∆" + firstSearchResultURL;
+                    //Put the Version URL and the first search result URL, and the search result URL
+                    paperVersionsURL = paperVersionsURL + "∆" + firstSearchResultURL + "∆" + url;
+                    //If there is a full view url, then add it as well
+                    if (!fullViewURL.isEmpty()) {
+                        paperVersionsURL = paperVersionsURL + "∆" + fullViewURL;
+                    }
                     text = "found";
                     found = true;
                 }
 
             }
+            //When there is no "Version" feature for the article
             if (paperVersionsURL.isEmpty()) {
-                //There is no "Version" feature for this article
+
                 //Check if there is 1 search result, if so, get the link
                 if (gScholarSRMatcher.find()) {
                     text = "found";
@@ -121,6 +144,21 @@ class SingleSearchResultFinder {
             }
         }
         return found;
+    }
+
+    private String formatFullView(String fullViewURL) {
+        Document doc = crawler.changeIP(fullViewURL, true, false);
+        Pattern redirectPattern =  Pattern.compile("<script>location\\.replace[^©]*</script>");
+        Matcher redirectMatcher = redirectPattern.matcher(doc.html());
+        if (redirectMatcher.find()) {
+            Pattern linkPattern = Pattern.compile("http(s)?:/[^\"']*");
+            Matcher linkPatternMatcher = linkPattern.matcher(redirectMatcher.group());
+            if (linkPatternMatcher.find()) {
+                fullViewURL = linkPatternMatcher.group();
+            }
+
+        }
+        return fullViewURL;
     }
 
     String getText() {

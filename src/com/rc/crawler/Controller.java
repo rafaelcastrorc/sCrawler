@@ -31,7 +31,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Controller implements Initializable {
-    String numOfPDFToDownload;
+    private String numOfPDFToDownload;
     private LoadingWindow loading;
     volatile Crawler crawler;
     private Window window;
@@ -120,17 +120,19 @@ public class Controller implements Initializable {
         } else {
             mapThreadToBool.put(Thread.currentThread().getId(), true);
         }
-        String[] result;
+        String[] result = null;
         try {
             result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
         } catch (Exception e) {
             //If there was a problem searching, try searching again
             try {
-                Thread.sleep(1000);
+                Thread.sleep(5000);
             } catch (InterruptedException ignored) {
             }
-            e.printStackTrace();
-            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
+            try {
+                result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
+            }catch (Exception e2) {
+            }
         }
         String numberOfCitations = null;
         try {
@@ -142,6 +144,8 @@ public class Controller implements Initializable {
 
         if (numberOfCitations == null || numberOfCitations.isEmpty() || numberOfCitations.equals
                 ("Provide feedback")) {
+                result = new String[2];
+                result[0] = "";
             updateOutput("Could not find paper...");
         } else if (numberOfCitations.equals("There was more than 1 result found for your given query")) {
 
@@ -902,7 +906,7 @@ public class Controller implements Initializable {
                         simultaneousDownloadsGUI.updateProgressBar(1.0);
                         //Set the progress bar, increment counter, countdown the latch
                         atomicCounter.increment();
-                        System.out.println("Current counter val: " + atomicCounter.value());
+                        updateOutputMultiple("Downloads completed - " + atomicCounter.value());
                         Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                         //Add to the list of files that could not be downloaded
                         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
@@ -924,7 +928,7 @@ public class Controller implements Initializable {
                             simultaneousDownloadsGUI.updateStatus("File was not downloaded");
                             simultaneousDownloadsGUI.updateProgressBar(1.0);
                             atomicCounter.increment();
-                            System.out.println("Current counter val: " + atomicCounter.value());
+                            updateOutputMultiple("Downloads completed - " + atomicCounter.value());
                             Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                             if (currPercentage >= 0.999) {
                                 updateOutputMultiple("All files have been downloaded");
@@ -950,7 +954,7 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.updateProgressBar(1.0);
                     simultaneousDownloadsGUI.updateStatus("Done");
                     atomicCounter.increment();
-                    System.out.println("Current counter val: " + atomicCounter.value());
+                    updateOutputMultiple("Downloads completed - "+ atomicCounter.value());
                     Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                     if (currPercentage >= 0.999) {
                         updateOutputMultiple("All files have been downloaded");

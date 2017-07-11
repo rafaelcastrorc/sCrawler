@@ -53,12 +53,8 @@ class Crawler {
     private AtomicCounter atomicCounter = new AtomicCounter();
     private boolean thereIsConnection = true;
 
-    public Map<Long, Proxy> getMapThreadIdToProxy() {
+    Map<Long, Proxy> getMapThreadIdToProxy() {
         return mapThreadIdToProxy;
-    }
-
-    public Map<String, Map<Proxy, Integer>> getMapWebsiteToReqCountFromProxy() {
-        return mapWebsiteToReqCountFromProxy;
     }
 
     public boolean isThreadGettingMoreProxies() {
@@ -332,7 +328,7 @@ class Crawler {
      *                         download the paper itself or the papers that cite the paper
      * @return array with 2 elements. First element represents the numOfCitations, the second is the citingPapersURL
      */
-    String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch, String type) {
+    String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch, String type) throws IllegalArgumentException{
         int invalidAttempts = 0;
         //Replace space by + in the keyword as in the google search url
         keyword = keyword.replace(" ", "+");
@@ -356,15 +352,20 @@ class Crawler {
                 found = true;
             } else {
                 Document doc = changeIP(url, hasSearchBefore, false);
+                if (doc == null) {
+                    throw new IllegalArgumentException("Error searching for an article");
+                }
                 if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
                     //In case you been flags as a bot even before searching
                     guiLabels.setConnectionOutput("Google flagged this proxy as a bot. Changing to a different one");
                     doc = changeIP(url, false, false);
 
                 }
+                if (doc == null) {
+                    throw new IllegalArgumentException("Error searching for an article");
+                }
                 //Check if doc contains "Did you mean to search for..." If so, redirect the corrected search
                 if (doc.html().contains("Did you mean to search for:")) {
-                    System.out.println("Redirecting to corrected search result");
                     Pattern redirectPattern = Pattern.compile("Did you mean( to search for)?:.*<a href=\"[^\"]*");
                     Matcher redirectMatcher = redirectPattern.matcher(doc.html());
                     if (redirectMatcher.find()) {
@@ -373,7 +374,6 @@ class Crawler {
                         correctedURL = correctedURL.replaceAll("/scholar.*(q=)", "https://scholar.google" +
                                 ".com/scholar?hl=en&as_sdt=0,39&q=");
                         url = correctedURL;
-                        System.out.println("Redirected url "+ url);
                         doc = changeIP(url, hasSearchBefore, false);
                     }
 
@@ -387,7 +387,8 @@ class Crawler {
                         (currThread).getProxy() +" = " + getNumberOfRequestFromMap(url, mapThreadIdToProxy.get
                         (currThread)));
                 Elements links = doc.select("a[href]");
-                SingleSearchResultFinder finder = new SingleSearchResultFinder(guiLabels, simultaneousDownloadsGUI,
+                SingleSearchResultFinder finder = new SingleSearchResultFinder(this, guiLabels,
+                        simultaneousDownloadsGUI,
                         doc);
                 //Analyze the current search result
                 found = finder.findSingleSearchResult(links, type, url, isMultipleSearch);
@@ -397,7 +398,7 @@ class Crawler {
 
                 //Check if there is more than 1 result for a given search
                 MultipleSearchResultsFinder finderMultiple = new MultipleSearchResultsFinder(doc, isMultipleSearch,
-                        guiLabels, type);
+                        guiLabels, type, this);
                 if (finderMultiple.findMultipleSearchResult(links, searchResultToLink)) {
                     numOfCitations = "There was more than 1 result found for your given query";
                 }
@@ -417,9 +418,10 @@ class Crawler {
     /**
      * Gets all the possible search results where the article is cited, based on a URL
      *
-     * @return ArrayList with all the links
+     * @return HashSet with all the links
      */
-    private ArrayList<String> getAllLinks(String citingPapersURL, String typeOfSearch) {
+    private Map.Entry<ArrayList<String>, Integer> getAllLinks(String citingPapersURL, String typeOfSearch, boolean
+            isMultipleSearch) {
         ArrayList<String> list = new ArrayList<>();
         Pattern pattern = Pattern.compile("=\\d*");
         Matcher matcher = pattern.matcher(citingPapersURL);
@@ -438,17 +440,35 @@ class Crawler {
                 list.add(sb);
 
             }
-            return list;
+            return new AbstractMap.SimpleEntry<>(list, 0);
         } else {
-            //If this is true, then we iterate though all the different versions available
+            //If this is true, then we iterate though all the different versions available plus additional URLs
             if (citingPapersURL.contains("cluster")) {
-                System.out.println("Case 2.1: Searching for version and main website url");
+                System.out.println("Case 2.1: Searching for All x Version URL and the first search result website url");
                 String[] array = citingPapersURL.split("∆");
                 String versionURL = array[0];
-                if (array.length == 2) {
-                    String firstSearchResultURL = array[1];
-                    list.add(firstSearchResultURL);
+                int counter = 0;
+                try {
+                    for(int i = 1; i <4; i++) {
+                        if (!list.contains(array[i])) {
+                            if (array[i].contains("scholar")) {
+                                MultipleSearchResultsFinder finder = new MultipleSearchResultsFinder(this);
+                                if (!finder.verifyIfMultipleSearchResult(array[i], isMultipleSearch).isEmpty()) {
+                                    list.add(array[i]);
+                                    counter++;
+                                }
+                            }
+                            else {
+                                list.add(array[i]);
+                                counter++;
+                            }
+                        }
+                    }
+
                 }
+                catch (Exception ignored) {
+                }
+
                 list.add(versionURL);
                 //Add all possible search results
                 for (int i = 10; i < 1000 + 1; i = i + 10) {
@@ -457,16 +477,22 @@ class Crawler {
                     list.add(sb);
 
                 }
-                return list;
+                return new AbstractMap.SimpleEntry<>(list, counter);
             } else {
+                //When there is no Version URL from Google Scholar, then we just search for the search result, and
+                //the main website URL
                 System.out.println("Case 2.2 Searching for search result and main website url");
                 //Add the SR as well as the link of the search result
                 String[] array = citingPapersURL.split("∆");
                 if (array.length == 2) {
                     list.add(array[1]);
                 }
-                list.add(array[0]);
-                return list;
+                //Verify if there no multiple search results
+                MultipleSearchResultsFinder finder = new MultipleSearchResultsFinder(this);
+                if (!finder.verifyIfMultipleSearchResult(array[0], isMultipleSearch).isEmpty()) {
+                    list.add(array[0]);
+                }
+                return new AbstractMap.SimpleEntry<>(list, 1);
             }
         }
     }
@@ -501,13 +527,17 @@ class Crawler {
         }
         int pdfCounter = 0;
         //Go though all the search result links
-        ArrayList<String> list = getAllLinks(citingPapersURL, typeOfSearch);
+        Map.Entry<ArrayList<String> , Integer> entry = getAllLinks(citingPapersURL, typeOfSearch, isMultipleSearch);
+        ArrayList<String> list = entry.getKey();
+        int numOfNonGoogleURL = entry.getValue();
+        int counterOfLinks = 0;
+
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Please search of an author before downloading");
         }
         //isFirst is true if it is the first URL of the list
-        boolean isFirst = true;
         for (String currUrl : list) {
+            counterOfLinks++;
             if (pdfCounter >= limit) {
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("All PDFs available have been downloaded");
@@ -531,12 +561,16 @@ class Crawler {
 
             //Increase counter for every new google link
             Document citingPapers;
-            if (getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get(currThreadID))>= 50) {
-                guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
-                        " amount of requests...");
-                citingPapers = changeIP(currUrl, false, false);
-            } else {
-                citingPapers = changeIP(currUrl, true, false);
+            try {
+                if (getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get(currThreadID)) >= 50) {
+                    guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
+                            " amount of requests...");
+                    citingPapers = changeIP(currUrl, false, false);
+                } else {
+                    citingPapers = changeIP(currUrl, true, false);
+                }
+            } catch(IllegalArgumentException e) {
+                continue;
             }
 
             if (citingPapers == null) {
@@ -555,13 +589,15 @@ class Crawler {
             }
 
             //Add request to current website
-            String baseURL = addRequestToMapOfRequests(currUrl, mapThreadIdToProxy.get(currThreadID));
-            //Display
-            guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + mapThreadIdToProxy.get
-                    (currThreadID).getProxy() +" = " + getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get
-                    (currThreadID)));
-
-
+            try {
+                String baseURL = addRequestToMapOfRequests(currUrl, mapThreadIdToProxy.get(currThreadID));
+                //Display
+                guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + mapThreadIdToProxy.get
+                        (currThreadID).getProxy() + " = " + getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get
+                        (currThreadID)));
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
             numberOfSearches++;
 
             if (numberOfSearches > 2 && isMultipleSearch) {
@@ -571,8 +607,9 @@ class Crawler {
             Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
                     "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
             Matcher gScholarSRMatcher = gScholarSearchResult.matcher(citingPapers.html());
-            //If the search result is empty, or  10 google searches are made and no valid result is found, stop.
-            if (!isFirst && !gScholarSRMatcher.find() || numberOfSearches == 10) {
+            //If the url is aprt of google scholar, and the search result is empty, or  10 google searches are made and
+            // no valid result is found, stop.
+            if ((counterOfLinks > numOfNonGoogleURL && !gScholarSRMatcher.find()) || numberOfSearches == 10) {
                 guiLabels.setConnectionOutput("No more papers found.");
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("No more papers found.");
@@ -598,6 +635,9 @@ class Crawler {
                 if (absLink.contains("pdf+html")) {
                     absLink = absLink.replaceAll("pdf\\+html", "pdf");
                 }
+                if (absLink.contains("authguide") || absLink.contains("masthead") || absLink.contains("/pb-assets/documents") ) {
+                    continue;
+                }
                 if (text.contains("PDF")) {
                     int attempt = 0;
                     //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
@@ -613,6 +653,7 @@ class Crawler {
                                 proxyToUSe = queueOfConnections.peek();
                             }
 
+                            pdfDownloader.setCrawler(this);
                             pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, speedUp);
                             file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
                                     + ".pdf");
@@ -677,14 +718,12 @@ class Crawler {
 
                     //If is the first URL, and the URL is not a google search result, then after finding the
                     //first PDF stop since you can end up downloading PDFs that are not part of the query
-                    if (isFirst && typeOfSearch.equals("searchForTheArticle")) {
+                    if (counterOfLinks <= numOfNonGoogleURL && typeOfSearch.equals("searchForTheArticle")) {
                         break;
 
                     }
                 }
             }
-            isFirst = false;
-
         }
         return pdfCounter;
     }
@@ -736,7 +775,7 @@ class Crawler {
         return curr;
     }
 
-    String addRequestToMapOfRequests(String url, Proxy proxy) {
+    String addRequestToMapOfRequests(String url, Proxy proxy) throws IllegalArgumentException {
         //Get base url
         Pattern pattern = Pattern.compile("^.+?[^/:](?=[?/]|$)");
         Matcher matcher = pattern.matcher(url);

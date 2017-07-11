@@ -4,7 +4,6 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,22 +14,29 @@ import java.util.regex.Pattern;
  * each result,
  */
 class MultipleSearchResultsFinder {
-    private final Document doc;
-    private final boolean isMultipleSearch;
-    private final GUILabelManagement guiLabels;
-    private final String type;
+    private Document doc;
+    private boolean isMultipleSearch;
+    private GUILabelManagement guiLabels;
+    private String type;
+    private Crawler crawler;
 
-    MultipleSearchResultsFinder(Document doc, boolean isMultipleSearch, GUILabelManagement guiLabels, String type) {
+    MultipleSearchResultsFinder(Document doc, boolean isMultipleSearch, GUILabelManagement guiLabels, String type,
+                                Crawler crawler) {
         this.doc = doc;
         this.isMultipleSearch = isMultipleSearch;
         this.guiLabels = guiLabels;
         this.type = type;
+        this.crawler = crawler;
+    }
+    MultipleSearchResultsFinder(Crawler crawler) {
+        this.crawler = crawler;
     }
 
     boolean findMultipleSearchResult(Elements links, HashMap<String, String[]> searchResultToLink) {
 
         boolean result = false;
         String searchResultURL = "";
+        String url = "";
         Pattern searchFor1Result = Pattern.compile("\\b1 result\\b");
         Matcher resultMatcher = searchFor1Result.matcher(doc.toString());
         if (!resultMatcher.find() && !doc.toString().contains("Showing the best result for " +
@@ -105,8 +111,8 @@ class MultipleSearchResultsFinder {
                                     result = true;
                                     String keyword = text.replace(" ", "+");
                                     //Get the url for searching the current selection
-                                    String url = "https://scholar.google.com/scholar?hl=en&q=" + keyword;
-                                    //Add the URL of the google search and the URL of the first search result
+                                    url = "https://scholar.google.com/scholar?hl=en&q=" + keyword;
+                                    //Add the URL of the google search and the URL of the first search result (Case 2.2)
                                     paperVersionsURL = url + "∆" + searchResultURL;
                                     searchResultToLink.put(text, new String[]{paperVersionsURL, text});
                                     break;
@@ -120,13 +126,15 @@ class MultipleSearchResultsFinder {
                     Matcher matcher = pattern.matcher(gScholarSRMatcher.group());
                     //Get the first match
                     if (matcher.find()) {
-                        //Get the link to the "All x versions" feature of GS for the curr article
+                        //Get the link to the "All x versions" feature of GS for the curr article if it exists (Case
+                        //2.1)
                         Pattern linkPattern = Pattern.compile("/[^\"]*");
                         Matcher linkMatcher = linkPattern.matcher(matcher.group());
                         if (linkMatcher.find()) {
                             paperVersionsURL = baseURI + linkMatcher.group();
-                            //Put the Version URL and the first search result URL together
-                            paperVersionsURL = paperVersionsURL + "∆" + searchResultURL;
+                            //Put the All x Version URL, the URL of the first search result and the google
+                            //search result URL
+                            paperVersionsURL = paperVersionsURL + "∆" + searchResultURL + "∆" + url;
                             result = true;
                             searchResultToLink.put(text, new String[]{paperVersionsURL, text});
                         }
@@ -135,5 +143,26 @@ class MultipleSearchResultsFinder {
             }
             return result;
         } return false;
+    }
+
+    String verifyIfMultipleSearchResult(String url, boolean isMultipleSearch) {
+        if (!isMultipleSearch) {
+            Document doc;
+            try {
+                doc = crawler.changeIP(url, true, false);
+            } catch (NullPointerException e) {
+                return "";
+            }
+            Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
+                    "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
+            Matcher gScholarSRMatcher = gScholarSearchResult.matcher(doc.html());
+            int counter = 0;
+            while (gScholarSRMatcher.find()) {
+                counter++;
+            }
+            if (counter > 1) return "";
+            else return url;
+        }
+        else return url;
     }
 }

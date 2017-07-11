@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 7/7/17.
+ * Handles the logic to connect to a website using proxies
  */
 public class ChangeProxy {
     private GUILabelManagement guiLabels;
@@ -137,6 +138,10 @@ public class ChangeProxy {
         if (crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get(currThreadID)) > 40) {
             guiLabels.setConnectionOutput("Proxy has more than 40 requests");
         }
+        int limit = 2;
+        if (url.contains("scholar.google")) {
+            limit  = 5;
+        }
 
         boolean connected = false;
         Document doc = null;
@@ -183,7 +188,7 @@ public class ChangeProxy {
             crawler.getMapThreadIdToProxy().put(currThreadID, proxyToUse);
             //Since we are using a new proxy, we need to find a replacement
             //If there are already 12 proxies in the queue, then don't add more
-            if (crawler.getQueueOfConnections().size() <= 10 && !isError404) {
+            if (crawler.getQueueOfConnections().size() <= 12 && !isError404) {
                 Request request = new Request(true, "getConnection", crawler, guiLabels);
                 crawler.getExecutorService().submit(request);
                 guiLabels.setNumberOfWorkingIPs("remove,none");
@@ -206,7 +211,7 @@ public class ChangeProxy {
             } catch (HttpStatusException e) {
                 guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
                         "queue.");
-                if (attempt > 2) {
+                if (attempt > limit) {
                     break;
                 }
                 attempt++;
