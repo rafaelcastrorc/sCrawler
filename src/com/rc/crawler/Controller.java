@@ -22,6 +22,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
@@ -281,8 +282,12 @@ public class Controller implements Initializable {
             }
             int numberOfPDFsDownloaded;
 
-            numberOfPDFsDownloaded = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), URL,
+            Object[] result = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), URL,
                     isMultipleSearch, pdfDownloader, typeOfSearch);
+
+            numberOfPDFsDownloaded = (int) result[0];
+            boolean thereWasAPDF = (boolean) result[1];
+
 
             Logger logger = Logger.getInstance();
 
@@ -294,12 +299,20 @@ public class Controller implements Initializable {
                 } else {
                     logger.setListOfNotDownloadedPapers(false);
                 }
-                if (typeOfSearch.equals("searchForCitedBy"))
+                if (typeOfSearch.equals("searchForCitedBy")) {
+
                     logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: No articles that cite " +
                             "this paper were found in PDF (" + typeOfSearch + ")");
+                }
                 else {
-                    logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any PDF " +
-                            "version of the article(" + typeOfSearch + ")");
+                    if (!thereWasAPDF) {
+                        logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any PDF " +
+                                "version of the article(" + typeOfSearch + ")");
+                    }
+                    else {
+                        logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any " +
+                                "valid PDF version of the article(" + typeOfSearch + ")");
+                    }
                 }
 
             }
@@ -393,7 +406,7 @@ public class Controller implements Initializable {
                 articleNames = new HashSet<>();
                 try {
                     //Check if there are at least 8 files to have enough connections for each file
-                    Scanner scanner = new Scanner(file);
+                    Scanner scanner = new Scanner(new FileInputStream(file));
                     while (scanner.hasNextLine()) {
                         String line = scanner.nextLine();
                         articleNames.add(line);

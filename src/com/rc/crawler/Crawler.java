@@ -505,8 +505,8 @@ class Crawler {
      * @return Document
      */
     Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
-        ChangeProxy changeProxy = new ChangeProxy(guiLabels, this);
-        return changeProxy.getProxy(url, hasSearchBefore, comesFromThread);
+        ProxyChanger proxyChanger = new ProxyChanger(guiLabels, this);
+        return proxyChanger.getProxy(url, hasSearchBefore, comesFromThread);
     }
 
     /**
@@ -516,12 +516,13 @@ class Crawler {
      * @param typeOfSearch
      * @throws Exception Problem downloading or reading a file
      */
-    int getPDFs(int limit, String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader, String
+    Object[] getPDFs(int limit, String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader, String
             typeOfSearch) throws
             Exception {
         Long currThreadID = Thread.currentThread().getId();
         //Keeps track of the number of searches done
         int numberOfSearches = 0;
+        boolean thereWasAPDF = false;
         if (!isMultipleSearch) {
             guiLabels.setOutput("Downloading...");
         }
@@ -548,6 +549,9 @@ class Crawler {
                 currUrl = currUrl.replaceAll("pdf\\+html", "pdf");
             }
             int timeToWait = getTimeToWait();
+            if (!currUrl.contains("scholar.google")) {
+                timeToWait = timeToWait - 12;
+            }
             guiLabels.setConnectionOutput("Waiting " + timeToWait + " seconds before going to the search results");
             if (!isMultipleSearch) {
                 guiLabels.setOutput("Waiting " + timeToWait + " seconds before going to the search results");
@@ -642,22 +646,21 @@ class Crawler {
                     int attempt = 0;
                     //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
                     //connect, use the proxy that is currently at the top of the queue, without removing it.
-                    while (attempt < 2) {
+                    while (attempt < 3) {
                         pdfCounter++;
                         atomicCounter.increment();
                         File file = null;
                         try {
-
                             Proxy proxyToUSe = mapThreadIdToProxy.get(currThreadID);
                             if (attempt > 0) {
                                 proxyToUSe = queueOfConnections.peek();
                             }
-
                             pdfDownloader.setCrawler(this);
                             pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, speedUp);
                             file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
                                     + ".pdf");
                             if (file.length() == 0 || !file.canRead()) {
+                                thereWasAPDF = true;
                                 throw new IOException("File is invalid");
                             }
 
@@ -668,6 +671,7 @@ class Crawler {
                             try {
                                 result = future.get(15 * 1000, TimeUnit.MILLISECONDS);
                             } catch (Exception e) {
+                                thereWasAPDF = true;
                                 future.cancel(true);
                             }
                             if (result.equals("Invalid File")) {
@@ -685,6 +689,10 @@ class Crawler {
                             atomicCounter.decrease();
                             attempt++;
 
+                            if (e2.getMessage() != null && (e2.getMessage().equals("Timeout") || e2.getMessage().equals
+                                    ("Connection reset"))) {
+                                thereWasAPDF = true;
+                            }
                             //If it is NOT any of these three errors, then do not try to re-download it
                             if (e2.getMessage() == null  || !e2.getMessage().contains("Error 403") &&
                                     !e2.getMessage().contains("response code: 429") &&
@@ -697,8 +705,11 @@ class Crawler {
                                 }
                                 break;
                             }
-
+                            else {
+                                thereWasAPDF = true;
+                            }
                         }
+
                     }
 
 
@@ -725,7 +736,10 @@ class Crawler {
                 }
             }
         }
-        return pdfCounter;
+        Object[] array = new Object[2];
+        array[0] = pdfCounter;
+        array[1] = thereWasAPDF;
+        return array;
     }
 
 

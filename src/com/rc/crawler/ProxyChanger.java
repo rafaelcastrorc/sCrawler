@@ -5,19 +5,20 @@ import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
+import java.util.HashSet;
 import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 7/7/17.
  * Handles the logic to connect to a website using proxies
  */
-public class ChangeProxy {
+class ProxyChanger {
     private GUILabelManagement guiLabels;
     private Crawler crawler;
     private boolean isError404;
     private boolean thereWasAnErrorWithProxy = false;
 
-    ChangeProxy(GUILabelManagement guiLabels, Crawler crawler) {
+    ProxyChanger(GUILabelManagement guiLabels, Crawler crawler) {
 
         this.guiLabels = guiLabels;
         this.crawler = crawler;
@@ -109,7 +110,8 @@ public class ChangeProxy {
                         guiLabels.setConnectionOutput("Connecting to Proxy...");
                     }
                     doc = Jsoup.connect(url).proxy(proxyToBeUsed.getProxy(), proxyToBeUsed.getPort()).userAgent
-                            ("Mozilla").get();
+                            ("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6")
+                            .get();
                     if (doc.text().contains("Sorry, we can't verify that you're not a robot")) {
                         throw new IllegalArgumentException();
                     }
@@ -138,9 +140,9 @@ public class ChangeProxy {
         if (crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get(currThreadID)) > 40) {
             guiLabels.setConnectionOutput("Proxy has more than 40 requests");
         }
-        int limit = 2;
+        int limit = 3;
         if (url.contains("scholar.google")) {
-            limit  = 5;
+            limit  = 20;
         }
 
         boolean connected = false;
@@ -163,10 +165,7 @@ public class ChangeProxy {
             //one
             boolean first = true;
             while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40) {
-                if (proxyToUse != null) {
-                    //If the previous proxy was not null add it again
-                    crawler.getQueueOfConnections().add(proxyToUse);
-                }
+
                 //Since we are using a new proxy, we need to find a replacement
                 if (first) {
                     Request request = new Request(true, "getConnection", crawler, guiLabels);
@@ -178,6 +177,10 @@ public class ChangeProxy {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
+                }
+                if (proxyToUse != null) {
+                    //If the previous proxy was not null add it again
+                    crawler.getQueueOfConnections().add(proxyToUse);
                 }
                 proxyToUse = crawler.getQueueOfConnections().poll();
 
@@ -261,5 +264,38 @@ public class ChangeProxy {
         }
         return null;
     }
+
+//
+//    /**
+//     * Gets a valid proxy to connect to a website
+//     * @param url Base url of site
+//     * @param proxiesUsed Set with proxies that produced an error when downloading
+//     * @return Proxy
+//     */
+//    Proxy getValidProxy(String url, HashSet<Proxy> proxiesUsed) {
+//        Proxy proxyToUse = crawler.getQueueOfConnections().poll();
+//        //While the proxy is null, or it has more than 40 requests to the site, or it has already being used, try
+//        // finding a new one
+//        int attempt = 0;
+//        while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40 || proxiesUsed.contains
+//                (proxyToUse)) {
+//
+//            if (proxyToUse != null) {
+//                //If the previous proxy was not null add it again
+//                crawler.getQueueOfConnections().add(proxyToUse);
+//            }
+//            proxyToUse = crawler.getQueueOfConnections().poll();
+//            attempt++;
+//            if (attempt > 10) {
+//                Request request = new Request(true, "getConnection", crawler, guiLabels);
+//                crawler.getExecutorService().submit(request);
+//                guiLabels.setNumberOfWorkingIPs("remove,none");
+//                break;
+//            }
+//        }
+//        //Add back to queue
+//        crawler.getQueueOfConnections().add(proxyToUse);
+//        return proxyToUse;
+//    }
 }
 
