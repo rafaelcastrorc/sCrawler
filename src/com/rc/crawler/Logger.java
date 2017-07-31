@@ -1,6 +1,8 @@
 package com.rc.crawler;
 
 
+import org.joda.time.DateTime;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -15,7 +17,7 @@ class Logger {
     private static BufferedWriter reportWriter;
     private static BufferedWriter listOfFinishedPapers;
     private static BufferedWriter filesNotDownloaded;
-
+    private BufferedWriter listOfFilesToDownload;
 
 
     /**
@@ -185,6 +187,38 @@ class Logger {
         }
     }
 
+
+    /**
+     * Writes to the new list of files to download
+     *
+     * @param s String to write
+     * @throws IOException Unable to write to file
+     */
+    void writeToFilesToDownload(String s) throws IOException {
+        try {
+            listOfFilesToDownload.write(s);
+            listOfFilesToDownload.flush();
+        } catch (IOException e) {
+            throw new IOException("Cannot write to file");
+        }
+    }
+
+
+    /**
+     * Creates a new list of files to download
+     * @throws IOException If unable to create file throws exception
+     */
+    void setListOfFilesToDownload() throws IOException {
+        DateTime time = new DateTime();
+        String title = "FilesToDownload_"+ time.toDate()+".txt";
+        try {
+            File file = new File("./DownloadedPDFs/"+title);
+            listOfFilesToDownload = new BufferedWriter(new FileWriter(file));
+        } catch (IOException e) {
+            throw new IOException("Unable to create list of files to download");
+        }
+    }
+
     /**
      * Adds a file that was not found to the report, the list of files not found, and to the list of completed downloads
      * @param file File that was not found
@@ -269,5 +303,6 @@ class Logger {
         }
 
     }
+
 
 }

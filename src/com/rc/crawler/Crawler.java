@@ -295,7 +295,7 @@ class Crawler {
      * Gets more unique proxies.
      */
     void getMoreProxies() {
-        if (setOfAllProxiesEver.size() > 1700) {
+        if (setOfAllProxiesEver.size() > 1500) {
             //delete all the proxies and start all over
             System.out.println("Restarting all lists of proxies");
             listOfProxiesGathered = Collections.synchronizedList(new ArrayList<Proxy>());

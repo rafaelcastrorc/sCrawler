@@ -48,9 +48,9 @@ class ProxyChanger {
             verifyIfThereIsConnection();
         }
 
-        //Step 2. Check if there are less than 50 proxies remaining, we add more
+        //Step 2. Check if there are less than 100 proxies remaining, we add more
         //But first we check if we have connection. Also we make sure that there is only one thread getting more proxies
-        if (crawler.getSetOfProxyGathered().size() < 50 && !crawler.isThreadGettingMoreProxies()) {
+        if (crawler.getSetOfProxyGathered().size() < 100 && !crawler.isThreadGettingMoreProxies()) {
             //Verify again if there is internet connection
             if (!crawler.isThereConnection()) {
                 guiLabels.setOutput("No internet connection");
@@ -68,7 +68,7 @@ class ProxyChanger {
         if (hasSearchBefore && crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get
                 (currThreadID)) <= 40) {
             Document doc = useProxyAgain(url, currThreadID);
-            if (doc != null) {
+            if (doc != null && !doc.text().contains("Sorry, we can't verify that you're not a robot")) {
                 return doc;
             }
         }
@@ -142,7 +142,7 @@ class ProxyChanger {
         }
         int limit = 3;
         if (url.contains("scholar.google")) {
-            limit  = 20;
+            limit  = 30;
         }
 
         boolean connected = false;

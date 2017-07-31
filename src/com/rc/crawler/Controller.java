@@ -127,7 +127,7 @@ public class Controller implements Initializable {
         } catch (Exception e) {
             //If there was a problem searching, try searching again
             try {
-                Thread.sleep(5000);
+                Thread.sleep(10000);
             } catch (InterruptedException ignored) {
             }
             try {

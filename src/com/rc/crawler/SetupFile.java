@@ -59,7 +59,7 @@ class SetupFile extends Task<Void> implements Callable<Void> {
         } catch (FileNotFoundException ignored) {
         }
 
-        if (submittedFile.getName().equals("FilesNotDownloaded.txt")) {
+        if (submittedFile.getName().contains("FilesNotDownloaded.txt")) {
             setupFilesNotDownloadedFile();
         } else {
             Scanner scanner;
@@ -150,6 +150,18 @@ class SetupFile extends Task<Void> implements Callable<Void> {
                     } catch (IOException e) {
                     }
                 }
+                try {
+                    //Create a new txt file with all the files to download
+                    logger.setListOfFilesToDownload();
+                    for (String article: articleNames) {
+                        logger.writeToFilesToDownload("\n" + article);
+                    }
+                    //clear completed downloads
+                    logger.setListOfFinishedPapers(false);
+
+                } catch (IOException ignored) {
+                }
+
                 controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
 
             }
