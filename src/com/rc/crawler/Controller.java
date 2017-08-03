@@ -49,6 +49,10 @@ public class Controller implements Initializable {
     private int numOfConnectionsNeeded;
     private boolean speedUp = false;
     private File submittedFile;
+    private AtomicCounter numOfSuccessful = new AtomicCounter();
+    //Counts only the ones that were downloaded
+    private AtomicCounter numOfSuccessfulGral = new AtomicCounter();
+
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -132,7 +136,7 @@ public class Controller implements Initializable {
             }
             try {
                 result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
-            }catch (Exception e2) {
+            }catch (Exception ignored) {
             }
         }
         String numberOfCitations = null;
@@ -300,20 +304,30 @@ public class Controller implements Initializable {
                     logger.setListOfNotDownloadedPapers(false);
                 }
                 if (typeOfSearch.equals("searchForCitedBy")) {
+                    if (!thereWasAPDF) {
+                        logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: No articles that cite " +
+                                "this paper were found in PDF (" + typeOfSearch + ")");
+                    } else {
+                        logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any valid" +
+                                " PDF for this paper (" + typeOfSearch + ")");
 
-                    logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: No articles that cite " +
-                            "this paper were found in PDF (" + typeOfSearch + ")");
+                    }
                 }
                 else {
                     if (!thereWasAPDF) {
                         logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any PDF " +
                                 "version of the article(" + typeOfSearch + ")");
+
+
                     }
                     else {
                         logger.writeToFilesNotDownloaded("\n" + paperDownloaded + " - Error: Could not find any " +
                                 "valid PDF version of the article(" + typeOfSearch + ")");
+                        numOfSuccessful.decrease();
+
                     }
                 }
+                numOfSuccessfulGral.decrease();
 
             }
 
@@ -343,6 +357,10 @@ public class Controller implements Initializable {
             if (isMultipleSearch) {
                 logger.writeToListOfFinishedPapers("\n" + "[" + typeOfSearch + "]" + originalArticle);
             }
+
+            numOfSuccessfulGral.increment();
+            numOfSuccessful.increment();
+
 
         } catch (Exception e) {
 
@@ -909,9 +927,7 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.updateProgressBar(0.0);
                     String[] result = search(article, true, typeOfSearch);
                     String numOfCitations = result[0];
-                    if (atomicCounter.value() == articleNames.size() - 7) {
-                        System.out.println("stop here");
-                    }
+
 
                     if (numOfCitations.isEmpty() || numOfCitations.equals("Provide feedback")) {
                         //We don't download if this happens and omit the file
@@ -919,7 +935,12 @@ public class Controller implements Initializable {
                         simultaneousDownloadsGUI.updateProgressBar(1.0);
                         //Set the progress bar, increment counter, countdown the latch
                         atomicCounter.increment();
-                        updateOutputMultiple("Downloads completed - " + atomicCounter.value());
+                        Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
+                        Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
+
+                        updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "       Download " +
+                                "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
+
                         Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                         //Add to the list of files that could not be downloaded
                         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
@@ -941,7 +962,12 @@ public class Controller implements Initializable {
                             simultaneousDownloadsGUI.updateStatus("File was not downloaded");
                             simultaneousDownloadsGUI.updateProgressBar(1.0);
                             atomicCounter.increment();
-                            updateOutputMultiple("Downloads completed - " + atomicCounter.value());
+                            Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
+                            Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
+
+                            updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "       Download " +
+                                    "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
+
                             Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                             if (currPercentage >= 0.999) {
                                 updateOutputMultiple("All files have been downloaded");
@@ -967,7 +993,12 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.updateProgressBar(1.0);
                     simultaneousDownloadsGUI.updateStatus("Done");
                     atomicCounter.increment();
-                    updateOutputMultiple("Downloads completed - "+ atomicCounter.value());
+                    Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
+                    Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
+
+                    updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "       Download " +
+                            "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
+
                     Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
                     if (currPercentage >= 0.999) {
                         updateOutputMultiple("All files have been downloaded");

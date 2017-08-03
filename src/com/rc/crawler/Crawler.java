@@ -57,11 +57,11 @@ class Crawler {
         return mapThreadIdToProxy;
     }
 
-    public boolean isThreadGettingMoreProxies() {
+    boolean isThreadGettingMoreProxies() {
         return threadIsGettingMoreProxies;
     }
 
-    public void setThreadIsGettingMoreProxies(boolean threadIsGettingMoreProxies) {
+    void setThreadIsGettingMoreProxies(boolean threadIsGettingMoreProxies) {
         this.threadIsGettingMoreProxies = threadIsGettingMoreProxies;
     }
 
@@ -328,7 +328,8 @@ class Crawler {
      *                         download the paper itself or the papers that cite the paper
      * @return array with 2 elements. First element represents the numOfCitations, the second is the citingPapersURL
      */
-    String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch, String type) throws IllegalArgumentException{
+    String[] searchForArticle(String keyword, boolean hasSearchBefore, boolean isMultipleSearch, String type) throws
+            IllegalArgumentException {
         int invalidAttempts = 0;
         //Replace space by + in the keyword as in the google search url
         keyword = keyword.replace(" ", "+");
@@ -384,7 +385,7 @@ class Crawler {
                 String baseURL = addRequestToMapOfRequests(url, mapThreadIdToProxy.get(currThread));
                 //Display
                 guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + mapThreadIdToProxy.get
-                        (currThread).getProxy() +" = " + getNumberOfRequestFromMap(url, mapThreadIdToProxy.get
+                        (currThread).getProxy() + " = " + getNumberOfRequestFromMap(url, mapThreadIdToProxy.get
                         (currThread)));
                 Elements links = doc.select("a[href]");
                 SingleSearchResultFinder finder = new SingleSearchResultFinder(this, guiLabels,
@@ -449,7 +450,7 @@ class Crawler {
                 String versionURL = array[0];
                 int counter = 0;
                 try {
-                    for(int i = 1; i <4; i++) {
+                    for (int i = 1; i < 4; i++) {
                         if (!list.contains(array[i])) {
                             if (array[i].contains("scholar")) {
                                 MultipleSearchResultsFinder finder = new MultipleSearchResultsFinder(this);
@@ -457,16 +458,14 @@ class Crawler {
                                     list.add(array[i]);
                                     counter++;
                                 }
-                            }
-                            else {
+                            } else {
                                 list.add(array[i]);
                                 counter++;
                             }
                         }
                     }
 
-                }
-                catch (Exception ignored) {
+                } catch (Exception ignored) {
                 }
 
                 list.add(versionURL);
@@ -528,7 +527,7 @@ class Crawler {
         }
         int pdfCounter = 0;
         //Go though all the search result links
-        Map.Entry<ArrayList<String> , Integer> entry = getAllLinks(citingPapersURL, typeOfSearch, isMultipleSearch);
+        Map.Entry<ArrayList<String>, Integer> entry = getAllLinks(citingPapersURL, typeOfSearch, isMultipleSearch);
         ArrayList<String> list = entry.getKey();
         int numOfNonGoogleURL = entry.getValue();
         int counterOfLinks = 0;
@@ -573,7 +572,7 @@ class Crawler {
                 } else {
                     citingPapers = changeIP(currUrl, true, false);
                 }
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 continue;
             }
 
@@ -639,7 +638,8 @@ class Crawler {
                 if (absLink.contains("pdf+html")) {
                     absLink = absLink.replaceAll("pdf\\+html", "pdf");
                 }
-                if (absLink.contains("authguide") || absLink.contains("masthead") || absLink.contains("/pb-assets/documents") ) {
+                if (absLink.contains("authguide") || absLink.contains("masthead") || absLink.contains
+                        ("/pb-assets/documents")) {
                     continue;
                 }
                 if (text.contains("PDF")) {
@@ -694,7 +694,7 @@ class Crawler {
                                 thereWasAPDF = true;
                             }
                             //If it is NOT any of these three errors, then do not try to re-download it
-                            if (e2.getMessage() == null  || !e2.getMessage().contains("Error 403") &&
+                            if (e2.getMessage() == null || !e2.getMessage().contains("Error 403") &&
                                     !e2.getMessage().contains("response code: 429") &&
                                     !e2.getMessage().contains("Unable to tunnel through proxy.")) {
                                 System.out.println("Error: " + e2.getMessage());
@@ -704,8 +704,7 @@ class Crawler {
                                     file.delete();
                                 }
                                 break;
-                            }
-                            else {
+                            } else {
                                 thereWasAPDF = true;
                             }
                         }
@@ -717,10 +716,11 @@ class Crawler {
                         guiLabels.setNumberOfPDF(typeOfSearch + "," + pdfCounter + "/" + limit);
                         guiLabels.setLoadBar(pdfCounter / (double) limit);
                     } else {
+
                         simultaneousDownloadsGUI.updateStatus(pdfCounter + "/" + limit);
                         simultaneousDownloadsGUI.updateProgressBar(0.3 + (pdfCounter / (double) limit) * 0.7);
 
-                        guiLabels.setNumberOfPDFsMultiple(typeOfSearch+","+atomicCounter.value());
+                        guiLabels.setNumberOfPDFsMultiple(typeOfSearch + "," + atomicCounter.value());
 
                     }
                     if (pdfCounter >= limit) {
@@ -767,7 +767,7 @@ class Crawler {
                 } catch (IllegalArgumentException e) {
                     valid = false;
                     try {
-                        Thread.sleep(10*1000);
+                        Thread.sleep(10 * 1000);
                     } catch (InterruptedException ignored) {
                     }
                 }
@@ -780,7 +780,7 @@ class Crawler {
         guiLabels.setConnectionOutput("Number of Proxies available: " + setOfProxyGathered.size());
         while (setOfProxyGathered.size() < 50) {
             try {
-                Thread.sleep(10*1000);
+                Thread.sleep(10 * 1000);
             } catch (InterruptedException e) {
             }
         }
@@ -799,12 +799,11 @@ class Crawler {
         String baseURL = matcher.group();
         //See if it exist in the map
         if (mapWebsiteToReqCountFromProxy.get(baseURL) == null) {
-           //If it does not, create a new map and add a new entry
-            Map<Proxy,Integer> map = new HashMap<>();
+            //If it does not, create a new map and add a new entry
+            Map<Proxy, Integer> map = new HashMap<>();
             map.put(proxy, 1);
             mapWebsiteToReqCountFromProxy.put(baseURL, map);
-        }
-        else {
+        } else {
             Map<Proxy, Integer> map = mapWebsiteToReqCountFromProxy.get(baseURL);
             map.merge(proxy, 1, (a, b) -> a + b);
             mapWebsiteToReqCountFromProxy.put(baseURL, map);
@@ -822,12 +821,10 @@ class Crawler {
         String baseURL = matcher.group();
         if (mapWebsiteToReqCountFromProxy.get(baseURL) == null) {
             return 0;
-        }
-        else {
+        } else {
             if (mapWebsiteToReqCountFromProxy.get(baseURL).get(proxy) == null) {
                 return 0;
-            }
-            else return mapWebsiteToReqCountFromProxy.get(baseURL).get(proxy);
+            } else return mapWebsiteToReqCountFromProxy.get(baseURL).get(proxy);
 
         }
     }
@@ -885,10 +882,6 @@ class Crawler {
         return setOfProxyGathered;
     }
 
-    List<Proxy> getListOfWorkingProxies() {
-        return listOfWorkingProxies;
-    }
-
     ExecutorService getExecutorService() {
         return executorService;
     }
@@ -904,6 +897,7 @@ class Crawler {
     void setGUI(SimultaneousDownloadsGUI simultaneousDownloadsGUI) {
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
     }
+
 
     /**
      * Class to verify if a given PDF is not corrupted
