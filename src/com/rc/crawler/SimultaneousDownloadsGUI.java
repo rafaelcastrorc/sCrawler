@@ -112,8 +112,10 @@ class SimultaneousDownloadsGUI {
      * @param s string to output
      */
     void updateStatus(String s) {
-        int group = mapThreadToGroup.get(Thread.currentThread().getId());
-        Platform.runLater(() -> statusT[group].setText("Status: " + s));
+        try {
+            int group = mapThreadToGroup.get(Thread.currentThread().getId());
+            Platform.runLater(() -> statusT[group].setText("Status: " + s));
+        }catch(NullPointerException ignored) {}
     }
 
     /**

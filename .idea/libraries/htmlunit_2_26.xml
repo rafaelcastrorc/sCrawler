@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="htmlunit-2.26">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/htmlunit-2.26.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -59,7 +59,7 @@ class SetupFile extends Task<Void> implements Callable<Void> {
         } catch (FileNotFoundException ignored) {
         }
 
-        if (submittedFile.getName().contains("FilesNotDownloaded.txt")) {
+        if (submittedFile.getName().contains("FilesNotDownloaded")) {
             setupFilesNotDownloadedFile();
         } else {
             Scanner scanner;

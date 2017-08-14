@@ -1,26 +1,24 @@
 package com.rc.crawler;
 
-import org.apache.pdfbox.cos.COSDocument;
-import org.apache.pdfbox.io.RandomAccessBufferedFileInputStream;
-import org.apache.pdfbox.pdfparser.PDFParser;
+import javafx.application.Platform;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 5/31/17.
- * Crawler to gather data from Google Scholar.
+ * Crawler to navigate through different websites, search for academic papers and download them.
  */
 class Crawler {
     private final GUILabelManagement guiLabels;
@@ -46,26 +44,18 @@ class Crawler {
     //Maps thread id to the number of request for the given proxy being used in that thread
     private Map<String, Map<Proxy, Integer>> mapWebsiteToReqCountFromProxy = Collections.synchronizedMap(new
             HashMap<String, Map<Proxy, Integer>>());
-
     //Maps the different search results to their respective "cited by" URL
     private HashMap<String, String[]> searchResultToLink = new HashMap<>();
     private boolean speedUp;
     private AtomicCounter atomicCounter = new AtomicCounter();
     private boolean thereIsConnection = true;
-
-    Map<Long, Proxy> getMapThreadIdToProxy() {
-        return mapThreadIdToProxy;
-    }
-
-    boolean isThreadGettingMoreProxies() {
-        return threadIsGettingMoreProxies;
-    }
-
-    void setThreadIsGettingMoreProxies(boolean threadIsGettingMoreProxies) {
-        this.threadIsGettingMoreProxies = threadIsGettingMoreProxies;
-    }
-
+    //Is the crawler capable of parsing javascript websites
+    private boolean isSeleniumActive;
     private boolean threadIsGettingMoreProxies = false;
+    private ConcurrentLinkedQueue<Proxy> blockedProxies = new ConcurrentLinkedQueue<>();
+    private Map<Proxy, Boolean> mapProxyToSelenium = Collections.synchronizedMap(new HashMap<Proxy, Boolean>());
+    private EmailSender emailSender;
+
 
     /**
      * Constructor.
@@ -115,6 +105,15 @@ class Crawler {
     void loadCrawler() {
         //Retrieve n proxies (n = 600) before starting the program.
         guiLabels.setConnectionOutput("Directory " + getClass().getProtectionDomain().getCodeSource().getLocation());
+
+        Platform.runLater(() -> {
+            emailSender = new EmailSender(guiLabels);
+            emailSender.displayPasswordDialog();
+        });
+        //Download selenium
+        ProxyChanger pr = new ProxyChanger(guiLabels, this);
+        isSeleniumActive = pr.setUpSelenium();
+
         getProxies();
         guiLabels.setOutput("Establishing connections...");
         guiLabels.setOutputMultiple("Establishing connections...");
@@ -193,9 +192,13 @@ class Crawler {
 
         listOfWorkingProxies = Collections.synchronizedList(new ArrayList<Proxy>());
 
-        this.proxiesDownloader = new ProxiesDownloader();
-        guiLabels.setOutput("Checking if a valid proxy file exists...");
+        try {
+            this.proxiesDownloader = new ProxiesDownloader();
+        } catch (Error | Exception e) {
+            e.printStackTrace(System.out);
+        }
 
+        guiLabels.setOutput("Checking if a valid proxy file exists...");
         //Check first if there have been proxies downloaded
         Logger logger = Logger.getInstance();
 
@@ -421,7 +424,7 @@ class Crawler {
      *
      * @return HashSet with all the links
      */
-    private Map.Entry<ArrayList<String>, Integer> getAllLinks(String citingPapersURL, String typeOfSearch, boolean
+    Map.Entry<ArrayList<String>, Integer> getAllLinks(String citingPapersURL, String typeOfSearch, boolean
             isMultipleSearch) {
         ArrayList<String> list = new ArrayList<>();
         Pattern pattern = Pattern.compile("=\\d*");
@@ -505,6 +508,7 @@ class Crawler {
      */
     Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
         ProxyChanger proxyChanger = new ProxyChanger(guiLabels, this);
+        proxyChanger.setSeleniumIsEnabled(isSeleniumActive);
         return proxyChanger.getProxy(url, hasSearchBefore, comesFromThread);
     }
 
@@ -512,234 +516,13 @@ class Crawler {
      * Downloads the number of pdf requested
      *
      * @param limit        max number of PDFs to download
-     * @param typeOfSearch
+     * @param typeOfSearch type of search performed
      * @throws Exception Problem downloading or reading a file
      */
     Object[] getPDFs(int limit, String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader, String
-            typeOfSearch) throws
-            Exception {
-        Long currThreadID = Thread.currentThread().getId();
-        //Keeps track of the number of searches done
-        int numberOfSearches = 0;
-        boolean thereWasAPDF = false;
-        if (!isMultipleSearch) {
-            guiLabels.setOutput("Downloading...");
-        }
-        int pdfCounter = 0;
-        //Go though all the search result links
-        Map.Entry<ArrayList<String>, Integer> entry = getAllLinks(citingPapersURL, typeOfSearch, isMultipleSearch);
-        ArrayList<String> list = entry.getKey();
-        int numOfNonGoogleURL = entry.getValue();
-        int counterOfLinks = 0;
-
-        if (list.isEmpty()) {
-            throw new IllegalArgumentException("Please search of an author before downloading");
-        }
-        //isFirst is true if it is the first URL of the list
-        for (String currUrl : list) {
-            counterOfLinks++;
-            if (pdfCounter >= limit) {
-                if (!isMultipleSearch) {
-                    guiLabels.setOutput("All PDFs available have been downloaded");
-                }
-                break;
-            }
-            if (currUrl.contains("pdf+html")) {
-                currUrl = currUrl.replaceAll("pdf\\+html", "pdf");
-            }
-            int timeToWait = getTimeToWait();
-            if (!currUrl.contains("scholar.google")) {
-                timeToWait = timeToWait - 12;
-            }
-            guiLabels.setConnectionOutput("Waiting " + timeToWait + " seconds before going to the search results");
-            if (!isMultipleSearch) {
-                guiLabels.setOutput("Waiting " + timeToWait + " seconds before going to the search results");
-            } else {
-                simultaneousDownloadsGUI.updateStatus("Waiting " + timeToWait + " s");
-            }
-            Thread.sleep(timeToWait * 1000);
-            if (isMultipleSearch) {
-                simultaneousDownloadsGUI.updateStatus("Downloading...");
-            }
-
-            //Increase counter for every new google link
-            Document citingPapers;
-            try {
-                if (getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get(currThreadID)) >= 50) {
-                    guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
-                            " amount of requests...");
-                    citingPapers = changeIP(currUrl, false, false);
-                } else {
-                    citingPapers = changeIP(currUrl, true, false);
-                }
-            } catch (IllegalArgumentException e) {
-                continue;
-            }
-
-            if (citingPapers == null) {
-                continue;
-            }
-
-            //Verify that Google has not flagged the proxy
-            if (citingPapers.text().contains("Sorry, we can't verify that you're not a robot")) {
-                //In case you been flagged as a bot even before searching
-                guiLabels.setConnectionOutput("Google flagged thread " + currThreadID + " proxy as a bot." +
-                        "\nChanging to a different one");
-                citingPapers = changeIP(currUrl, false, false);
-                if (citingPapers == null) {
-                    continue;
-                }
-            }
-
-            //Add request to current website
-            try {
-                String baseURL = addRequestToMapOfRequests(currUrl, mapThreadIdToProxy.get(currThreadID));
-                //Display
-                guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + mapThreadIdToProxy.get
-                        (currThreadID).getProxy() + " = " + getNumberOfRequestFromMap(currUrl, mapThreadIdToProxy.get
-                        (currThreadID)));
-            } catch (IllegalArgumentException e) {
-                continue;
-            }
-            numberOfSearches++;
-
-            if (numberOfSearches > 2 && isMultipleSearch) {
-                simultaneousDownloadsGUI.updateStatus("No PDF found (" + numberOfSearches + " attempt(s))");
-            }
-
-            Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
-                    "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
-            Matcher gScholarSRMatcher = gScholarSearchResult.matcher(citingPapers.html());
-            //If the url is aprt of google scholar, and the search result is empty, or  10 google searches are made and
-            // no valid result is found, stop.
-            if ((counterOfLinks > numOfNonGoogleURL && !gScholarSRMatcher.find()) || numberOfSearches == 10) {
-                guiLabels.setConnectionOutput("No more papers found.");
-                if (!isMultipleSearch) {
-                    guiLabels.setOutput("No more papers found.");
-                    guiLabels.setLoadBar(limit / (double) limit);
-                } else {
-                    simultaneousDownloadsGUI.updateStatus("No more papers found");
-                }
-                break;
-            }
-
-            if (!isMultipleSearch) {
-                guiLabels.setOutput("Downloading...");
-            }
-
-
-            //Go through all the links of the search result, and find links that contain PDFs
-            Elements linksInsidePaper = citingPapers.select("a[href]");
-            String text;
-            String absLink;
-            for (Element link : linksInsidePaper) {
-                text = link.text();
-                absLink = link.attr("abs:href");
-                if (absLink.contains("pdf+html")) {
-                    absLink = absLink.replaceAll("pdf\\+html", "pdf");
-                }
-                if (absLink.contains("authguide") || absLink.contains("masthead") || absLink.contains
-                        ("/pb-assets/documents")) {
-                    continue;
-                }
-                if (text.contains("PDF")) {
-                    int attempt = 0;
-                    //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
-                    //connect, use the proxy that is currently at the top of the queue, without removing it.
-                    while (attempt < 3) {
-                        pdfCounter++;
-                        atomicCounter.increment();
-                        File file = null;
-                        try {
-                            Proxy proxyToUSe = mapThreadIdToProxy.get(currThreadID);
-                            if (attempt > 0) {
-                                proxyToUSe = queueOfConnections.peek();
-                            }
-                            pdfDownloader.setCrawler(this);
-                            pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, speedUp);
-                            file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
-                                    + ".pdf");
-                            if (file.length() == 0 || !file.canRead()) {
-                                thereWasAPDF = true;
-                                throw new IOException("File is invalid");
-                            }
-
-                            PDFVerifier pdfVerifier = new PDFVerifier(file);
-                            ExecutorService executorService3 = Executors.newSingleThreadExecutor(new MyThreadFactory());
-                            Future<String> future = executorService3.submit(pdfVerifier);
-                            String result = "";
-                            try {
-                                result = future.get(15 * 1000, TimeUnit.MILLISECONDS);
-                            } catch (Exception e) {
-                                thereWasAPDF = true;
-                                future.cancel(true);
-                            }
-                            if (result.equals("Invalid File")) {
-                                throw new IOException("File is invalid");
-                            }
-                            numberOfSearches = 0;
-                            break;
-
-                        } catch (Exception e2) {
-                            guiLabels.setConnectionOutput("This file could not be downloaded, skipping...");
-                            if (isMultipleSearch) {
-                                simultaneousDownloadsGUI.updateStatus("Invalid file, skipping...");
-                            }
-                            pdfCounter--;
-                            atomicCounter.decrease();
-                            attempt++;
-
-                            if (e2.getMessage() != null && (e2.getMessage().equals("Timeout") || e2.getMessage().equals
-                                    ("Connection reset"))) {
-                                thereWasAPDF = true;
-                            }
-                            //If it is NOT any of these three errors, then do not try to re-download it
-                            if (e2.getMessage() == null || !e2.getMessage().contains("Error 403") &&
-                                    !e2.getMessage().contains("response code: 429") &&
-                                    !e2.getMessage().contains("Unable to tunnel through proxy.")) {
-                                System.out.println("Error: " + e2.getMessage());
-                                if (file != null) {
-                                    //If the file was created, delete it
-                                    //noinspection ResultOfMethodCallIgnored
-                                    file.delete();
-                                }
-                                break;
-                            } else {
-                                thereWasAPDF = true;
-                            }
-                        }
-
-                    }
-
-
-                    if (!isMultipleSearch) {
-                        guiLabels.setNumberOfPDF(typeOfSearch + "," + pdfCounter + "/" + limit);
-                        guiLabels.setLoadBar(pdfCounter / (double) limit);
-                    } else {
-
-                        simultaneousDownloadsGUI.updateStatus(pdfCounter + "/" + limit);
-                        simultaneousDownloadsGUI.updateProgressBar(0.3 + (pdfCounter / (double) limit) * 0.7);
-
-                        guiLabels.setNumberOfPDFsMultiple(typeOfSearch + "," + atomicCounter.value());
-
-                    }
-                    if (pdfCounter >= limit) {
-                        break;
-                    }
-
-                    //If is the first URL, and the URL is not a google search result, then after finding the
-                    //first PDF stop since you can end up downloading PDFs that are not part of the query
-                    if (counterOfLinks <= numOfNonGoogleURL && typeOfSearch.equals("searchForTheArticle")) {
-                        break;
-
-                    }
-                }
-            }
-        }
-        Object[] array = new Object[2];
-        array[0] = pdfCounter;
-        array[1] = thereWasAPDF;
-        return array;
+            typeOfSearch) throws Exception {
+        DownloadLinkFinder finder = new DownloadLinkFinder(guiLabels, this, simultaneousDownloadsGUI);
+        return finder.getPDFS(citingPapersURL, isMultipleSearch, pdfDownloader, typeOfSearch, limit);
     }
 
 
@@ -781,7 +564,7 @@ class Crawler {
         while (setOfProxyGathered.size() < 50) {
             try {
                 Thread.sleep(10 * 1000);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignored) {
             }
         }
 
@@ -854,7 +637,7 @@ class Crawler {
      *
      * @return int that represents seconds
      */
-    private int getTimeToWait() {
+    int getTimeToWait() {
         if (listOfTimes == null) {
             listOfTimes = new Integer[10];
             for (int i = 0; i < listOfTimes.length; i++) {
@@ -865,6 +648,48 @@ class Crawler {
         return listOfTimes[rnd];
     }
 
+    /**
+     * Add a proxy once it has been unlocked by a user
+     *
+     * @param p Proxy
+     */
+    void addUnlockedProxy(Proxy p) {
+        listOfProxiesGathered.add(p);
+        setOfProxyGathered.add(p);
+
+    }
+
+    /**
+     * Sends a list of blocked proxies via email
+     */
+    synchronized void sendBlockedProxies() {
+        //Todo: chnage to 10
+        if (blockedProxies.size() >= 50) {
+            Platform.runLater(() -> {
+                if (emailSender.getIsActive()) {
+                    String message = "The following proxies have been blocked by Google, please unlock them.\n" +
+                            "To do so, connect to the proxy using your browser, navigate to scholar.goole.com,\n" +
+                            "search for something and solve the captcha. Once the captcha is solved, try doing\n" +
+                            "a normal search and make sure everything works.\n" +
+                            "Ex: https://customers.trustedproxies.com/knowledgebase.php?action=displayarticle&id=10\n" +
+                            "Proxy,Port\n";
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(message);
+                    while (!blockedProxies.isEmpty()) {
+                        Proxy curr = blockedProxies.poll();
+                        sb.append(curr.getProxy()).append(",").append(curr.getPort()).append("\n");
+                    }
+                    emailSender.send("Proxies blocked by Google", sb.toString());
+                    //Todo: Add them
+                }
+            });
+        }
+
+    }
+
+    Map<Long, Proxy> getMapThreadIdToProxy() {
+        return mapThreadIdToProxy;
+    }
 
     ConcurrentLinkedQueue<Proxy> getQueueOfConnections() {
         return queueOfConnections;
@@ -898,37 +723,38 @@ class Crawler {
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
     }
 
+    void setThreadIsGettingMoreProxies(boolean threadIsGettingMoreProxies) {
+        this.threadIsGettingMoreProxies = threadIsGettingMoreProxies;
+    }
 
-    /**
-     * Class to verify if a given PDF is not corrupted
-     */
-    class PDFVerifier implements Callable<String> {
-
-        private final File file;
-
-        PDFVerifier(File file) {
-            this.file = file;
-        }
-
-        @Override
-        public String call() throws Exception {
-            String result = "";
-            try {
-                PDFParser parser = new PDFParser(new RandomAccessBufferedFileInputStream(file));
-                parser.parse();
-                COSDocument cosDoc = parser.getDocument();
-                cosDoc.close();
-            } catch (Exception e) {
-                result = "Invalid File";
-            }
-            return result;
-        }
+    boolean isThreadGettingMoreProxies() {
+        return threadIsGettingMoreProxies;
     }
 
     boolean isThereConnection() {
         return thereIsConnection;
     }
 
+    boolean getSpeedUp() {
+        return speedUp;
+    }
 
+    AtomicCounter getAtomicCounter() {
+        return atomicCounter;
+    }
+
+    Queue<Proxy> getQueueOfBlockedProxies() {
+        return blockedProxies;
+    }
+
+    Map<Proxy, Boolean> getMapProxyToSelenium() {
+        return mapProxyToSelenium;
+    }
+
+    boolean isSeleniumActive() {
+        return isSeleniumActive;
+    }
 }
+
+
 

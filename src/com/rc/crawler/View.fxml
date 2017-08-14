@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.scene.paint.*?>
 <?import java.lang.*?>
 <?import com.jfoenix.controls.*?>
 <?import javafx.geometry.*?>
@@ -195,7 +196,7 @@
                                                 <Insets right="8.0" />
                                              </padding>
                                           </ProgressBar>
-                                          <HBox maxHeight="25.0" minHeight="25.0" minWidth="-Infinity" prefHeight="25.0" prefWidth="600.0" style="-fx-background-color: #434141;">
+                                          <HBox maxHeight="25.0" minHeight="25.0" minWidth="-Infinity" prefHeight="25.0" prefWidth="600.0" spacing="4.0" style="-fx-background-color: #434141;">
                                              <children>
                                                 <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
                                                    <font>
@@ -210,6 +211,14 @@
                                                       <Font name="Roboto Light" size="16.0" />
                                                    </font>
                                                 </Label>
+                                                <JFXButton fx:id="alertButton" alignment="CENTER" onAction="#alertOnClick" style="-fx-background-color: #690c0c;" text="ALERT" textFill="WHITE" visible="false">
+                                                   <font>
+                                                      <Font name="Roboto Light" size="9.0" />
+                                                   </font>
+                                                   <HBox.margin>
+                                                      <Insets top="2.0" />
+                                                   </HBox.margin>
+                                                </JFXButton>
                                              </children>
                                           </HBox>
                                        </children>
@@ -393,7 +402,7 @@
                                                       <Insets right="8.0" />
                                                    </padding>
                                                 </ProgressBar>
-                                                <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="20.0" prefWidth="600.0" style="-fx-background-color: #434141;">
+                                                <HBox minHeight="-Infinity" minWidth="-Infinity" prefHeight="20.0" prefWidth="578.0" spacing="4.0" style="-fx-background-color: #434141;">
                                                    <children>
                                                       <Label alignment="TOP_LEFT" text="Status: " textFill="WHITE">
                                                          <font>
@@ -403,11 +412,16 @@
                                                             <Insets />
                                                          </HBox.margin>
                                                       </Label>
-                                                      <Label fx:id="outputMultiple" alignment="TOP_LEFT" prefHeight="20.0" prefWidth="538.0" textFill="WHITE">
+                                                      <Label fx:id="outputMultiple" alignment="TOP_LEFT" maxWidth="475.0" prefHeight="20.0" prefWidth="475.0" textFill="WHITE">
                                                          <font>
                                                             <Font name="Roboto Light" size="16.0" />
                                                          </font>
                                                       </Label>
+                                                      <JFXButton fx:id="alertButton2" alignment="CENTER" onAction="#alertOnClick" style="-fx-background-color: #690c0c;" text="ALERT" textFill="WHITE" visible="false">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="9.0" />
+                                                         </font>
+                                                      </JFXButton>
                                                    </children>
                                                 </HBox>
                                              </children>

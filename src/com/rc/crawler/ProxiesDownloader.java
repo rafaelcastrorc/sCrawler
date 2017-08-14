@@ -16,15 +16,16 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Created by rafaelcastro on 6/15/17.
- * Finds and downloads proxies from different websites
- */
-class ProxiesDownloader {
-    private Integer[] listOfTimes;
-    private Integer timeToWait;
-    private ArrayList<String> listOfUnusedLinks = new ArrayList<>();
-    private ArrayList<String> proxiesLists = new ArrayList<>();
+    /**
+     * Created by rafaelcastro on 6/15/17.
+     * Finds and downloads proxies from different websites
+     */
+    class ProxiesDownloader {
+        private Integer[] listOfTimes;
+        private Integer timeToWait;
+        private ArrayList<String> listOfUnusedLinks = new ArrayList<>();
+        private ArrayList<String> proxiesLists = new ArrayList<>();
+
 
 
     /**
@@ -34,6 +35,12 @@ class ProxiesDownloader {
      */
     private void getProxiesList(boolean addMore) {
         if (!addMore) {
+            proxiesLists.add("https://nordvpn.com/free-proxy-list/");
+            proxiesLists.add("http://www.freeproxylists.net");
+            proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=United%20States");
+            proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=Russia");
+            proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=United%20Kingdom");
+            proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=Indonesia");
             proxiesLists.add("http://www.gatherproxy.com");
             //working US only proxy list. All results displayed at once. (< 200)
             proxiesLists.add("https://www.us-proxy.org");
@@ -117,7 +124,6 @@ class ProxiesDownloader {
                 //Go through the url, find all proxies and check if the website has more entries.
                 while (areThereMoreEntries) {
                     try {
-
                         if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
                             doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
                                     "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").timeout(15*1000).get();
@@ -128,6 +134,17 @@ class ProxiesDownloader {
                             Thread.sleep(timeToWait * 1000);
                             doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1;" +
                                     " en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
+                        }
+
+                        if (doc.toString().contains("javascript") && (url.contains("gatherproxy") ||url.contains("freeproxylists"))) {
+                            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
+                            if (crawler.isSeleniumActive()) {
+                                try {
+                                    doc = proxyChanger.useSelenium(null, url, false);
+                                } catch (IllegalArgumentException e) {
+                                    continue;
+                                }
+                            }
                         }
                         areThereMoreEntries = false;
                         //Check if there are links to find more table entries
@@ -190,6 +207,13 @@ class ProxiesDownloader {
                                         //Get Port number
                                         String portNum = elt.toString();
                                         portNum = portNum.replaceAll("</?td>", "");
+                                        if (portNum.length()>5) {
+                                            Pattern portPattern = Pattern.compile("\\d{2,5}");
+                                            Matcher portMatcher = portPattern.matcher(portNum);
+                                            if (portMatcher.find()) {
+                                                portNum = portMatcher.group();
+                                            }
+                                        }
                                         array[1] = portNum;
                                         Proxy nProxy = new Proxy(array[0], Integer.valueOf(array[1]));
                                         //add as long as it is not already in the set
@@ -240,8 +264,7 @@ class ProxiesDownloader {
                                 }
                             }
                         }
-                        guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases. \nPlease make sure " +
-                                "you have an internet connection.");
+                        guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases.");
                     }
                 }
             }

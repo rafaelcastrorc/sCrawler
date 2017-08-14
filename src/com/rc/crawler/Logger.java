@@ -226,7 +226,6 @@ class Logger {
      * @param typeOfSearch Type of search used
      */
     void writeToLogFileNotFound(File file, String originalArticle, String typeOfSearch, boolean isMultipleSearch) {
-
         try {
             //Add to the report
             setReportWriter(true, "Report");

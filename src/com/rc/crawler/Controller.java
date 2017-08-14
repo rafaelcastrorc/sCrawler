@@ -20,6 +20,7 @@ import javafx.stage.Window;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.openqa.selenium.WebDriver;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -52,7 +53,6 @@ public class Controller implements Initializable {
     private AtomicCounter numOfSuccessful = new AtomicCounter();
     //Counts only the ones that were downloaded
     private AtomicCounter numOfSuccessfulGral = new AtomicCounter();
-
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -91,6 +91,10 @@ public class Controller implements Initializable {
     private JFXButton downloadButtonMultiple;
     @FXML
     private JFXButton downloadButtonMultipleSFA;
+    @FXML
+    private JFXButton alertButton;
+    @FXML
+    private JFXButton alertButton2;
     @FXML
     private JFXTextField numberOfPDFsMultiple;
     @FXML
@@ -449,8 +453,9 @@ public class Controller implements Initializable {
                         this.numOfConnectionsNeeded = 8;
                     }
                     simultaneousDownloadsGUI.addGUI(scrollPanel);
-                    singleThreadExecutor.submit((Runnable) new DoWork("waitFor4Connections", String.valueOf
+                    Thread t = new MyThreadFactory().newThread(new DoWork("waitFor4Connections", String.valueOf
                             (numOfConnectionsNeeded), null));
+                    singleThreadExecutor.submit((t));
 
                 } catch (FileNotFoundException e) {
                     displayAlert(e.getMessage());
@@ -642,6 +647,47 @@ public class Controller implements Initializable {
 
     }
 
+    /**
+     * To display blocked proxies
+     *
+     */
+    @FXML
+    void alertOnClick(){
+            while (crawler.getQueueOfBlockedProxies().size() != 0) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                Proxy proxy = crawler.getQueueOfBlockedProxies().poll();
+
+                alert.setTitle("Google has detected a robot");
+                alert.setHeaderText("Google has blocked the following proxy: "+proxy.getProxy() +":"+proxy.getPort()+
+                                "\nHelp the crawler by unlocking it. Close the window once you are done.");
+                alert.setContentText(null);
+
+                ButtonType unlock = new ButtonType("Unlock Proxy");
+                ButtonType buttonTypeTwo = new ButtonType("Cancel");
+                alert.getButtonTypes().setAll(unlock, buttonTypeTwo);
+
+                Optional<ButtonType> result = alert.showAndWait();
+                if (result.get() == unlock) {
+                    ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
+                    proxyChanger.useChromeDriver(proxy, true, null);
+                    //give user 4 minutes to solve the puzzle before adding it back
+                    try {
+                        Thread.sleep(4*1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    crawler.addUnlockedProxy(proxy);
+                }
+                else {
+                    crawler.getQueueOfBlockedProxies().add(proxy);
+                    break;
+                }
+            }
+            if (crawler.getQueueOfBlockedProxies().size() == 0) {
+                guiLabels.setIsThereAnAlert(false);
+            }
+
+    }
 
     /**
      * Displays a pop up alert message
@@ -795,6 +841,7 @@ public class Controller implements Initializable {
         File dir = new File("DownloadedPDFs");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdir();
+        
         Logger logger = Logger.getInstance();
 
         //Create a report, or write to an existing one.
@@ -816,7 +863,7 @@ public class Controller implements Initializable {
         guiLabels = new GUILabelManagement();
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         DoWork task = new DoWork("initialize", null, null);
-        Thread thread = new Thread(task);
+        Thread thread = new MyThreadFactory().newThread(task);
         thread.setDaemon(true);
         thread.start();
     }
@@ -938,7 +985,7 @@ public class Controller implements Initializable {
                         Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
                         Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
 
-                        updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "       Download " +
+                        updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "  Download " +
                                 "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
 
                         Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
@@ -965,7 +1012,7 @@ public class Controller implements Initializable {
                             Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
                             Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
 
-                            updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "       Download " +
+                            updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "  Download " +
                                     "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
 
                             Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
@@ -996,7 +1043,7 @@ public class Controller implements Initializable {
                     Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
                     Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
 
-                    updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "       Download " +
+                    updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "  Download " +
                             "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
 
                     Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
@@ -1082,6 +1129,10 @@ public class Controller implements Initializable {
                             updateProgressBarMultiple(newValue.doubleValue()));
                     guiLabels.getNumberOfPDFsMultiple().addListener((observable, oldValue, newValue) ->
                             updateNumberOfPDFsMultiple(newValue));
+                    guiLabels.getIsThereAnAlert().addListener((observable, oldValue, newValue) -> {
+                            alertButton.setVisible(newValue);
+                            alertButton2.setVisible(newValue);
+            });
                     //Load the crawler
                     crawler.loadCrawler();
                     break;

@@ -1,5 +1,10 @@
 package com.rc.crawler;
 
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import org.openqa.selenium.WebDriver;
+
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
 /**
@@ -31,8 +36,8 @@ class Request implements Callable<Proxy> {
             boolean valid = false;
             while (!valid) {
                 try {
-                    crawler.changeIP("https://scholar.google" +
-                            ".com/scholar?hl=en&q=interesting+articles&btnG=&as_sdt=1%2C39&as_sdtp=", false, true);
+                    crawler.changeIP("https://scholar.google.com/scholar?q=hello&hl=en&as_sdt=0,39", false,
+                            true);
                     valid = true;
                 } catch (Exception ignored) {
                 }
@@ -47,4 +52,5 @@ class Request implements Callable<Proxy> {
         }
         return null;
     }
+
 }

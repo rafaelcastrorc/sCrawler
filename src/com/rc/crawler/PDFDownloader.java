@@ -116,34 +116,6 @@ class PDFDownloader {
                 }
                 connection.connect();
 
-////                Verify if there is a javascript redirect//
-//                Pattern redirectPattern = Pattern.compile("Automatic (R|r)edirection .* JavaScript disabled.*");
-//               try {
-//                   Matcher matcher = redirectPattern.matcher(URLConnectionReader(url));
-//                   if (matcher.find()) {
-//                       Pattern newURL = Pattern.compile("URL=[^\"]*");
-//                       Matcher matcher1 = newURL.matcher(matcher.group());
-//                       if (matcher1.find()) {
-//                           String redirectedURL = matcher1.group();
-//                           url = redirectedURL;
-//                           Pattern baseURL = Pattern.compile("^.+?[^/:](?=[?/]|$)");
-//                           Matcher baseURLMatcher = baseURL.matcher(url);
-//                           if (baseURLMatcher.find()) {
-//                               redirectedURL = redirectedURL.replaceAll("URL=", baseURLMatcher.group());
-//                               urlObj = new URL(redirectedURL);
-//                               connection = (HttpURLConnection) urlObj.openConnection();
-//                               connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
-//
-//                               connection.setRequestProperty("Referer", "https://scholar.google.com/");
-//                               connection.connect();
-//                               matcher = redirectPattern.matcher(URLConnectionReader(redirectedURL));
-//
-//
-//                           }
-//                       }
-//                   }
-//               } catch (Exception e) {
-//               }
 
                 boolean redirect = false;
                 if (status != HttpURLConnection.HTTP_OK) {
@@ -203,7 +175,7 @@ class PDFDownloader {
 
                 }
             }catch (Exception e) {
-                //e.printStackTrace();
+                e.printStackTrace();
                 result = e.getMessage();
             }
 
@@ -252,34 +224,7 @@ class PDFDownloader {
         return nameOfFolder;
     }
 
-    private String URLConnectionReader(String url) {
-        URL urlObj = null;
-        try {
-            urlObj = new URL(url);
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        }
-        URLConnection yc;
-        StringBuilder sb = null;
-        try {
-            yc = urlObj.openConnection();
-            BufferedReader in = null;
-            in = new BufferedReader(new InputStreamReader(yc.getInputStream()));
 
-            String inputLine;
-            sb = null;
-            sb = new StringBuilder();
-            while ((inputLine = in.readLine()) != null) {
-                sb.append(inputLine);
-                System.out.println(inputLine);
-            }
-            in.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return sb.toString();
-    }
 
 
 }
