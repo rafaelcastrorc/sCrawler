@@ -16,16 +16,19 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-    /**
-     * Created by rafaelcastro on 6/15/17.
-     * Finds and downloads proxies from different websites
-     */
-    class ProxiesDownloader {
-        private Integer[] listOfTimes;
-        private Integer timeToWait;
-        private ArrayList<String> listOfUnusedLinks = new ArrayList<>();
-        private ArrayList<String> proxiesLists = new ArrayList<>();
-
+/**
+ * Created by rafaelcastro on 6/15/17.
+ * Finds and downloads proxies from different websites
+ */
+class ProxiesDownloader {
+    private Integer[] listOfTimes;
+    private Integer timeToWait;
+    private ArrayList<String> listOfUnusedLinks = new ArrayList<>();
+    private ArrayList<String> proxiesLists = new ArrayList<>();
+    private int proxyCounter1;
+    private boolean found;
+    private String[] array;
+    private boolean mainPage;
 
 
     /**
@@ -35,8 +38,8 @@ import java.util.regex.Pattern;
      */
     private void getProxiesList(boolean addMore) {
         if (!addMore) {
-            proxiesLists.add("https://nordvpn.com/free-proxy-list/");
             proxiesLists.add("http://www.freeproxylists.net");
+            proxiesLists.add("https://nordvpn.com/free-proxy-list/");
             proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=United%20States");
             proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=Russia");
             proxiesLists.add("http://www.gatherproxy.com/proxylist/country/?c=United%20Kingdom");
@@ -72,43 +75,27 @@ import java.util.regex.Pattern;
      * @param crawler                   crawler reference
      * @param addMore                   true if the program is trying to add more proxies.
      */
-    @SuppressWarnings("Duplicates")
     synchronized int getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter, GUILabelManagement
             guiLabels, Crawler crawler, boolean addMore) {
 
         //Set a new file, if there was one before, overwrite it
         Logger logger = Logger.getInstance();
-        int proxyCounter1 = proxyCounter;
+        this.proxyCounter1 = proxyCounter;
         try {
-            if (proxyCounter1 == 0) {
-                //If there were no proxies before, we start a new file
-                logger.setListOfProxies(false);
-                DateTimeFormatter formatter = DateTimeFormat.forPattern("dd/MM/yyyy HH:mm:ss");
-                //Write current date
-                DateTime now = new DateTime();
-                logger.writeToListOfProxies(now.toString(formatter));
-                //Create a new file of working proxies
-
-            } else {
-                //If there were proxies in the file, then just append
-                logger.setListOfProxies(true);
-            }
-
-            if (!addMore) {
-                guiLabels.setOutput("Starting to download Proxies...");
-            } else {
-                guiLabels.setConnectionOutput("Starting to download more Proxies...");
-            }
+            initializeLog(logger, addMore, guiLabels);
 
             Document doc;
             //Get the list of websites that compile proxies
             getProxiesList(addMore);
-            //Iterate over all websites
+
             if (proxiesLists.isEmpty()) {
                 //If this happens, it means that there were no unused links, so we search through all the websites again
                 getProxiesList(false);
             }
+
+            //Iterate over all websites
             for (String url : proxiesLists) {
+                System.out.println("Going trhough links");
                 listOfUnusedLinks.remove(url);
 
                 //Get Base URI
@@ -116,36 +103,22 @@ import java.util.regex.Pattern;
                 String baseURI = urlObj.getProtocol() + "://" + urlObj.getHost();
 
 
-                boolean mainPage = true;
+                mainPage = true;
                 //Link to possible url inside the table to get more entries
                 String absLink = "";
                 boolean areThereMoreEntries = true;
 
                 //Go through the url, find all proxies and check if the website has more entries.
                 while (areThereMoreEntries) {
+                    System.out.println("Going trhough etnries");
+
                     try {
-                        if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
-                            doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
-                                    "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").timeout(15*1000).get();
-                            mainPage = false;
-                        } else {
-                            //Sleep random periods before requesting info from website
-                            timeToWait = getTimeToWait();
-                            Thread.sleep(timeToWait * 1000);
-                            doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1;" +
-                                    " en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
+                        doc = getWebsiteDoc(url, baseURI, crawler, absLink, guiLabels);
+                        if (doc == null) {
+                            areThereMoreEntries = false;
+                            continue;
                         }
 
-                        if (doc.toString().contains("javascript") && (url.contains("gatherproxy") ||url.contains("freeproxylists"))) {
-                            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
-                            if (crawler.isSeleniumActive()) {
-                                try {
-                                    doc = proxyChanger.useSelenium(null, url, false);
-                                } catch (IllegalArgumentException e) {
-                                    continue;
-                                }
-                            }
-                        }
                         areThereMoreEntries = false;
                         //Check if there are links to find more table entries
                         Pattern linkPattern = Pattern.compile("<a( )?(href).*(</a>)");
@@ -174,70 +147,16 @@ import java.util.regex.Pattern;
                         for (int i = 1; i < rows.size(); i++) { //first row is the col names so skip it.
                             Element row = rows.get(i);
                             Elements cols = row.select("td");
-                            boolean found = false;
-                            String[] array = new String[2];
+                            found = false;
+                            array = new String[2];
                             for (Element elt : cols) {
-                                //matcher matches only ip, matcher2 matches ip with port number
-                                Matcher matcher = ips.matcher(elt.toString());
-                                Matcher matcher2 = ipAndPort.matcher(elt.toString());
-                                if (matcher2.find()) {
-                                    //If port and number appear in the same string
-                                    found = false;
-                                    String[] currIPAndPort = matcher2.group().split(":");
-                                    String ip = currIPAndPort[0];
-                                    int port = Integer.valueOf(currIPAndPort[1]);
-                                    Proxy nProxy = new Proxy(ip, port);
-
-                                    if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
-                                        //See if the set of all proxies does not contain this one, if it does not,
-                                        // then we can add it
-                                        logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy.getPort());
-                                        crawler.setSetOfProxyGathered(nProxy);
-                                        crawler.setListOfProxiesGathered(nProxy);
-                                        crawler.addToSetOfAllProxiesEver(nProxy);
-                                        //Increase counter
-                                        proxyCounter1++;
-                                        if (proxyCounter1 == numberOfProxiesToDownload) {
-                                            //Once we have enough proxies, stop
-                                            return proxyCounter1;
-                                        }
-                                    }
-                                } else {
-                                    if (found) {
-                                        //Get Port number
-                                        String portNum = elt.toString();
-                                        portNum = portNum.replaceAll("</?td>", "");
-                                        if (portNum.length()>5) {
-                                            Pattern portPattern = Pattern.compile("\\d{2,5}");
-                                            Matcher portMatcher = portPattern.matcher(portNum);
-                                            if (portMatcher.find()) {
-                                                portNum = portMatcher.group();
-                                            }
-                                        }
-                                        array[1] = portNum;
-                                        Proxy nProxy = new Proxy(array[0], Integer.valueOf(array[1]));
-                                        //add as long as it is not already in the set
-                                        if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
-                                            logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy
-                                                    .getPort());
-                                            crawler.setSetOfProxyGathered(nProxy);
-                                            crawler.setListOfProxiesGathered(nProxy);
-                                            crawler.addToSetOfAllProxiesEver(nProxy);
-
-                                            proxyCounter1++;
-                                            if (proxyCounter1 == numberOfProxiesToDownload) {
-                                                //Once we have enough proxies, stop
-                                                return proxyCounter1;
-                                            }
-                                        }
-                                        array = new String[2];
-                                        found = false;
-                                    } else if (matcher.find()) {
-                                        //If an Ip is found, then the next element is the port number
-                                        found = true;
-                                        array[0] = matcher.group();
-                                    }
+                                if (proxyCounter1 == numberOfProxiesToDownload) {
+                                    //Once we have enough proxies, stop
+                                    return proxyCounter1;
                                 }
+                                getProxiesFromWebsiteHelper(elt, crawler, logger, ips, ipAndPort,
+                                        numberOfProxiesToDownload);
+
                             }
                         }
                         Double d = (proxyCounter1 / (double) numberOfProxiesToDownload) * 0.7;
@@ -269,9 +188,156 @@ import java.util.regex.Pattern;
                 }
             }
         } catch (IOException e) {
+            e.printStackTrace(System.out);
             guiLabels.setAlertPopUp(e.getMessage());
         }
         return proxyCounter1;
+    }
+
+
+    private void initializeLog(Logger logger, boolean addMore, GUILabelManagement guiLabels) {
+        try {
+            if (proxyCounter1 == 0) {
+                //If there were no proxies before, we start a new file
+
+                logger.setListOfProxies(false);
+
+                DateTimeFormatter formatter = DateTimeFormat.forPattern("dd/MM/yyyy HH:mm:ss");
+
+                //Write current date
+                DateTime now = new DateTime();
+                //Create a new file of working proxies
+                logger.writeToListOfProxies(now.toString(formatter));
+
+            } else {
+                //If there were proxies in the file, then just append
+                logger.setListOfProxies(true);
+            }
+
+            if (!addMore) {
+                guiLabels.setOutput("Starting to download Proxies...");
+            } else {
+                guiLabels.setConnectionOutput("Starting to download more Proxies...");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            guiLabels.setAlertPopUp(e.getMessage());
+        }
+
+    }
+
+    /**
+     * Retrieve Document from website to parse
+     *
+     * @param url       URL to use
+     * @param baseURI   BaseURI of the current url
+     * @param crawler   Crawler instance
+     * @param absLink   Absolute link of the current url
+     * @param guiLabels GuiLabelManagement obj
+     * @return Document
+     */
+    private Document getWebsiteDoc(String url, String baseURI, Crawler crawler, String absLink, GUILabelManagement
+            guiLabels) {
+        Document doc;
+        try {
+            if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
+                doc = Jsoup.connect(url).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
+                        "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").timeout(15 * 1000).get();
+                mainPage = false;
+            } else {
+                //Sleep random periods before requesting info from website
+                timeToWait = getTimeToWait();
+                Thread.sleep(timeToWait * 1000);
+                doc = Jsoup.connect(baseURI + absLink).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1;" +
+                        " en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6").get();
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace(System.out);
+            return null;
+        }
+
+        if (doc.toString().contains("javascript") && (url.contains("gatherproxy") || url.contains
+                ("freeproxylists"))) {
+            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
+            if (crawler.isSeleniumActive()) {
+                try {
+                    System.out.println("Parsing document using selenium");
+                    doc = proxyChanger.useSelenium(null, url, false);
+                } catch (RuntimeException e) {
+                    e.printStackTrace(System.out);
+                    return null;
+                }
+            }
+        }
+        return doc;
+    }
+
+    @SuppressWarnings("Duplicates")
+    private int getProxiesFromWebsiteHelper(Element elt, Crawler crawler, Logger logger, Pattern ips, Pattern
+            ipAndPort, int numberOfProxiesToDownload) throws IOException {
+
+        //matcher matches only ip, matcher2 matches ip with port number
+        Matcher matcher = ips.matcher(elt.toString());
+        Matcher matcher2 = ipAndPort.matcher(elt.toString());
+        if (matcher2.find()) {
+            //If port and number appear in the same string
+            found = false;
+            String[] currIPAndPort = matcher2.group().split(":");
+            String ip = currIPAndPort[0];
+            int port = Integer.valueOf(currIPAndPort[1]);
+            Proxy nProxy = new Proxy(ip, port);
+
+            if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
+                //See if the set of all proxies does not contain this one, if it does not,
+                // then we can add it
+                logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy.getPort());
+                crawler.setSetOfProxyGathered(nProxy);
+                crawler.setListOfProxiesGathered(nProxy);
+                crawler.addToSetOfAllProxiesEver(nProxy);
+                //Increase counter
+                proxyCounter1++;
+                if (proxyCounter1 == numberOfProxiesToDownload) {
+                    //Once we have enough proxies, stop
+                    return proxyCounter1;
+                }
+            }
+        } else {
+            if (found) {
+                //Get Port number
+                String portNum = elt.toString();
+                portNum = portNum.replaceAll("</?td>", "");
+                if (portNum.length() > 5) {
+                    Pattern portPattern = Pattern.compile("\\d{2,5}");
+                    Matcher portMatcher = portPattern.matcher(portNum);
+                    if (portMatcher.find()) {
+                        portNum = portMatcher.group();
+                    }
+                }
+                array[1] = portNum;
+                Proxy nProxy = new Proxy(array[0], Integer.valueOf(array[1]));
+                //add as long as it is not already in the set
+                if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
+                    logger.writeToListOfProxies("\n" + nProxy.getProxy() + "," + nProxy
+                            .getPort());
+                    crawler.setSetOfProxyGathered(nProxy);
+                    crawler.setListOfProxiesGathered(nProxy);
+                    crawler.addToSetOfAllProxiesEver(nProxy);
+
+                    proxyCounter1++;
+                    if (proxyCounter1 == numberOfProxiesToDownload) {
+                        //Once we have enough proxies, stop
+                        return proxyCounter1;
+                    }
+                }
+                array = new String[2];
+                found = false;
+            } else if (matcher.find()) {
+                //If an Ip is found, then the next element is the port number
+                found = true;
+                array[0] = matcher.group();
+            }
+        }
+        return numberOfProxiesToDownload;
     }
 
 

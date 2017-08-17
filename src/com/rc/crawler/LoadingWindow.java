@@ -30,14 +30,14 @@ class LoadingWindow {
     boolean display() {
         window = new Stage();
         window.initModality(Modality.APPLICATION_MODAL);
-        window.initStyle(StageStyle.TRANSPARENT);
+        window.initStyle(StageStyle.DECORATED);
 
 
         window.setMinWidth(400);
 
 
         //Ignore closing window
-        window.setOnCloseRequest(Event::consume);
+        //window.setOnCloseRequest(Event::consume);
 
         ProgressIndicator progressIndicator = new ProgressIndicator();
 

@@ -12,14 +12,12 @@ import javafx.scene.layout.VBox;
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import javax.naming.AuthenticationException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
 
 class EmailSender extends Dialog<String> {
-    private String email;
+    private String email = "";
     private ArrayList<String> emails = new ArrayList<>();
     private String password = "";
     private GUILabelManagement guiLabels;
@@ -85,97 +83,103 @@ class EmailSender extends Dialog<String> {
      * Display dialog for user to type email, password and recipients
      */
     void displayPasswordDialog() {
-        // Create the custom dialog.
-        Dialog dialog = new Dialog<>();
-        dialog.setTitle("Notifications");
-        dialog.setHeaderText("Do you want to receive notifications?");
+            // Create the custom dialog.
+            Dialog dialog = new Dialog<>();
+            dialog.setTitle("Notifications");
+            dialog.setHeaderText("Do you want to receive notifications?");
 
-        // Set the button types.
-        ButtonType send = new ButtonType("Send me notifications");
-        ButtonType doNotSend = new ButtonType("I don't want to receive notifications");
+            // Set the button types.
+            ButtonType send = new ButtonType("Send me notifications");
+            ButtonType doNotSend = new ButtonType("I don't want to receive notifications");
 
-        dialog.getDialogPane().getButtonTypes().addAll(send, doNotSend);
+            dialog.getDialogPane().getButtonTypes().addAll(send, doNotSend);
 
-        // Create the username and password labels and fields.
-        VBox vBox = new VBox(20);
-        vBox.setAlignment(Pos.CENTER_LEFT);
+            // Create the username and password labels and fields.
+            VBox vBox = new VBox(20);
+            vBox.setAlignment(Pos.CENTER_LEFT);
 
-        //Set the GUI information
-        Label instructions = new Label("The program will send you an email:\n" +
-                "-Every 6 hours about the current progress of the crawler" +
-                "\n-Every time there are 10 blocked proxies that require user intervention (Solve Captcha)." +
-                "\n\n" +
-                "In order to send emails, the program needs you to provide an email and password to send the emails" +
-                ".\nIf Google blocks the program from sending the email, please modify your settings to allow the " +
-                "crawler to connect.\n      -https://support.google.com/mail/?p=BadCredentials" +
-                "\n\nAll your information is private and will be stored temporarily inside the program only while it " +
-                "is" +
-                " open. ");
-        Label userEmail = new Label("Email Address:");
-        Label password = new Label("Password");
+            //Set the GUI information
+            Label instructions = new Label("The program will send you an email:\n" +
+                    "-Every 6 hours about the current progress of the crawler" +
+                    "\n-Every time there are 10 blocked proxies that require user intervention (Solve Captcha)." +
+                    "\n\n" +
+                    "In order to send emails, the program needs you to provide an email and password to send the emails" +
 
-        TextField mailTextField = new TextField();
-        mailTextField.setPromptText("Username");
-        PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText("Password");
-        //Create the hboxes to hold both fields
-        HBox box = new HBox(10);
-        box.getChildren().addAll(userEmail, mailTextField);
+                    ".\nIf Google blocks the program from sending the email, please modify your settings to allow the" +
+                    " " +
+                    "crawler to connect.\n      -https://support.google.com/mail/?p=BadCredentials" +
+                    "\n\nAll your information is private and will be stored temporarily inside the program only while" +
+                    " it " +
+                    "is" +
+                    " open. ");
+            Label userEmail = new Label("Email Address:");
+            Label password = new Label("Password");
 
-        HBox box2 = new HBox(10);
-        box2.getChildren().addAll(password, passwordField);
+            TextField mailTextField = new TextField();
+            mailTextField.setPromptText("Username");
+            PasswordField passwordField = new PasswordField();
+            passwordField.setPromptText("Password");
+            //Create the hboxes to hold both fields
+            HBox box = new HBox(10);
+            box.getChildren().addAll(userEmail, mailTextField);
 
-        Label emails = new Label("Type the emails that should receive the notifications, separated by ','");
-        TextField emailsField = new TextField();
-        emailsField.setPromptText("john@gmail.com, joseph@yahoo.com");
+            HBox box2 = new HBox(10);
+            box2.getChildren().addAll(password, passwordField);
 
-        HBox box3 = new HBox(10);
-        box3.getChildren().addAll(emails, emailsField);
+            Label emails = new Label("Type the emails that should receive the notifications, separated by ','");
+            TextField emailsField = new TextField();
+            emailsField.setPromptText("john@gmail.com, joseph@yahoo.com");
+
+            HBox box3 = new HBox(10);
+            box3.getChildren().addAll(emails, emailsField);
 
 
-        vBox.getChildren().addAll(instructions, box, box2, box3);
+            vBox.getChildren().addAll(instructions, box, box2, box3);
 
-        // Enable/Disable login button depending on whether a username was entered.
-        Node loginButton = dialog.getDialogPane().lookupButton(send);
-        loginButton.setDisable(true);
-        loginButton.addEventFilter(
-                ActionEvent.ACTION,
-                event -> {
-                    // Check whether some conditions are fulfilled
-                    if (emailsField.getText().isEmpty() || mailTextField.getText().isEmpty() || passwordField.getText()
-                            .isEmpty()) {
-                        // The conditions are not fulfilled so we consume the event
-                        // to prevent the dialog to close
-                        guiLabels.setAlertPopUp("Please fill all fields");
-                        event.consume();
+
+            // Enable/Disable login button depending on whether a username was entered.
+            Node loginButton = dialog.getDialogPane().lookupButton(send);
+            loginButton.setDisable(true);
+            loginButton.addEventFilter(
+                    ActionEvent.ACTION,
+                    event -> {
+                        // Check whether some conditions are fulfilled
+                        if (emailsField.getText().isEmpty() || mailTextField.getText().isEmpty() || passwordField
+                                .getText()
+                                .isEmpty()) {
+                            // The conditions are not fulfilled so we consume the event
+                            // to prevent the dialog to close
+                            guiLabels.setAlertPopUp("Please fill all fields");
+                            event.consume();
+                        }
+                    }
+            );
+
+            // Do some validation
+            mailTextField.textProperty().addListener((observable, oldValue, newValue) -> {
+                loginButton.setDisable(newValue.trim().isEmpty());
+            });
+
+
+            dialog.getDialogPane().setContent(vBox);
+
+            // Request focus on the username field by default.
+            Platform.runLater(mailTextField::requestFocus);
+
+            Optional<ButtonType> result = dialog.showAndWait();
+            if (result.get() == send) {
+                email = mailTextField.getText();
+                this.password = passwordField.getText();
+                if (!emailsField.getText().contains(",")) {
+                    this.emails.add(emailsField.getText());
+
+                } else {
+                    for (String s : emailsField.getText().split(",")) {
+                        this.emails.add(s.trim());
                     }
                 }
-        );
-
-        // Do some validation
-        mailTextField.textProperty().addListener((observable, oldValue, newValue) -> {
-            loginButton.setDisable(newValue.trim().isEmpty());
-        });
-
-        dialog.getDialogPane().setContent(vBox);
-
-        // Request focus on the username field by default.
-        Platform.runLater(mailTextField::requestFocus);
-
-        Optional<ButtonType> result = dialog.showAndWait();
-        if (result.get() == send) {
-            email = mailTextField.getText();
-            this.password = passwordField.getText();
-            if (!emailsField.getText().contains(",")) {
-                this.emails.add(emailsField.getText());
-
-            } else {
-                for (String s : emailsField.getText().split(",")) {
-                    this.emails.add(s.trim());
-                }
+                verifyConnection();
             }
-            verifyConnection();
-        }
 
     }
 

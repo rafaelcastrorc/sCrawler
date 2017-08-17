@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 class PDFDownloader {
     private GUILabelManagement guiLabels;
     private String path = "";
-    private Crawler crawler;
 
     /**
      * Gets the folder where the files are going to be stored for a given query
@@ -60,7 +59,7 @@ class PDFDownloader {
     }
 
     public void setCrawler(Crawler crawler) {
-        this.crawler = crawler;
+        Crawler crawler1 = crawler;
     }
 
 

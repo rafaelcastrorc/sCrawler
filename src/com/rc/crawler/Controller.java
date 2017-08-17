@@ -648,7 +648,8 @@ public class Controller implements Initializable {
     }
 
     /**
-     * To display blocked proxies
+     *
+     * Displays an alert for the user to unlock a proxy. If unlocked, it is added to te queue of working proxies.
      *
      */
     @FXML
@@ -659,28 +660,62 @@ public class Controller implements Initializable {
 
                 alert.setTitle("Google has detected a robot");
                 alert.setHeaderText("Google has blocked the following proxy: "+proxy.getProxy() +":"+proxy.getPort()+
-                                "\nHelp the crawler by unlocking it. Close the window once you are done.");
+                                "\nHelp the crawler by unlocking it. Close the window once you are done and " +
+                        "press\nthe 'Proxy is Unlocked' button");
                 alert.setContentText(null);
 
                 ButtonType unlock = new ButtonType("Unlock Proxy");
+                ButtonType proxyIsUnlocked = new ButtonType("Proxy is Unlocked");
+
                 ButtonType buttonTypeTwo = new ButtonType("Cancel");
-                alert.getButtonTypes().setAll(unlock, buttonTypeTwo);
+                alert.getButtonTypes().setAll(unlock, proxyIsUnlocked, buttonTypeTwo);
+
+                alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(true);
+
+                final WebDriver[] driver = {null};
+                final Button unlockButton = (Button) alert.getDialogPane().lookupButton(unlock);
+                final Button proxyIsUnlockedButton = (Button) alert.getDialogPane().lookupButton(proxyIsUnlocked);
+
+                unlockButton.addEventFilter(
+                        ActionEvent.ACTION,
+                        event -> {
+                            if (!unlockButton.getText().equals("Can't be unlocked")) {
+                                //If the text of the button is Unlock Proxy
+                                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
+                                driver[0] = proxyChanger.useChromeDriver(proxy, true, null);
+                                alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(false);
+                                proxyIsUnlockedButton.setDefaultButton(true);
+
+                                ((Button) alert.getDialogPane().lookupButton(unlock)).setText("Can't be unlocked");
+                                //Don't close window yet
+                                event.consume();
+                            }
+                            else {
+                                driver[0].close();
+                                driver[0].quit();
+                            }
+
+                        }
+                );
 
                 Optional<ButtonType> result = alert.showAndWait();
-                if (result.get() == unlock) {
-                    ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
-                    proxyChanger.useChromeDriver(proxy, true, null);
-                    //give user 4 minutes to solve the puzzle before adding it back
-                    try {
-                        Thread.sleep(4*1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                if (result.get() != unlock) {
+                    if (result.get()==proxyIsUnlocked) {
+
+                        //Add it to queue of working proxies
+                        try {
+                            driver[0].close();
+                            driver[0].quit();
+                        } catch (RuntimeException ignored) {
+
+                        }
+                        crawler.addUnlockedProxy(proxy);
                     }
-                    crawler.addUnlockedProxy(proxy);
-                }
-                else {
-                    crawler.getQueueOfBlockedProxies().add(proxy);
-                    break;
+                    else {
+                        //If user press cancel, we add it back to the list of blocked proxies
+                        crawler.getQueueOfBlockedProxies().add(proxy);
+                        break;
+                    }
                 }
             }
             if (crawler.getQueueOfBlockedProxies().size() == 0) {

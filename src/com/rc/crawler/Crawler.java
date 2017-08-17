@@ -55,6 +55,8 @@ class Crawler {
     private ConcurrentLinkedQueue<Proxy> blockedProxies = new ConcurrentLinkedQueue<>();
     private Map<Proxy, Boolean> mapProxyToSelenium = Collections.synchronizedMap(new HashMap<Proxy, Boolean>());
     private EmailSender emailSender;
+    private ConcurrentLinkedQueue<Proxy> queueOfUnlockedProxies = new ConcurrentLinkedQueue<>();
+
 
 
     /**
@@ -107,9 +109,15 @@ class Crawler {
         guiLabels.setConnectionOutput("Directory " + getClass().getProtectionDomain().getCodeSource().getLocation());
 
         Platform.runLater(() -> {
-            emailSender = new EmailSender(guiLabels);
-            emailSender.displayPasswordDialog();
+            try {
+
+                emailSender = new EmailSender(guiLabels);
+                emailSender.displayPasswordDialog();
+            } catch (Exception e) {
+                guiLabels.setAlertPopUp(e.getMessage());
+            }
         });
+
         //Download selenium
         ProxyChanger pr = new ProxyChanger(guiLabels, this);
         isSeleniumActive = pr.setUpSelenium();
@@ -654,8 +662,7 @@ class Crawler {
      * @param p Proxy
      */
     void addUnlockedProxy(Proxy p) {
-        listOfProxiesGathered.add(p);
-        setOfProxyGathered.add(p);
+        queueOfUnlockedProxies.add(p);
 
     }
 
@@ -680,7 +687,7 @@ class Crawler {
                         sb.append(curr.getProxy()).append(",").append(curr.getPort()).append("\n");
                     }
                     emailSender.send("Proxies blocked by Google", sb.toString());
-                    //Todo: Add them
+                    //Todo: Add them back
                 }
             });
         }
@@ -751,6 +758,9 @@ class Crawler {
         return mapProxyToSelenium;
     }
 
+    ConcurrentLinkedQueue<Proxy> getQueueOfUnlockedProxies() {
+        return queueOfUnlockedProxies;
+    }
     boolean isSeleniumActive() {
         return isSeleniumActive;
     }
