@@ -20,6 +20,7 @@ import javafx.stage.Window;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.openqa.selenium.Cookie;
 import org.openqa.selenium.WebDriver;
 
 import java.io.File;
@@ -118,7 +119,7 @@ public class Controller implements Initializable {
      *                         are trying to
      *                         download the paper itself or the papers that cite the paper
      */
-    private String[] search(String title, boolean isMultipleSearch, String typeOfSearch) {
+    String[] search(String title, boolean isMultipleSearch, String typeOfSearch) {
         updateSearchLabel(typeOfSearch + ",Loading...");
         SearchResultWindow searchResultWindow = new SearchResultWindow();
         guiLabels.associateThreadToSearchResultW(Thread.currentThread().getId(), searchResultWindow);
@@ -226,6 +227,7 @@ public class Controller implements Initializable {
             numOfPDFToDownload = matcher.group();
             try {
                 DoWork task = new DoWork("download", articleName, "searchForCitedBy");
+                task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -252,6 +254,7 @@ public class Controller implements Initializable {
             numOfPDFToDownload = matcher.group();
             try {
                 DoWork task = new DoWork("download", articleName, "searchForTheArticle");
+                task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -273,8 +276,8 @@ public class Controller implements Initializable {
      * @param originalArticle  Title of the article inputted by the user
      * @param typeOfSearch     The type of search that was performed
      */
-    private void download(String currTitle, String URL, boolean isMultipleSearch, String originalArticle,
-                          String typeOfSearch) {
+    void download(String currTitle, String URL, boolean isMultipleSearch, String originalArticle,
+                  String typeOfSearch) {
         String paperDownloaded;
         if (currTitle.equals(originalArticle)) {
             paperDownloaded = currTitle;
@@ -406,6 +409,7 @@ public class Controller implements Initializable {
         Node node = (Node) e.getSource();
         window = node.getScene().getWindow();
         DoWork task = new DoWork("upload", null, null);
+        task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
         singleThreadExecutor.submit((Runnable) task);
 
     }
@@ -413,7 +417,7 @@ public class Controller implements Initializable {
     /**
      * Handles the logic to upload a file into the program.
      */
-    private void openFile() {
+    void openFile() {
         Platform.runLater(() -> {
             FileChooser fileChooser = new FileChooser();
             configureFileChooser(fileChooser);
@@ -453,8 +457,10 @@ public class Controller implements Initializable {
                         this.numOfConnectionsNeeded = 8;
                     }
                     simultaneousDownloadsGUI.addGUI(scrollPanel);
-                    Thread t = new MyThreadFactory().newThread(new DoWork("waitFor4Connections", String.valueOf
-                            (numOfConnectionsNeeded), null));
+                    DoWork task = new DoWork("waitFor4Connections", String.valueOf
+                            (numOfConnectionsNeeded), null);
+                    task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
+                    Thread t = new MyThreadFactory().newThread(task);
                     singleThreadExecutor.submit((t));
 
                 } catch (FileNotFoundException e) {
@@ -539,7 +545,8 @@ public class Controller implements Initializable {
         updateProgressBarMultiple(0.0);
         List<Future> futures = new ArrayList<>();
         for (String article : articleNames) {
-            Controller.DoWork task = new Controller.DoWork("multipleSearch", article, typeOfSearch);
+            DoWork task = new DoWork("multipleSearch", article, typeOfSearch);
+            task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
             futures.add(taskCompletionService.submit(task));
         }
         Task task = new Task() {
@@ -566,7 +573,7 @@ public class Controller implements Initializable {
      * @param s Write: remove, if you want to remove a proxy.
      *          Write: add,proxyNumber to add a new proxy
      */
-    private synchronized void updateWorkingProxiesLabel(String s) {
+    synchronized void updateWorkingProxiesLabel(String s) {
         Platform.runLater(() -> {
             String[] input = s.split(",");
             StringBuilder sb = new StringBuilder();
@@ -594,7 +601,7 @@ public class Controller implements Initializable {
      *
      * @param text text to add to output
      */
-    private void updateConnectionOutput(String text) {
+    void updateConnectionOutput(String text) {
         Platform.runLater(() -> connectionOutput.setText(text + "\n" + connectionOutput.getText()));
     }
 
@@ -603,7 +610,7 @@ public class Controller implements Initializable {
      *
      * @param text String with the type of search and the number of PDFs, separated by a comma
      */
-    private void updateNumberOfPDFs(String text) {
+    void updateNumberOfPDFs(String text) {
         if (text != null) {
             String[] array = text.split(",");
             if (array[0].equals("searchForCitedBy")) {
@@ -620,7 +627,7 @@ public class Controller implements Initializable {
      *
      * @param newVal int with the number of PDFs
      */
-    private void updateNumberOfPDFsMultiple(String newVal) {
+    void updateNumberOfPDFsMultiple(String newVal) {
         String[] array = newVal.split(",");
         if (array[0].equals("searchForCitedBy")) {
             Platform.runLater(() -> pdfsDownloadedMultiple.setText(array[1]));
@@ -634,7 +641,7 @@ public class Controller implements Initializable {
      *
      * @param s String with the search result
      */
-    private void updateSearchLabel(String s) {
+    void updateSearchLabel(String s) {
         if (s != null) {
             String[] array = s.split(",");
 
@@ -654,13 +661,18 @@ public class Controller implements Initializable {
      */
     @FXML
     void alertOnClick(){
+        if (!crawler.isSeleniumActive()) {
+            displayAlert("Chromedriver is not active in this crawler, so you won't be able to unlock proxies.");
+        }
+        else {
             while (crawler.getQueueOfBlockedProxies().size() != 0) {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 Proxy proxy = crawler.getQueueOfBlockedProxies().poll();
 
                 alert.setTitle("Google has detected a robot");
-                alert.setHeaderText("Google has blocked the following proxy: "+proxy.getProxy() +":"+proxy.getPort()+
-                                "\nHelp the crawler by unlocking it. Close the window once you are done and " +
+                alert.setHeaderText("Google has blocked the following proxy: " + proxy.getProxy() + ":" + proxy.getPort() +
+
+                        "\nHelp the crawler by unlocking it. Close the window once you are done and " +
                         "press\nthe 'Proxy is Unlocked' button");
                 alert.setContentText(null);
 
@@ -675,24 +687,25 @@ public class Controller implements Initializable {
                 final WebDriver[] driver = {null};
                 final Button unlockButton = (Button) alert.getDialogPane().lookupButton(unlock);
                 final Button proxyIsUnlockedButton = (Button) alert.getDialogPane().lookupButton(proxyIsUnlocked);
-
+                final WebDriver[] myDrive = {null};
                 unlockButton.addEventFilter(
                         ActionEvent.ACTION,
                         event -> {
                             if (!unlockButton.getText().equals("Can't be unlocked")) {
                                 //If the text of the button is Unlock Proxy
                                 ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
-                                driver[0] = proxyChanger.useChromeDriver(proxy, true, null);
+                                driver[0] = proxyChanger.useChromeDriver(proxy, true, null, null);
                                 alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(false);
                                 proxyIsUnlockedButton.setDefaultButton(true);
 
                                 ((Button) alert.getDialogPane().lookupButton(unlock)).setText("Can't be unlocked");
                                 //Don't close window yet
                                 event.consume();
-                            }
-                            else {
+                            } else {
                                 driver[0].close();
                                 driver[0].quit();
+
+
                             }
 
                         }
@@ -700,8 +713,10 @@ public class Controller implements Initializable {
 
                 Optional<ButtonType> result = alert.showAndWait();
                 if (result.get() != unlock) {
-                    if (result.get()==proxyIsUnlocked) {
+                    if (result.get() == proxyIsUnlocked) {
 
+                        //Store the cookie of the brower that solved the captcha
+                        Set<Cookie> cookies = driver[0].manage().getCookies();
                         //Add it to queue of working proxies
                         try {
                             driver[0].close();
@@ -710,8 +725,7 @@ public class Controller implements Initializable {
 
                         }
                         crawler.addUnlockedProxy(proxy);
-                    }
-                    else {
+                    } else {
                         //If user press cancel, we add it back to the list of blocked proxies
                         crawler.getQueueOfBlockedProxies().add(proxy);
                         break;
@@ -721,6 +735,7 @@ public class Controller implements Initializable {
             if (crawler.getQueueOfBlockedProxies().size() == 0) {
                 guiLabels.setIsThereAnAlert(false);
             }
+        }
 
     }
 
@@ -729,7 +744,7 @@ public class Controller implements Initializable {
      *
      * @param message String with the message to display
      */
-    private void displayAlert(String message) {
+    void displayAlert(String message) {
         Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
@@ -745,7 +760,7 @@ public class Controller implements Initializable {
      *
      * @param num Double with the current progress out of 1
      */
-    private void updateProgressBar(Double num) {
+    void updateProgressBar(Double num) {
         Platform.runLater(() -> progressBar.progressProperty().setValue(num));
     }
 
@@ -754,7 +769,7 @@ public class Controller implements Initializable {
      *
      * @param num Double with the current progress out of 1
      */
-    private void updateProgressBarMultiple(Double num) {
+    void updateProgressBarMultiple(Double num) {
         Platform.runLater(() -> progressBarMultiple.progressProperty().setValue(num));
     }
 
@@ -763,7 +778,7 @@ public class Controller implements Initializable {
      *
      * @param message String with the message to output
      */
-    private void updateOutput(String message) {
+    void updateOutput(String message) {
         Platform.runLater(() -> {
             output.setText(message);
             if (message.equals("Connected!")) {
@@ -898,6 +913,7 @@ public class Controller implements Initializable {
         guiLabels = new GUILabelManagement();
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         DoWork task = new DoWork("initialize", null, null);
+        task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
         Thread thread = new MyThreadFactory().newThread(task);
         thread.setDaemon(true);
         thread.start();
@@ -943,238 +959,36 @@ public class Controller implements Initializable {
         }
     }
 
-    /**
-     * Inner Task class. Allows to perform computations in the background while keeping GUI responsive
-     */
-    class DoWork extends Task<Void> implements Callable {
-        //Type of task that will be performed
-        private final String type;
-        private final String typeOfSearch;
-        private String article;
-        private String originalArticle;
 
-
-        /**
-         * Initializes new task. Takes as a parameter the type of task that will be performed. Task include:
-         * download, search, initialize, close, multipleSearch, and waitFor4Connections
-         * And the title of the article associated with the thread.
-         *
-         * @param type         String with the type of task
-         * @param article      Article associated with the thread
-         * @param typeOfSearch Search for the article itself, or for the articles that cite the article
-         */
-        DoWork(String type, String article, String typeOfSearch) {
-            this.type = type;
-            this.article = article;
-            this.originalArticle = article;
-            this.typeOfSearch = typeOfSearch;
-        }
-
-        /**
-         * Called upon start of task. Depending on the task, it processes a different method
-         *
-         * @return null
-         */
-        @Override
-        public Void call() {
-
-            //The different types of background tasks that need to be completed
-            switch (type) {
-                case "waitFor4Connections":
-                    loading = new LoadingWindow();
-                    //Create a new loading box to display while application loads
-                    Platform.runLater(() -> loading.display());
-
-                    int currQueueSize = crawler.getQueueOfConnections().size();
-                    updateOutputMultiple("Connecting to " + Integer.valueOf(article) + " different proxies...");
-
-                    while (currQueueSize < Integer.valueOf(article)) {
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        currQueueSize = crawler.getQueueOfConnections().size();
-                    }
-                    Platform.runLater(() -> loading.close());
-                    updateOutputMultiple("Connected!");
-
-                    break;
-                case "multipleSearch":
-                    //Add thread to a group
-                    simultaneousDownloadsGUI.addThreadToGroup(Thread.currentThread().getId());
-                    simultaneousDownloadsGUI.updateStatus("Searching...");
-                    simultaneousDownloadsGUI.updateArticleName("Not set");
-                    String url = "";
-                    simultaneousDownloadsGUI.updateProgressBar(0.0);
-                    String[] result = search(article, true, typeOfSearch);
-                    String numOfCitations = result[0];
-
-
-                    if (numOfCitations.isEmpty() || numOfCitations.equals("Provide feedback")) {
-                        //We don't download if this happens and omit the file
-                        simultaneousDownloadsGUI.updateStatus("File was not found");
-                        simultaneousDownloadsGUI.updateProgressBar(1.0);
-                        //Set the progress bar, increment counter, countdown the latch
-                        atomicCounter.increment();
-                        Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
-                        Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
-
-                        updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "  Download " +
-                                "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
-
-                        Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
-                        //Add to the list of files that could not be downloaded
-                        File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                        Logger logger = Logger.getInstance();
-                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch, true);
-                        //Also add download to list of completed downloads since we have already processed it
-                        if (currPercentage >= 0.99) {
-                            updateOutputMultiple("All files have been downloaded");
-                        }
-                        updateProgressBarMultiple(currPercentage);
-                        break;
-
-                    } else if (numOfCitations.equals("There was more than 1 result found for your given query")) {
-                        //Get search result window
-
-                        SearchResultWindow searchResultWindow = guiLabels.getMapThreadToSearchResultW().get(Thread
-                                .currentThread().getId());
-                        if (searchResultWindow.getNumberOfCitations().equals("File not downloaded")) {
-                            simultaneousDownloadsGUI.updateStatus("File was not downloaded");
-                            simultaneousDownloadsGUI.updateProgressBar(1.0);
-                            atomicCounter.increment();
-                            Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
-                            Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
-
-                            updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "  Download " +
-                                    "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
-
-                            Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
-                            if (currPercentage >= 0.999) {
-                                updateOutputMultiple("All files have been downloaded");
-                            }
-                            File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                            Logger logger = Logger.getInstance();
-                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch, true);
-                            updateProgressBarMultiple(currPercentage);
-                            break;
-                        } else {
-                            url = searchResultWindow.getCitingPapersURL();
-                            article = mapThreadToTitle.get(Thread.currentThread().getId());
-                        }
-                    }
-                    simultaneousDownloadsGUI.updateStatus("Done searching");
-                    if (url.isEmpty()) {
-                        //If url was not updated in search result window, then it was obtained through a normal search
-                        url = result[1];
-                    }
-                    simultaneousDownloadsGUI.updateStatus("Starting to download articles...");
-                    simultaneousDownloadsGUI.updateProgressBar(0.3);
-                    download(article, url, true, originalArticle, typeOfSearch);
-                    simultaneousDownloadsGUI.updateProgressBar(1.0);
-                    simultaneousDownloadsGUI.updateStatus("Done");
-                    atomicCounter.increment();
-                    Double rate = (numOfSuccessful.value()/(double) atomicCounter.value()) * 100;
-                    Double rate2 = (numOfSuccessfulGral.value()/(double) atomicCounter.value()) * 100;
-
-                    updateOutputMultiple("Downloads completed - " + atomicCounter.value()+ "  Download " +
-                            "rate: ~"+String.format("%.2f", rate) +"% | "+String.format("%.2f", rate2)+"%");
-
-                    Double currPercentage = atomicCounter.value() / ((double) atomicCounter.getMaxNumber());
-                    if (currPercentage >= 0.999) {
-                        updateOutputMultiple("All files have been downloaded");
-                    }
-                    updateProgressBarMultiple(currPercentage);
-                    break;
-
-                case "download":
-                    progressBar.progressProperty().setValue(0);
-                    if (article != null) {
-                        mapThreadToTitle.put(Thread.currentThread().getId(), article);
-                    }
-                    Logger logger = Logger.getInstance();
-                    updateOutput("Searching...");
-                    result = search(article, false, typeOfSearch);
-                    numOfCitations = result[0];
-                    //In case the title changed, then retrieve the new article name
-                    article = mapThreadToTitle.get(Thread.currentThread().getId());
-                    progressBar.progressProperty().setValue(1);
-
-                    if (numOfCitations.isEmpty() || numOfCitations.equals("Provide feedback")) {
-                        //We don't download if this happens and omit the file
-                        updateSearchLabel(typeOfSearch + ",File was not found");
-                        guiLabels.setOutput("File was not found");
-
-                        //Add it to the list of files not downloaded and to the files completed
-                        File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                        logger.writeToLogFileNotFound(file, originalArticle, typeOfSearch, false);
-                        break;
-
-                    } else if (numOfCitations.equals("There was more than 1 result found for your given query")) {
-                        //Get search result window
-                        SearchResultWindow searchResultWindow = guiLabels.getMapThreadToSearchResultW().get(Thread
-                                .currentThread().getId());
-                        if (searchResultWindow.getNumberOfCitations().equals("File not downloaded")) {
-                            guiLabels.setOutput("File was not downloaded");
-                            updateSearchLabel(typeOfSearch + ",File was not downloaded");
-                            File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
-                            logger.fileNotDownloadedSearchResultWindow(file, originalArticle, typeOfSearch, false);
-                            break;
-                        } else {
-                            updateSearchLabel(typeOfSearch + ",Search result selected");
-                        }
-                    }
-                    updateSearchLabel(typeOfSearch + ",Done searching");
-                    //Downloads articles that cite a given article
-                    progressBar.progressProperty().setValue(0);
-                    download(mapThreadToTitle.get(Thread.currentThread().getId()), citingPapersURL, false,
-                            originalArticle, typeOfSearch);
-                    progressBar.progressProperty().setValue(1);
-                    updateOutput("All files have been downloaded!");
-                    break;
-
-                case "upload":
-                    openFile();
-                    break;
-
-                default:
-                    //Loading crawler case
-                    loading = new LoadingWindow();
-                    //Create a new loading box to display while application loads
-                    Platform.runLater(() -> loading.display());
-                    crawler = new Crawler(guiLabels);
-                    //For single article mode
-                    guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> displayAlert(newValue));
-                    guiLabels.getOutput().addListener((observable, oldValue, newValue) -> updateOutput(newValue));
-                    guiLabels.getLoadBar().addListener((observable, oldValue, newValue) -> updateProgressBar(newValue
-                            .doubleValue()));
-                    guiLabels.getSearchResultLabel().addListener(((observable, oldValue, newValue) ->
-                            updateSearchLabel(newValue)));
-                    guiLabels.getConnectionOutput().addListener(((observable, oldValue, newValue) ->
-                            updateConnectionOutput(newValue)));
-                    guiLabels.getNumberOfWorkingIPs().addListener(((observable, oldValue, newValue) ->
-                            updateWorkingProxiesLabel(newValue)));
-                    guiLabels.getNumberOfPDFs().addListener(((observable, oldValue, newValue) -> updateNumberOfPDFs
-                            (String.valueOf(newValue))));
-                    //For multiple article mode
-                    guiLabels.getOutputMultiple().addListener((observable, oldValue, newValue) ->
-                            updateOutputMultiple(newValue));
-                    guiLabels.getLoadBarMultiple().addListener((observable, oldValue, newValue) ->
-                            updateProgressBarMultiple(newValue.doubleValue()));
-                    guiLabels.getNumberOfPDFsMultiple().addListener((observable, oldValue, newValue) ->
-                            updateNumberOfPDFsMultiple(newValue));
-                    guiLabels.getIsThereAnAlert().addListener((observable, oldValue, newValue) -> {
-                            alertButton.setVisible(newValue);
-                            alertButton2.setVisible(newValue);
-            });
-                    //Load the crawler
-                    crawler.loadCrawler();
-                    break;
-            }
-            return null;
-        }
+    AtomicCounter getAtomicCounter() {
+        return atomicCounter;
     }
 
+    AtomicCounter getNumOfSuccessful() {
+        return numOfSuccessful;
+    }
 
+    AtomicCounter getNumOfSuccessfulGral() {
+        return numOfSuccessfulGral;
+    }
+
+    JFXButton getAlertButton() {
+        return alertButton;
+    }
+
+    JFXButton getAlertButton2() {
+        return alertButton2;
+    }
+
+    ProgressBar getProgressBar() {
+        return progressBar;
+    }
+
+    Map<Long, String> getMapThreadToTitle() {
+        return mapThreadToTitle;
+    }
+
+    String getCitingPapersURL() {
+        return citingPapersURL;
+    }
 }

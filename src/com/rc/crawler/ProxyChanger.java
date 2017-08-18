@@ -9,23 +9,24 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.support.ui.ExpectedCondition;
-import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -130,7 +131,6 @@ class ProxyChanger {
                 if (crawler.getQueueOfUnlockedProxies().size() != 0) {
                     proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
                     System.out.println("Using proxy from unlocked proxies");
-                    useChromeDriver(proxyToBeUsed, true, url);
                 }
                 //If there are no unlocked proxies, or the queue returned null, try finding a new connection
                 if (proxyToBeUsed == null) {
@@ -356,7 +356,8 @@ class ProxyChanger {
             }
         } catch (Exception e) {
             guiLabels.setAlertPopUp("There was a problem downloading chrome driver. You won't be able to use " +
-                    "Javascript-enabled websites with this crawler. If you believe that this is an error, try " +
+                    "Javascript-enabled websites nor unlock proxies with this crawler. If you believe that this is an" +
+                    " error, try " +
                     "restarting this crawler.\nYou can also manually download it and put it in the same directory" +
                     " where this crawler is located, just decompress the folder, change the folder name to " +
                     "chromedriver and restart the crawler.");
@@ -594,13 +595,12 @@ class ProxyChanger {
             }
 
 
-            DesiredCapabilities caps = new DesiredCapabilities();
-            caps.setJavascriptEnabled(true);
-            if (usesProxy) {
-                caps.setCapability(CapabilityType.PROXY, nProxy);
-            }
-
-            WebDriver driver = new PhantomJSDriver(caps);
+//            DesiredCapabilities caps = new DesiredCapabilities();
+//            caps.setJavascriptEnabled(true);
+//            if (usesProxy) {
+//                caps.setCapability(CapabilityType.PROXY, nProxy);
+//            }
+//            WebDriver driver = new HtmlUnitDriver(caps);
 //            HtmlUnitDriver driver = new HtmlUnitDriver(caps) {
 //                    @Override
 //                    protected WebClient newWebClient(BrowserVersion version) {
@@ -612,6 +612,23 @@ class ProxyChanger {
 //            };
 
 //            driver.setJavascriptEnabled(true);
+
+            ArrayList<String> cliArgsCap = new ArrayList<>();
+            DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
+            cliArgsCap.add("--web-security=false");
+            cliArgsCap.add("--ssl-protocol=any");
+            cliArgsCap.add("--ignore-ssl-errors=true");
+            if (usesProxy) {
+                cliArgsCap.add("--proxy=" + proxyToUse.getProxy() + ":" + proxyToUse.getPort());
+            }
+            capabilities.setCapability(
+                    PhantomJSDriverService.PHANTOMJS_CLI_ARGS, cliArgsCap);
+            if (usesProxy) {
+                capabilities.setCapability(CapabilityType.PROXY, nProxy);
+            }
+
+            //Initiate the driver
+            PhantomJSDriver driver = new PhantomJSDriver(capabilities);
 
             String pageSource = "";
             try {
@@ -625,6 +642,7 @@ class ProxyChanger {
                 e.printStackTrace();
             } finally {
                 try {
+                    //Close the driver
                     driver.close();
                     driver.quit();
                     driver = null;
@@ -644,7 +662,9 @@ class ProxyChanger {
 
             doc = Jsoup.parse(pageSource);
 
-            //These errors cannnot be fixed
+            //Check for errors
+
+            //These errors cannot be fixed
             if (pageSource.contains("This site can’t be reached") ||
                     pageSource.contains("ERR_PROXY_CONNECTION_FAILED") ||
                     pageSource.contains("your computer or network may be sending " +
@@ -654,16 +674,18 @@ class ProxyChanger {
                     pageSource.split(" ").length < 200) {
                 throw new IllegalArgumentException();
             }
-            //This errors can be fixed
+            //These errors can be fixed
             if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
                     pageSource.contains("Our systems have detected unusual traffic from your computer network")) {
                 System.out.println("There is a blocked proxy");
                 //Add to the queue of blocked proxies
-                crawler.getQueueOfBlockedProxies().add(proxyToUse);
-                //Notify GUI
-                guiLabels.setIsThereAnAlert(true);
-                //Send email if possible
-                crawler.sendBlockedProxies();
+                if (crawler.isSeleniumActive()) {
+                    crawler.getQueueOfBlockedProxies().add(proxyToUse);
+                    //Notify GUI
+                    guiLabels.setIsThereAnAlert(true);
+                    //Send email if possible
+                    crawler.sendBlockedProxies();
+                }
                 throw new IllegalArgumentException();
             }
 
@@ -697,7 +719,7 @@ class ProxyChanger {
      *
      * @param input  InputStream
      * @param output OutputStream
-     * @throws IOException
+     * @throws IOException Error copying file
      */
     private static void copy(InputStream input, OutputStream output) throws IOException {
         byte[] buf = new byte[1024];
@@ -714,8 +736,8 @@ class ProxyChanger {
      *
      * @param zipFilePath   zip location
      * @param destDirectory destination
-     * @return
-     * @throws IOException
+     * @return name of the unzipped file
+     * @throws IOException Error writing to file
      */
     private String unzip(String zipFilePath, String destDirectory) throws IOException {
         String mainFile = "";
@@ -745,6 +767,7 @@ class ProxyChanger {
             entry = zipIn.getNextEntry();
         }
         zipIn.close();
+        //Delete the zip file
         new File(zipFilePath).delete();
         return mainFile;
     }
@@ -769,7 +792,7 @@ class ProxyChanger {
      *
      * @return WebDriver
      */
-    WebDriver useChromeDriver(Proxy proxy, boolean usesProxy, String url) {
+    WebDriver useChromeDriver(Proxy proxy, boolean usesProxy, String url, Set<Cookie> cookies) {
         ChromeDriver driver = null;
         try {
             org.openqa.selenium.Proxy nProxy = null;
@@ -793,6 +816,11 @@ class ProxyChanger {
             driver = new ChromeDriver(caps);
             driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
 
+            if (cookies!= null) {
+                for (Cookie cookie : cookies) {
+                    driver.manage().addCookie(cookie);
+                }
+            }
             if (url == null) {
                 driver.get("https://scholar.google.com/scholar?hl=en&q=this+is+the+one&btnG=&as_sdt=1%2C39&as_sdtp=");
             } else {
@@ -805,6 +833,7 @@ class ProxyChanger {
                 Thread.sleep(5000);
             } catch (Exception ex) {
             }
+
         } catch (Exception | Error e) {
             guiLabels.setAlertPopUp(e.getMessage());
         }

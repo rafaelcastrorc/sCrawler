@@ -6,6 +6,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
+import org.openqa.selenium.Cookie;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -49,18 +50,14 @@ class Crawler {
     private boolean speedUp;
     private AtomicCounter atomicCounter = new AtomicCounter();
     private boolean thereIsConnection = true;
-    //Is the crawler capable of parsing javascript websites
-    private boolean isSeleniumActive;
     private boolean threadIsGettingMoreProxies = false;
-    private ConcurrentLinkedQueue<Proxy> blockedProxies = new ConcurrentLinkedQueue<>();
-    private Map<Proxy, Boolean> mapProxyToSelenium = Collections.synchronizedMap(new HashMap<Proxy, Boolean>());
     private EmailSender emailSender;
-    private ConcurrentLinkedQueue<Proxy> queueOfUnlockedProxies = new ConcurrentLinkedQueue<>();
-
+    //Holds the different objects that are active when the crawler can parse javacript
+    private JavascriptEnabledCrawler javaScriptEnabledCrawler;
 
 
     /**
-     * Constructor.
+     * Constructor. Initializes the Crawler GUI and verifies if there is internet connection.
      */
     Crawler(GUILabelManagement guiLabels) {
         this.guiLabels = guiLabels;
@@ -68,7 +65,7 @@ class Crawler {
         guiLabels.setLoadBar(0);
         guiLabels.setOutput("Initializing...");
         guiLabels.setOutputMultiple("Initializing...");
-        //Check if there is an internet connection
+        //Check if there is an internet connection every 2  seconds while the crawler is active
         ExecutorService connectionVerifier = Executors.newSingleThreadExecutor(new MyThreadFactory());
         connectionVerifier.submit((Runnable) () -> {
             boolean lostConnection = false;
@@ -120,8 +117,10 @@ class Crawler {
 
         //Download selenium
         ProxyChanger pr = new ProxyChanger(guiLabels, this);
-        isSeleniumActive = pr.setUpSelenium();
-
+        //Check if its active
+        boolean isSeleniumActive = pr.setUpSelenium();
+        this.javaScriptEnabledCrawler = new JavascriptEnabledCrawler();
+        javaScriptEnabledCrawler.setSeleniumActive(isSeleniumActive);
         getProxies();
         guiLabels.setOutput("Establishing connections...");
         guiLabels.setOutputMultiple("Establishing connections...");
@@ -516,7 +515,7 @@ class Crawler {
      */
     Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
         ProxyChanger proxyChanger = new ProxyChanger(guiLabels, this);
-        proxyChanger.setSeleniumIsEnabled(isSeleniumActive);
+        proxyChanger.setSeleniumIsEnabled(javaScriptEnabledCrawler.isSeleniumActive());
         return proxyChanger.getProxy(url, hasSearchBefore, comesFromThread);
     }
 
@@ -662,7 +661,9 @@ class Crawler {
      * @param p Proxy
      */
     void addUnlockedProxy(Proxy p) {
-        queueOfUnlockedProxies.add(p);
+        if (javaScriptEnabledCrawler.isSeleniumActive()) {
+            javaScriptEnabledCrawler.getQueueOfUnlockedProxies().add(p);
+        }
 
     }
 
@@ -671,8 +672,9 @@ class Crawler {
      */
     synchronized void sendBlockedProxies() {
         //Todo: chnage to 10
-        if (blockedProxies.size() >= 50) {
+        if (javaScriptEnabledCrawler.getBlockedProxies().size() >= 50) {
             Platform.runLater(() -> {
+                //Check if email sender is active first
                 if (emailSender.getIsActive()) {
                     String message = "The following proxies have been blocked by Google, please unlock them.\n" +
                             "To do so, connect to the proxy using your browser, navigate to scholar.goole.com,\n" +
@@ -682,8 +684,8 @@ class Crawler {
                             "Proxy,Port\n";
                     StringBuilder sb = new StringBuilder();
                     sb.append(message);
-                    while (!blockedProxies.isEmpty()) {
-                        Proxy curr = blockedProxies.poll();
+                    while (!javaScriptEnabledCrawler.getBlockedProxies().isEmpty()) {
+                        Proxy curr = javaScriptEnabledCrawler.getBlockedProxies().poll();
                         sb.append(curr.getProxy()).append(",").append(curr.getPort()).append("\n");
                     }
                     emailSender.send("Proxies blocked by Google", sb.toString());
@@ -751,18 +753,15 @@ class Crawler {
     }
 
     Queue<Proxy> getQueueOfBlockedProxies() {
-        return blockedProxies;
+        return javaScriptEnabledCrawler.getBlockedProxies();
     }
 
-    Map<Proxy, Boolean> getMapProxyToSelenium() {
-        return mapProxyToSelenium;
+    Map<Proxy, Boolean> getMapProxyToSelenium() {return javaScriptEnabledCrawler.getMapProxyToSelenium();
     }
 
-    ConcurrentLinkedQueue<Proxy> getQueueOfUnlockedProxies() {
-        return queueOfUnlockedProxies;
+    ConcurrentLinkedQueue<Proxy> getQueueOfUnlockedProxies() {return javaScriptEnabledCrawler.getQueueOfUnlockedProxies();
     }
-    boolean isSeleniumActive() {
-        return isSeleniumActive;
+    boolean isSeleniumActive() {return javaScriptEnabledCrawler.isSeleniumActive();
     }
 }
 

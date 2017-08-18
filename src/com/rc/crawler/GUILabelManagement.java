@@ -21,10 +21,11 @@ class GUILabelManagement {
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
     private StringProperty numberOfPDFsMultiple = new SimpleStringProperty();
-    private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long, SearchResultWindow>());
+    private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long,
+            SearchResultWindow>());
     private BooleanProperty isThereAnAlert = new SimpleBooleanProperty();
 
-     BooleanProperty getIsThereAnAlert() {
+    BooleanProperty getIsThereAnAlert() {
         return isThereAnAlert;
     }
 
@@ -185,9 +186,10 @@ class GUILabelManagement {
 
     /**
      * Changes GUI if there is an alert to display
+     *
      * @param isThereAnAlert true if it needs to display alert button
      */
-    public void setIsThereAnAlert(boolean isThereAnAlert) {
+    void setIsThereAnAlert(boolean isThereAnAlert) {
         this.isThereAnAlert.set(isThereAnAlert);
     }
 
