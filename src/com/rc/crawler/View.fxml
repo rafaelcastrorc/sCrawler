@@ -211,7 +211,7 @@
                                                       <Font name="Roboto Light" size="16.0" />
                                                    </font>
                                                 </Label>
-                                                <JFXButton fx:id="alertButton" alignment="CENTER" onAction="#alertOnClick" style="-fx-background-color: #690c0c;" text="ALERT" textFill="WHITE" visible="false">
+                                                <JFXButton fx:id="alertButton" alignment="CENTER" onAction="#proxyAlertOnClick" style="-fx-background-color: #690c0c;" text="ALERT" textFill="WHITE" visible="false">
                                                    <font>
                                                       <Font name="Roboto Light" size="9.0" />
                                                    </font>
@@ -417,7 +417,7 @@
                                                             <Font name="Roboto Light" size="16.0" />
                                                          </font>
                                                       </Label>
-                                                      <JFXButton fx:id="alertButton2" alignment="CENTER" onAction="#alertOnClick" style="-fx-background-color: #690c0c;" text="ALERT" textFill="WHITE" visible="false">
+                                                      <JFXButton fx:id="alertButton2" alignment="CENTER" onAction="#proxyAlertOnClick" style="-fx-background-color: #690c0c;" text="ALERT" textFill="WHITE" visible="false">
                                                          <font>
                                                             <Font name="Roboto Light" size="9.0" />
                                                          </font>

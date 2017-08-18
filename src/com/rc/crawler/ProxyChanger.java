@@ -26,6 +26,7 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
@@ -40,7 +41,6 @@ class ProxyChanger {
     private Crawler crawler;
     private boolean isError404;
     private boolean thereWasAnErrorWithProxy = false;
-    private boolean seleniumIsEnabled = false;
 
     ProxyChanger(GUILabelManagement guiLabels, Crawler crawler) {
         this.guiLabels = guiLabels;
@@ -60,6 +60,15 @@ class ProxyChanger {
         }
     }
 
+
+    /**
+     * Retrieves a Document after parsing a website.
+     *
+     * @param url             URL of the site that will be parsed
+     * @param hasSearchBefore Has the current thread perform a previous search
+     * @param comesFromThread Was this method called from a thread
+     * @return Document
+     */
     Document getProxy(String url, boolean hasSearchBefore, boolean comesFromThread) {
         long currThreadID = Thread.currentThread().getId();
 
@@ -118,18 +127,18 @@ class ProxyChanger {
         if (comesFromThread) {
             boolean connected = false;
             boolean thereWasAnError = false;
-            Proxy proxyToBeUsed = null;
+            Set<Cookie> cookies = null;
             while (!connected) {
-
+                Proxy proxyToBeUsed = null;
                 if (!crawler.isThereConnection()) {
-
                     guiLabels.setOutput("No internet connection");
                     guiLabels.setOutputMultiple("No internet connection");
                     verifyIfThereIsConnection();
                 }
                 //Try to use one of the unlocked proxies first
-                if (crawler.getQueueOfUnlockedProxies().size() != 0) {
+                if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
                     proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
+                    cookies = crawler.getMapProxyToCookie().get(proxyToBeUsed);
                     System.out.println("Using proxy from unlocked proxies");
                 }
                 //If there are no unlocked proxies, or the queue returned null, try finding a new connection
@@ -141,55 +150,18 @@ class ProxyChanger {
                     if (!thereWasAnError) {
                         guiLabels.setConnectionOutput("Connecting to Proxy...");
                     }
-
-                    if (seleniumIsEnabled) {
-                        doc = null;
-                        doc = useSelenium(proxyToBeUsed, url, true);
-                        //Google flagged this proxy if this happens
-                        if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
-                                doc.text().contains("your computer or network may be sending automated queries")) {
-                            throw new IllegalArgumentException();
-                        }
-
+                    //If Selenium is enabled, get the Document using a webdriver
+                    if (crawler.isSeleniumActive()) {
+                        doc = useSelenium(proxyToBeUsed, url, true, cookies);
                         //If no error happens add it
                         connected = true;
                         crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
-                        crawler.getMapProxyToSelenium().put(proxyToBeUsed, true);
-                    }
-                    else {
-
-                        //Connect to proxy using java net class
-                        java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress
-                                (proxyToBeUsed
-                                        .getProxy(), proxyToBeUsed.getPort()));
-
-                        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(proxy);
-                        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
-                                "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
-                        connection.setRequestProperty("Referer", "https://scholar.google.com/");
-                        connection.connect();
-
-                        String line;
-                        StringBuffer tmp = new StringBuffer();
-                        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                        while ((line = in.readLine()) != null) {
-                            tmp.append(line);
-                        }
-
-                        doc = Jsoup.parse(String.valueOf(tmp));
-
-                        //Google flagged this proxy if this happens
-                        if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
-                                doc.text().contains("your computer or network may be sending automated queries")) {
-                            throw new IllegalArgumentException();
-                        }
-
+                    } else {
+                        doc = getDocUsingJavaNetClass(proxyToBeUsed, url);
                         //If no error happens add it
                         connected = true;
                         crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
-                        crawler.getMapProxyToSelenium().put(proxyToBeUsed, true);
                     }
-
                 } catch (HttpStatusException e) {
                     //If this error happens, this proxy cannot be used
                     if (e.getUrl().contains("ipv4.google.com/sorry")) {
@@ -197,15 +169,354 @@ class ProxyChanger {
                     }
                     System.out.println("HTTTP STATUS EXCEPTION");
                     e.printStackTrace();
-
                 } catch (Exception e) {
-                    //e.printStackTrace();
                     thereWasAnError = true;
-
                 }
             }
         }
         return doc;
+    }
+
+    /**
+     * Connects to a working proxy from the queue of connections
+     *
+     * @param url          URL that the program is trying to connect to
+     * @param currThreadID ID of the current thread
+     * @return doc
+     */
+    private Document connectToProxyFromQueue(long currThreadID, String url) {
+
+        //Check if the proxy has more than 40 connections, if so, replace it.
+        if (crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get(currThreadID)) > 40) {
+            guiLabels.setConnectionOutput("Proxy has more than 40 requests");
+        }
+        int limit = 3;
+        if (url.contains("scholar.google")) {
+            limit = 30;
+        }
+        boolean connected = false;
+        Document doc = null;
+        int attempt = 0;
+        while (!connected) {
+
+            if (!thereWasAnErrorWithProxy && attempt > 0) {
+                //Add it again to queue if it did not produce an actual error (non website related)
+                crawler.getQueueOfConnections().add(crawler.getMapThreadIdToProxy().get(currThreadID));
+            }
+            if (thereWasAnErrorWithProxy) {
+                //If there was an actual error, reset the counter.
+                attempt = 0;
+            }
+            thereWasAnErrorWithProxy = false;
+            //Get an ip from the working list
+            Proxy proxyToUse = crawler.getQueueOfConnections().poll();
+            //If the proxy is null, or it has more than 40 request for the current website, then trying finding a new
+            //one
+            boolean first = true;
+            while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40) {
+
+                //Since we are using a new proxy, we need to find a replacement
+                if (first) {
+                    Request request = new Request(true, "getConnection", crawler, guiLabels);
+                    crawler.getExecutorService().submit(request);
+                    guiLabels.setNumberOfWorkingIPs("remove,none");
+                    first = false;
+                }
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ignored) {
+                }
+                if (proxyToUse != null) {
+                    //If the previous proxy was not null add it again
+                    crawler.getQueueOfConnections().add(proxyToUse);
+                }
+                proxyToUse = crawler.getQueueOfConnections().poll();
+
+            }
+
+            crawler.getMapThreadIdToProxy().put(currThreadID, proxyToUse);
+            //Since we are using a new proxy, we need to find a replacement
+            //If there are already 12 proxies in the queue, then don't add more
+            if (crawler.getQueueOfConnections().size() <= 12 && !isError404) {
+                Request request = new Request(true, "getConnection", crawler, guiLabels);
+                crawler.getExecutorService().submit(request);
+                guiLabels.setNumberOfWorkingIPs("remove,none");
+            }
+
+            try {
+                //Check if selenium is active
+                if (crawler.isSeleniumActive()) {
+                    //Check if the proxy requires cookies
+                    Set<Cookie> cookies = null;
+                    if (crawler.getMapProxyToCookie().containsKey(proxyToUse)) {
+                        cookies = crawler.getMapProxyToCookie().get(proxyToUse);
+                    }
+                    doc = useSelenium(proxyToUse, url, true, cookies);
+                } else {
+                    doc = getDocUsingJavaNetClass(proxyToUse, url);
+                }
+                if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
+                        doc.text().contains("your computer or network may be sending automated queries")) {
+                    throw new IllegalArgumentException("Google flagged your IP as a bot. Changing to a different " +
+                            "one");
+
+                }
+                connected = true;
+            } catch (HttpStatusException e) {
+                //e.printStackTrace(System.out);
+                guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
+                        "queue.");
+                if (attempt > limit) {
+                    break;
+                }
+                attempt++;
+                guiLabels.setConnectionOutput(e.getMessage());
+            } catch (Exception e) {
+                e.printStackTrace(System.out);
+                guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
+                        "queue. Removing it");
+                thereWasAnErrorWithProxy = true;
+                attempt++;
+            }
+            crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID));
+        }
+        return doc;
+    }
+
+
+    /**
+     * Reuse a previously working proxy
+     *
+     * @param url          URL that the program is trying to connect to
+     * @param currThreadID ID of the current thread
+     */
+    private Document useProxyAgain(String url, long currThreadID) {
+        Proxy ipAndPort = crawler.getMapThreadIdToProxy().get(currThreadID);
+        Document doc = null;
+
+        try {
+            Set<Cookie> cookies = null;
+            if (crawler.isSeleniumActive()) {
+                //Check if the proxy requires cookies
+                if (crawler.getMapProxyToCookie().containsKey(ipAndPort)) {
+                    cookies = crawler.getMapProxyToCookie().get(ipAndPort);
+                }
+                doc = useSelenium(ipAndPort, url, true, cookies);
+            } else {
+                doc = getDocUsingJavaNetClass(ipAndPort, url);
+            }
+
+
+        } catch (HttpStatusException e2) {
+            //Handle the errors
+            e2.printStackTrace(System.out);
+            guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
+                    ".\nChanging to a different one");
+            this.isError404 = e2.getStatusCode() == 404 || e2.getStatusCode() == 401 || e2.getStatusCode() == 403 ||
+                    e2.getStatusCode() == 403;
+            //Add it back to the queue if it is error 404, since it is not a problem of the proxy
+            if (isError404) {
+                crawler.getQueueOfConnections().add(ipAndPort);
+            } else {
+                thereWasAnErrorWithProxy = true;
+            }
+            guiLabels.setConnectionOutput(e2.getMessage());
+
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+            thereWasAnErrorWithProxy = true;
+            guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
+                    ".\nChanging to a different one");
+        }
+        return doc;
+    }
+
+    /**
+     * Retrieves a document using java net class
+     */
+    private Document getDocUsingJavaNetClass(Proxy proxyToBeUsed, String url) throws IOException {
+        //Connect to proxy using java net class
+        java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress
+                (proxyToBeUsed.getProxy(), proxyToBeUsed.getPort()));
+
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(proxy);
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
+                "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
+        connection.setRequestProperty("Referer", "https://scholar.google.com/");
+        connection.connect();
+
+        //Check for response code
+        if (connection.getResponseCode() != 200) {
+            throw new HttpStatusException(connection.getResponseMessage(), connection.getResponseCode(),
+                    connection.getURL().toString());
+        }
+        String line;
+        StringBuffer tmp = new StringBuffer();
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        while ((line = in.readLine()) != null) {
+            tmp.append(line);
+        }
+
+        Document doc = Jsoup.parse(String.valueOf(tmp));
+
+        //Google flagged this proxy if this happens
+        if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
+                doc.text().contains("your computer or network may be sending automated queries")) {
+            throw new IllegalArgumentException();
+        }
+        return doc;
+    }
+
+
+    /**
+     * Use selenium to parse a website
+     *
+     * @param proxyToUse Proxy
+     * @param url        url that needs to be parsed
+     * @param cookies    Set of cookies. Null if there are no cookies
+     * @return Document
+     */
+    Document useSelenium(Proxy proxyToUse, String url, boolean usesProxy, Set<Cookie> cookies) throws
+            IllegalArgumentException {
+        Document doc;
+        try {
+            org.openqa.selenium.Proxy nProxy = null;
+            if (usesProxy) {
+                final String proxyHost = proxyToUse.getProxy();
+                final String proxyPort = String.valueOf(proxyToUse.getPort());
+                //Configure proxy
+                nProxy = new org.openqa.selenium.Proxy();
+                final String proxyString = proxyHost + ":" + proxyPort;
+                nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
+            }
+
+            ArrayList<String> cliArgsCap = new ArrayList<>();
+            DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
+            cliArgsCap.add("--web-security=false");
+            cliArgsCap.add("--ssl-protocol=any");
+            cliArgsCap.add("--ignore-ssl-errors=true");
+            if (usesProxy) {
+                cliArgsCap.add("--proxy=" + proxyToUse.getProxy() + ":" + proxyToUse.getPort());
+            }
+            capabilities.setCapability(
+                    PhantomJSDriverService.PHANTOMJS_CLI_ARGS, cliArgsCap);
+            if (usesProxy) {
+                capabilities.setCapability(CapabilityType.PROXY, nProxy);
+            }
+
+            //Initiate the driver
+            PhantomJSDriver driver = new PhantomJSDriver(capabilities);
+
+
+//            //Set up headless chrome driver to crawl the websites
+//            //Set up chrome specific capabilities
+//            ChromeOptions options = new ChromeOptions();
+//            options.addArguments("--headless");
+//            options.addArguments("window-size=1200x600");
+//
+//            //Set up the browser capabilities
+//            DesiredCapabilities capabilities = DesiredCapabilities.chrome();
+//            capabilities.setJavascriptEnabled(true);
+//            if (usesProxy) {
+//                capabilities.setCapability(CapabilityType.PROXY, nProxy);
+//            }
+//            capabilities.setCapability(ChromeOptions.CAPABILITY, options);
+//            ChromeDriver driver = new ChromeDriver(capabilities);
+            String pageSource = "";
+            try {
+                driver.manage().timeouts().pageLoadTimeout(5, TimeUnit.MINUTES);
+                driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
+                if (cookies != null) {
+                    driver.manage().deleteAllCookies();
+                    for (Cookie c : cookies) {
+                        driver.manage().addCookie(c);
+                    }
+                }
+                driver.get(url);
+                waitForLoad(driver);
+                pageSource = driver.getPageSource();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    //Close the driver
+                    driver.close();
+                    driver.quit();
+                    driver = null;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            doc = Jsoup.parse(pageSource);
+            //These errors cannot be fixed
+            if (pageSource.contains("This site can’t be reached") ||
+                    pageSource.contains("ERR_PROXY_CONNECTION_FAILED") ||
+                    pageSource.contains("your computer or network may be sending " +
+                            "automated queries. To protect our users, we can't process your request right now") ||
+                    pageSource.equals("<html><head></head><body></body></html>") ||
+                    pageSource.equals("") ||
+                    pageSource.split(" ").length < 200) {
+                throw new IllegalArgumentException();
+            }
+            //These errors can be fixed
+            if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
+                    pageSource.contains("Our systems have detected unusual traffic from your computer network")) {
+                System.out.println("There is a blocked proxy");
+                //Add to the queue of blocked proxies
+                if (crawler.isSeleniumActive()) {
+                    crawler.getQueueOfBlockedProxies().add(proxyToUse);
+                    //Notify GUI
+                    guiLabels.setIsThereAnAlert(true);
+                    //Send email if possible
+                    crawler.sendBlockedProxies();
+                }
+                throw new IllegalArgumentException();
+            }
+
+        } catch (Exception e) {
+            throw new IllegalArgumentException();
+        }
+        return doc;
+    }
+
+
+    /**
+     * Actives the chrome driver in order to solve google captcha
+     *
+     * @return WebDriver
+     */
+    WebDriver useChromeDriver(Proxy proxy, String url) {
+        ChromeDriver driver = null;
+        try {
+            org.openqa.selenium.Proxy nProxy;
+
+            //Configure proxy
+            int proxyPort = proxy.getPort();
+            String proxyHost = proxy.getProxy();
+            nProxy = new org.openqa.selenium.Proxy();
+            final String proxyString = proxyHost + ":" + proxyPort;
+            nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
+
+            DesiredCapabilities caps = DesiredCapabilities.chrome();
+            caps.setJavascriptEnabled(true);
+            caps.setCapability(CapabilityType.PROXY, nProxy);
+
+            driver = new ChromeDriver(caps);
+            driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
+
+            if (url == null) {
+                driver.get("https://scholar.google.com/scholar?hl=en&q=this+is+the+one&btnG=&as_sdt=1%2C39&as_sdtp=");
+            } else {
+                driver.get(url);
+            }
+            waitForLoad(driver);
+
+
+        } catch (Exception | Error e) {
+            guiLabels.setAlertPopUp(e.getMessage());
+        }
+        return driver;
     }
 
     /**
@@ -214,7 +525,8 @@ class ProxyChanger {
     boolean setUpSelenium() {
         try {
             System.setProperty("phantomjs.binary.path", "./phantomjs/bin/phantomjs");
-            String userAgent = "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/13.0.782.41 Safari/535.1";
+            String userAgent = "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/13.0.782.41" +
+                    " Safari/535.1";
             System.setProperty("phantomjs.page.settings.userAgent", userAgent);
             guiLabels.setOutput("Configuring Selenium");
             String type = null;
@@ -270,15 +582,13 @@ class ProxyChanger {
             e.printStackTrace(System.out);
         }
         return true;
-
-
     }
 
 
     /**
      * Downloads the chrome driver into the local computer
      */
-    private File  downloadChromeDriver(String type) {
+    private File downloadChromeDriver(String type) {
         guiLabels.setOutput("Downloading Chrome driver for " + type);
         try {
             //Get download link
@@ -286,7 +596,6 @@ class ProxyChanger {
                     ("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
                             "Gecko/20070725 Firefox/2.0.0.6").get();
             Elements links = doc.select("a[href]");
-
             String href = "";
             for (Element link : links) {
                 if (link.toString().contains("http://chromedriver.storage.googleapis.com/index")) {
@@ -294,7 +603,6 @@ class ProxyChanger {
                     break;
                 }
             }
-
             //Find correct version
             DesiredCapabilities caps = new DesiredCapabilities();
             caps.setBrowserName("htmlunit");
@@ -308,23 +616,15 @@ class ProxyChanger {
                     return webClient;
                 }
             };
-
             driver.get(href);
             try {
                 Thread.sleep(5000);
-            } catch (Exception ex) {
+            } catch (Exception ignored) {
             }
-
-
-
             driver.manage().timeouts().pageLoadTimeout(60, TimeUnit.SECONDS);
             doc = Jsoup.parse(driver.getPageSource());
-
             driver.quit();
-
-
             links = doc.select("a[href]");
-
             href = "";
             for (Element link : links) {
                 System.out.println(link.toString());
@@ -368,338 +668,8 @@ class ProxyChanger {
 
 
     /**
-     * Connects to a working proxy from the queue of connections
-     *
-     * @param url          URL that the program is trying to connect to
-     * @param currThreadID ID of the current thread
-     * @return doc
-     */
-    private Document connectToProxyFromQueue(long currThreadID, String url) {
-
-        //Check if the proxy has more than 40 connections, if so, replace it.
-        if (crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get(currThreadID)) > 40) {
-            guiLabels.setConnectionOutput("Proxy has more than 40 requests");
-        }
-        int limit = 3;
-        if (url.contains("scholar.google")) {
-            limit = 30;
-        }
-
-        boolean connected = false;
-        Document doc = null;
-        int attempt = 0;
-        while (!connected) {
-
-            if (!thereWasAnErrorWithProxy && attempt > 0) {
-                //Add it again to queue if it did not produce an actual error (non website related)
-                crawler.getQueueOfConnections().add(crawler.getMapThreadIdToProxy().get(currThreadID));
-            }
-            if (thereWasAnErrorWithProxy) {
-                //If there was an actual error, reset the counter.
-                attempt = 0;
-            }
-            thereWasAnErrorWithProxy = false;
-            //Get an ip from the working list
-            Proxy proxyToUse = crawler.getQueueOfConnections().poll();
-            //If the proxy is null, or it has more than 40 request for the current website, then trying finding a new
-            //one
-            boolean first = true;
-            while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40) {
-
-                //Since we are using a new proxy, we need to find a replacement
-                if (first) {
-                    Request request = new Request(true, "getConnection", crawler, guiLabels);
-                    crawler.getExecutorService().submit(request);
-                    guiLabels.setNumberOfWorkingIPs("remove,none");
-                    first = false;
-                }
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException ignored) {
-                }
-                if (proxyToUse != null) {
-                    //If the previous proxy was not null add it again
-                    crawler.getQueueOfConnections().add(proxyToUse);
-                }
-                proxyToUse = crawler.getQueueOfConnections().poll();
-
-            }
-
-            System.out.println("Getting new IP " + currThreadID + " " + proxyToUse.getProxy() + " " +
-                    proxyToUse.getPort());
-            crawler.getMapThreadIdToProxy().put(currThreadID, proxyToUse);
-            //Since we are using a new proxy, we need to find a replacement
-            //If there are already 12 proxies in the queue, then don't add more
-            if (crawler.getQueueOfConnections().size() <= 12 && !isError404) {
-                Request request = new Request(true, "getConnection", crawler, guiLabels);
-                crawler.getExecutorService().submit(request);
-                guiLabels.setNumberOfWorkingIPs("remove,none");
-            }
-
-            try {
-                //Check if it uses selenium
-                if (!crawler.getMapProxyToSelenium().containsKey(proxyToUse) || !crawler.getMapProxyToSelenium().get
-                        (proxyToUse)) {
-                    throw new Exception("selenium");
-                } else {
-                    crawler.getMapProxyToSelenium().put(proxyToUse, false);
-                }
-
-                //Try to connect
-                Connection.Response connection = Jsoup.connect(url).proxy(proxyToUse.getProxy(), proxyToUse
-                        .getPort()).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
-                        "Gecko/20070725 Firefox/2.0.0.6").ignoreHttpErrors(true).execute();
-                doc = connection.parse();
-                if (connection.statusCode() != 200) {
-                    throw new HttpStatusException(connection.statusMessage(), connection.statusCode(), connection.url
-                            ().toString());
-                }
-                if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
-                        doc.text().contains("your computer or network may be sending automated queries")) {
-
-                    if (seleniumIsEnabled) {
-                        doc = useSelenium(proxyToUse, url, true);
-                        crawler.getMapProxyToSelenium().put(proxyToUse, true);
-
-                    } else {
-                        throw new IllegalArgumentException("Google flagged your IP as a bot. Changing to a different " +
-                                "one");
-                    }
-
-                }
-                connected = true;
-            } catch (HttpStatusException e) {
-                //e.printStackTrace(System.out);
-                guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
-                        "queue.");
-                if (attempt > limit) {
-                    break;
-                }
-                attempt++;
-                guiLabels.setConnectionOutput(e.getMessage());
-            } catch (Exception e) {
-                if (!e.getClass().getCanonicalName().contains("IllegalArgumentException") && (e.getMessage()
-                        .contains("scholar.google") || e.getMessage().contains("refused") || e.getMessage()
-                        .contains("Unexpected end of file") || e.getMessage().contains
-                        ("selenium")) && seleniumIsEnabled) {
-                    try {
-                        //Try connecting using phantom
-                        doc = useSelenium(proxyToUse, url, true);
-                        crawler.getMapProxyToSelenium().put(proxyToUse, true);
-                        connected = true;
-                    } catch (IllegalArgumentException e2) {
-                        thereWasAnErrorWithProxy = true;
-                        attempt++;
-                    }
-                } else {
-                    e.printStackTrace(System.out);
-                    guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
-                            "queue. Removing it");
-                    thereWasAnErrorWithProxy = true;
-                    attempt++;
-                }
-            }
-            crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID));
-
-        }
-        return doc;
-    }
-
-    /**
-     * Reuse a previously working proxy
-     *
-     * @param url          URL that the program is trying to connect to
-     * @param currThreadID ID of the current thread
-     */
-    private Document useProxyAgain(String url, long currThreadID) {
-        Proxy ipAndPort = crawler.getMapThreadIdToProxy().get(currThreadID);
-
-        try {
-            if (!crawler.getMapProxyToSelenium().containsKey(ipAndPort) || !crawler.getMapProxyToSelenium().get
-                    (ipAndPort)) {
-                throw new Exception("selenium");
-            } else {
-                crawler.getMapProxyToSelenium().put(ipAndPort, false);
-            }
-
-            Connection.Response connection = Jsoup.connect(url).timeout(10 * 1000).proxy(ipAndPort.getProxy(),
-                    ipAndPort.getPort()).userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
-                    "Gecko/20070725 Firefox/2.0.0.6").execute();
-            return connection.parse();
-
-        } catch (HttpStatusException e2) {
-            //Handle the errors
-            e2.printStackTrace(System.out);
-            guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
-                    ".\nChanging to a different one");
-            this.isError404 = e2.getStatusCode() == 404 || e2.getStatusCode() == 401 || e2.getStatusCode() == 403 ||
-                    e2.getStatusCode() == 403;
-            //Add it back to the queue if it is error 404, since it is not a problem of the proxy
-            if (isError404) {
-                crawler.getQueueOfConnections().add(ipAndPort);
-            } else {
-                thereWasAnErrorWithProxy = true;
-            }
-            guiLabels.setConnectionOutput(e2.getMessage());
-
-        } catch (Exception e) {
-            if (!e.getClass().getCanonicalName().contains("IllegalArgumentException") && (e.getMessage()
-                    .contains("scholar.google") || e.getMessage().contains("refused") || e.getMessage()
-                    .contains("Unexpected end of file") || e.getMessage().contains
-                    ("selenium")) &&
-                    seleniumIsEnabled) {
-                try {
-                    //Try connecting using selenium
-                    Document doc = useSelenium(ipAndPort, url, true);
-                    crawler.getMapProxyToSelenium().put(ipAndPort, true);
-                    return doc;
-                } catch (IllegalArgumentException e2) {
-                    thereWasAnErrorWithProxy = true;
-                    guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
-                            ".\nChanging to a different one");
-                }
-            } else {
-                e.printStackTrace(System.out);
-                thereWasAnErrorWithProxy = true;
-                guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
-                        ".\nChanging to a different one");
-            }
-        }
-        return null;
-    }
-
-
-    void setSeleniumIsEnabled(boolean seleniumIsEnabled) {
-        this.seleniumIsEnabled = seleniumIsEnabled;
-    }
-
-
-    /**
-     * Use selenium to parse a website
-     *
-     * @param proxyToUse Proxy
-     * @param url        url that needs to be parsed
-     * @return Document
-     */
-    Document useSelenium(Proxy proxyToUse, String url, boolean usesProxy) throws IllegalArgumentException {
-        Document doc;
-        try {
-            org.openqa.selenium.Proxy nProxy = null;
-            if (usesProxy) {
-                final String proxyHost = proxyToUse.getProxy();
-                final String proxyPort = String.valueOf(proxyToUse.getPort());
-                //Configure proxy
-                nProxy = new org.openqa.selenium.Proxy();
-                final String proxyString = proxyHost + ":" + proxyPort;
-                nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
-            }
-
-
-//            DesiredCapabilities caps = new DesiredCapabilities();
-//            caps.setJavascriptEnabled(true);
-//            if (usesProxy) {
-//                caps.setCapability(CapabilityType.PROXY, nProxy);
-//            }
-//            WebDriver driver = new HtmlUnitDriver(caps);
-//            HtmlUnitDriver driver = new HtmlUnitDriver(caps) {
-//                    @Override
-//                    protected WebClient newWebClient(BrowserVersion version) {
-//
-//                    WebClient webClient = super.newWebClient(BrowserVersion.FIREFOX_52);
-//                    webClient.getOptions().setThrowExceptionOnScriptError(false);
-//                    return webClient;
-//                }
-//            };
-
-//            driver.setJavascriptEnabled(true);
-
-            ArrayList<String> cliArgsCap = new ArrayList<>();
-            DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
-            cliArgsCap.add("--web-security=false");
-            cliArgsCap.add("--ssl-protocol=any");
-            cliArgsCap.add("--ignore-ssl-errors=true");
-            if (usesProxy) {
-                cliArgsCap.add("--proxy=" + proxyToUse.getProxy() + ":" + proxyToUse.getPort());
-            }
-            capabilities.setCapability(
-                    PhantomJSDriverService.PHANTOMJS_CLI_ARGS, cliArgsCap);
-            if (usesProxy) {
-                capabilities.setCapability(CapabilityType.PROXY, nProxy);
-            }
-
-            //Initiate the driver
-            PhantomJSDriver driver = new PhantomJSDriver(capabilities);
-
-            String pageSource = "";
-            try {
-                driver.manage().timeouts().pageLoadTimeout(5, TimeUnit.MINUTES);
-                driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
-                driver.get(url);
-                waitForLoad(driver);
-                pageSource = driver.getPageSource();
-                // Do lots of things
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    //Close the driver
-                    driver.close();
-                    driver.quit();
-                    driver = null;
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
-//            JavascriptExecutor js = driver;
-//            try {
-//                String page = (String) js.executeScript("return document.documentElement.innerHTML");
-//                System.out.println(page);
-//            }catch (UnsupportedOperationException e) {
-//                //Todo: do something here
-//            } catch (IllegalArgumentException e) {
-//            }
-
-            doc = Jsoup.parse(pageSource);
-
-            //Check for errors
-
-            //These errors cannot be fixed
-            if (pageSource.contains("This site can’t be reached") ||
-                    pageSource.contains("ERR_PROXY_CONNECTION_FAILED") ||
-                    pageSource.contains("your computer or network may be sending " +
-                            "automated queries. To protect our users, we can't process your request right now") ||
-                    pageSource.equals("<html><head></head><body></body></html>") ||
-                    pageSource.equals("") ||
-                    pageSource.split(" ").length < 200) {
-                throw new IllegalArgumentException();
-            }
-            //These errors can be fixed
-            if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
-                    pageSource.contains("Our systems have detected unusual traffic from your computer network")) {
-                System.out.println("There is a blocked proxy");
-                //Add to the queue of blocked proxies
-                if (crawler.isSeleniumActive()) {
-                    crawler.getQueueOfBlockedProxies().add(proxyToUse);
-                    //Notify GUI
-                    guiLabels.setIsThereAnAlert(true);
-                    //Send email if possible
-                    crawler.sendBlockedProxies();
-                }
-                throw new IllegalArgumentException();
-            }
-
-        } catch (Exception e) {
-            throw new IllegalArgumentException();
-        }
-
-        return doc;
-
-
-    }
-
-    /**
      * Waits for the driver to correctly load the page
+     *
      * @param driver Driver
      */
 
@@ -713,23 +683,6 @@ class ProxyChanger {
 
     }
 
-
-    /**
-     * Copy file from one location to another
-     *
-     * @param input  InputStream
-     * @param output OutputStream
-     * @throws IOException Error copying file
-     */
-    private static void copy(InputStream input, OutputStream output) throws IOException {
-        byte[] buf = new byte[1024];
-        int n = input.read(buf);
-        while (n >= 0) {
-            output.write(buf, 0, n);
-            n = input.read(buf);
-        }
-        output.flush();
-    }
 
     /**
      * Unzip a file
@@ -788,57 +741,22 @@ class ProxyChanger {
     }
 
     /**
-     * Actives the chrome driver in order to solve google captcha
+     * Copy file from one location to another
      *
-     * @return WebDriver
+     * @param input  InputStream
+     * @param output OutputStream
+     * @throws IOException Error copying file
      */
-    WebDriver useChromeDriver(Proxy proxy, boolean usesProxy, String url, Set<Cookie> cookies) {
-        ChromeDriver driver = null;
-        try {
-            org.openqa.selenium.Proxy nProxy = null;
-
-            if (usesProxy) {
-                //Configure proxy
-                int proxyPort = proxy.getPort();
-                String proxyHost = proxy.getProxy();
-                nProxy = new org.openqa.selenium.Proxy();
-                final String proxyString = proxyHost + ":" + proxyPort;
-                nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
-
-            }
-            DesiredCapabilities caps = DesiredCapabilities.chrome();
-            caps.setJavascriptEnabled(true);
-            if (usesProxy) {
-                caps.setCapability(CapabilityType.PROXY, nProxy);
-            }
-
-
-            driver = new ChromeDriver(caps);
-            driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
-
-            if (cookies!= null) {
-                for (Cookie cookie : cookies) {
-                    driver.manage().addCookie(cookie);
-                }
-            }
-            if (url == null) {
-                driver.get("https://scholar.google.com/scholar?hl=en&q=this+is+the+one&btnG=&as_sdt=1%2C39&as_sdtp=");
-            } else {
-                driver.get(url);
-                //System.out.println(driver.getPageSource());
-            }
-            waitForLoad(driver);
-
-            try {
-                Thread.sleep(5000);
-            } catch (Exception ex) {
-            }
-
-        } catch (Exception | Error e) {
-            guiLabels.setAlertPopUp(e.getMessage());
+    private static void copy(InputStream input, OutputStream output) throws IOException {
+        byte[] buf = new byte[1024];
+        int n = input.read(buf);
+        while (n >= 0) {
+            output.write(buf, 0, n);
+            n = input.read(buf);
         }
-        return driver;
+        output.flush();
     }
+
 
 }
 

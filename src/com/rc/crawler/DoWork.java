@@ -76,12 +76,11 @@ class DoWork extends Task<Void> implements Callable {
     /**
      * Initializes the crawler and links the different GUI elements
      */
-    void initialize() {
+    private void initialize() {
         //Loading crawler case
         loading = new LoadingWindow();
         //Create a new loading box to display while application loads
         Platform.runLater(() -> loading.display());
-        crawler = new Crawler(guiLabels);
         //Prepare the GUI
         //For single article mode
         guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> controller.displayAlert

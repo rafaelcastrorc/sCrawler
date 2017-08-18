@@ -660,7 +660,7 @@ public class Controller implements Initializable {
      *
      */
     @FXML
-    void alertOnClick(){
+    void proxyAlertOnClick(){
         if (!crawler.isSeleniumActive()) {
             displayAlert("Chromedriver is not active in this crawler, so you won't be able to unlock proxies.");
         }
@@ -675,7 +675,6 @@ public class Controller implements Initializable {
                         "\nHelp the crawler by unlocking it. Close the window once you are done and " +
                         "press\nthe 'Proxy is Unlocked' button");
                 alert.setContentText(null);
-
                 ButtonType unlock = new ButtonType("Unlock Proxy");
                 ButtonType proxyIsUnlocked = new ButtonType("Proxy is Unlocked");
 
@@ -687,25 +686,23 @@ public class Controller implements Initializable {
                 final WebDriver[] driver = {null};
                 final Button unlockButton = (Button) alert.getDialogPane().lookupButton(unlock);
                 final Button proxyIsUnlockedButton = (Button) alert.getDialogPane().lookupButton(proxyIsUnlocked);
-                final WebDriver[] myDrive = {null};
                 unlockButton.addEventFilter(
                         ActionEvent.ACTION,
                         event -> {
+                            //If the text of the button is Unlock Proxy
                             if (!unlockButton.getText().equals("Can't be unlocked")) {
-                                //If the text of the button is Unlock Proxy
                                 ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
-                                driver[0] = proxyChanger.useChromeDriver(proxy, true, null, null);
+                                //Use chromedriver to connect
+                                driver[0] = proxyChanger.useChromeDriver(proxy, null);
                                 alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(false);
                                 proxyIsUnlockedButton.setDefaultButton(true);
-
                                 ((Button) alert.getDialogPane().lookupButton(unlock)).setText("Can't be unlocked");
-                                //Don't close window yet
+                                //Don't close window
                                 event.consume();
                             } else {
+                                //If the text of the button is Can't be unlocked
                                 driver[0].close();
                                 driver[0].quit();
-
-
                             }
 
                         }
@@ -713,18 +710,17 @@ public class Controller implements Initializable {
 
                 Optional<ButtonType> result = alert.showAndWait();
                 if (result.get() != unlock) {
+                    //If the user press Proxy is unlocked
                     if (result.get() == proxyIsUnlocked) {
-
                         //Store the cookie of the brower that solved the captcha
                         Set<Cookie> cookies = driver[0].manage().getCookies();
-                        //Add it to queue of working proxies
                         try {
                             driver[0].close();
                             driver[0].quit();
                         } catch (RuntimeException ignored) {
-
                         }
-                        crawler.addUnlockedProxy(proxy);
+                        //Add it to queue of working proxies
+                        crawler.addUnlockedProxy(proxy, cookies);
                     } else {
                         //If user press cancel, we add it back to the list of blocked proxies
                         crawler.getQueueOfBlockedProxies().add(proxy);
@@ -912,6 +908,7 @@ public class Controller implements Initializable {
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
+        crawler = new Crawler(guiLabels);
         DoWork task = new DoWork("initialize", null, null);
         task.setObjects(loading, simultaneousDownloadsGUI, crawler, this, guiLabels);
         Thread thread = new MyThreadFactory().newThread(task);

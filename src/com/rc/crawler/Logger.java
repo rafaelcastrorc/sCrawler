@@ -3,10 +3,11 @@ package com.rc.crawler;
 
 import org.joda.time.DateTime;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
+import java.util.*;
+
+import org.openqa.selenium.Cookie;
+
 
 /**
  * Logger class to write to the different output files. Uses singleton pattern.
@@ -18,6 +19,7 @@ class Logger {
     private static BufferedWriter listOfFinishedPapers;
     private static BufferedWriter filesNotDownloaded;
     private BufferedWriter listOfFilesToDownload;
+    private BufferedWriter cookieFile;
 
 
     /**
@@ -115,7 +117,6 @@ class Logger {
     }
 
 
-
     /**
      * Sets the file to write the papers that have been downloaded
      *
@@ -149,7 +150,6 @@ class Logger {
             throw new IOException("Cannot write to file");
         }
     }
-
 
 
     /**
@@ -206,13 +206,14 @@ class Logger {
 
     /**
      * Creates a new list of files to download
+     *
      * @throws IOException If unable to create file throws exception
      */
     void setListOfFilesToDownload() throws IOException {
         DateTime time = new DateTime();
-        String title = "FilesToDownload_"+ time.toDate()+".txt";
+        String title = "FilesToDownload_" + time.toDate() + ".txt";
         try {
-            File file = new File("./DownloadedPDFs/"+title);
+            File file = new File("./DownloadedPDFs/" + title);
             listOfFilesToDownload = new BufferedWriter(new FileWriter(file));
         } catch (IOException e) {
             throw new IOException("Unable to create list of files to download");
@@ -221,22 +222,23 @@ class Logger {
 
     /**
      * Adds a file that was not found to the report, the list of files not found, and to the list of completed downloads
-     * @param file File that was not found
+     *
+     * @param file            File that was not found
      * @param originalArticle Query inputted by the user
-     * @param typeOfSearch Type of search used
+     * @param typeOfSearch    Type of search used
      */
     void writeToLogFileNotFound(File file, String originalArticle, String typeOfSearch, boolean isMultipleSearch) {
         try {
             //Add to the report
             setReportWriter(true, "Report");
-            writeReport("\n-Could not find paper ("+typeOfSearch +"): " + originalArticle + "\n");
+            writeReport("\n-Could not find paper (" + typeOfSearch + "): " + originalArticle + "\n");
             //Add to list of files not downloaded
             if (file.exists() && file.canRead()) {
                 setListOfNotDownloadedPapers(true);
             } else {
                 setListOfNotDownloadedPapers(false);
             }
-            writeToFilesNotDownloaded("\n" + originalArticle + " - Error: File was not found ("+typeOfSearch+")");
+            writeToFilesNotDownloaded("\n" + originalArticle + " - Error: File was not found (" + typeOfSearch + ")");
 
             //Add to list of finished downloads
             file = new File("./AppData/CompletedDownloads.txt");
@@ -256,9 +258,10 @@ class Logger {
     /**
      * Adds a file that was not downloaded by the user (in the Search Result Window) to the list of files not found and
      * to the list of completed downloads
-     * @param file File that was not found
+     *
+     * @param file            File that was not found
      * @param originalArticle Query inputted by the user
-     * @param typeOfSearch Type of search used
+     * @param typeOfSearch    Type of search used
      */
     void fileNotDownloadedSearchResultWindow(File file, String originalArticle, String typeOfSearch, boolean
             isMultipleSearch) {
@@ -270,7 +273,7 @@ class Logger {
                 setListOfNotDownloadedPapers(false);
             }
             writeToFilesNotDownloaded("\n" + originalArticle + " - Error: File was not " +
-                    "found (Search Window) ("+typeOfSearch+")");
+                    "found (Search Window) (" + typeOfSearch + ")");
 
             file = new File("./AppData/CompletedDownloads.txt");
             if (file.exists() && file.canRead()) {
@@ -286,22 +289,95 @@ class Logger {
         }
     }
 
+    /**
+     * Sets the file to write the cookies that have been used to unlock a proxy
+     *
+     * @param append if the file already exists and is valid, then append is true.
+     * @throws IOException unable to write to file
+     */
+    void setCookieFile(boolean append) throws IOException {
+        if (append) {
+            cookieFile = new BufferedWriter(new FileWriter("./AppData/Cookies.dta", true));
+        } else {
+            try {
+                File file = new File("./AppData/Cookies.dta");
+                cookieFile = new BufferedWriter(new FileWriter(file));
+            } catch (IOException e) {
+                throw new IOException("Unable to create cookie file");
+            }
+        }
+    }
 
     /**
-     * Closes the logger
+     * Adds a cookie to the Cookies.dta file
      *
-     * @throws IOException - unable to close
+     * @param cookies Set of cookies
+     * @param proxy   proxy that was unlocked
      */
-    void closeLoggers() throws IOException {
-        listOfProxiesWriter.flush();
-        listOfProxiesWriter.close();
-
-        if (reportWriter != null) {
-            reportWriter.flush();
-            reportWriter.close();
+    synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Proxy: ").append(proxy.getProxy()).append(":").append(proxy.getPort()).append("\n");
+        for (Cookie cookie : cookies) {
+            sb.append(cookie.getName()).append(";").append(cookie.getValue()).append(";").append(cookie.getDomain())
+                    .append(";").append(cookie.getPath()).append(";").append(cookie
+                    .getExpiry()).append(";").append(cookie.isSecure()).append("\n");
         }
-
+        try {
+            cookieFile.write(sb.toString());
+            cookieFile.flush();
+        } catch (IOException e) {
+            throw new IOException("Cannot write to cookie file");
+        }
     }
+
+    /**
+     * Retrieves all the cookies stored locally
+     */
+    HashMap<Proxy, Set<Cookie>> readCookieFile() throws FileNotFoundException {
+        HashMap<Proxy, Set<Cookie>> result = new HashMap<>();
+        Scanner scanner = new Scanner(new File("./AppData/Cookies.dta"));
+        Proxy currProxy = null;
+        Set<Cookie> cookies = new HashSet<>();
+        try {
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                if (line.contains("Proxy: ")) {
+                    //If there are cookies, we have already gone through at least one proxy, so we add it to the map.
+                    if (!cookies.isEmpty()) {
+                        result.put(currProxy, cookies);
+                        cookies = new HashSet<>();
+                    }
+                    line = line.replace("Proxy: ", "");
+                    //Get the proxy
+                    String[] proxy = line.split(":");
+                    String proxyNum = proxy[0];
+                    String proxyPort = proxy[1];
+                    currProxy = new Proxy(proxyNum, Integer.valueOf(proxyPort));
+                } else {
+                    //Get the cookie
+                    String[] cookieInfo = line.split(";");
+                    String name = cookieInfo[0];
+                    String value = cookieInfo[1];
+                    String domain = cookieInfo[2];
+                    String path = cookieInfo[3];
+                    Date expiry = null;
+                    if (cookieInfo[4] != null) {
+                        expiry = new Date(cookieInfo[4]);
+                    }
+                    Boolean isSecure = Boolean.valueOf(cookieInfo[4]);
+                    Cookie ck = new Cookie(name, value, domain, path, expiry, isSecure);
+                    cookies.add(ck);
+                }
+            }
+            if (!cookies.isEmpty()) {
+                result.put(currProxy, cookies);
+            }
+        } catch (NullPointerException e) {
+            throw new IllegalArgumentException("The cookies file is not formatted correctly, please revise it");
+        }
+        return result;
+    }
+
 
 
 }

@@ -95,7 +95,6 @@ class ProxiesDownloader {
 
             //Iterate over all websites
             for (String url : proxiesLists) {
-                System.out.println("Going trhough links");
                 listOfUnusedLinks.remove(url);
 
                 //Get Base URI
@@ -110,7 +109,6 @@ class ProxiesDownloader {
 
                 //Go through the url, find all proxies and check if the website has more entries.
                 while (areThereMoreEntries) {
-                    System.out.println("Going trhough etnries");
 
                     try {
                         doc = getWebsiteDoc(url, baseURI, crawler, absLink, guiLabels);
@@ -261,8 +259,7 @@ class ProxiesDownloader {
             ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
             if (crawler.isSeleniumActive()) {
                 try {
-                    System.out.println("Parsing document using selenium");
-                    doc = proxyChanger.useSelenium(null, url, false);
+                    doc = proxyChanger.useSelenium(null, url, false, null);
                 } catch (RuntimeException e) {
                     e.printStackTrace(System.out);
                     return null;

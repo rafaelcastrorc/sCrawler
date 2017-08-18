@@ -53,7 +53,7 @@ class Crawler {
     private boolean threadIsGettingMoreProxies = false;
     private EmailSender emailSender;
     //Holds the different objects that are active when the crawler can parse javacript
-    private JavascriptEnabledCrawler javaScriptEnabledCrawler;
+    private JavascriptEnabledCrawler javaScriptEnabledCrawler = null;
 
 
     /**
@@ -515,7 +515,6 @@ class Crawler {
      */
     Document changeIP(String url, boolean hasSearchBefore, boolean comesFromThread) {
         ProxyChanger proxyChanger = new ProxyChanger(guiLabels, this);
-        proxyChanger.setSeleniumIsEnabled(javaScriptEnabledCrawler.isSeleniumActive());
         return proxyChanger.getProxy(url, hasSearchBefore, comesFromThread);
     }
 
@@ -659,10 +658,24 @@ class Crawler {
      * Add a proxy once it has been unlocked by a user
      *
      * @param p Proxy
+     * @param cookies Set of cookies of the webdrive that unlocked the proxy
      */
-    void addUnlockedProxy(Proxy p) {
+    void addUnlockedProxy(Proxy p, Set<Cookie> cookies) {
         if (javaScriptEnabledCrawler.isSeleniumActive()) {
+            //Add it back to the queue
             javaScriptEnabledCrawler.getQueueOfUnlockedProxies().add(p);
+            javaScriptEnabledCrawler.getMapProxyToCookie().put(p, cookies);
+
+            //Store it locally
+            Logger logger = Logger.getInstance();
+            File file = new File("./AppData/Cookies.dta");
+            try {
+                logger.setCookieFile(file.exists());
+                logger.writeToCookiesFile(cookies, p);
+            } catch (IOException e) {
+                guiLabels.setAlertPopUp("There was a problem writing to Cookies.dta.\n"+e.getMessage());
+            }
+
         }
 
     }
@@ -705,7 +718,7 @@ class Crawler {
     }
 
     Set<Proxy> getSetOfAllProxiesEver() {
-        return setOfAllProxiesEver;
+        return setOfAllProxiesEver ;
     }
 
     HashMap<String, String[]> getSearchResultToLink() {
@@ -756,10 +769,13 @@ class Crawler {
         return javaScriptEnabledCrawler.getBlockedProxies();
     }
 
-    Map<Proxy, Boolean> getMapProxyToSelenium() {return javaScriptEnabledCrawler.getMapProxyToSelenium();
-    }
+    //Map<Proxy, Boolean> getMapProxyToSelenium() {return javaScriptEnabledCrawler.getMapProxyToSelenium();
+   // }
 
     ConcurrentLinkedQueue<Proxy> getQueueOfUnlockedProxies() {return javaScriptEnabledCrawler.getQueueOfUnlockedProxies();
+    }
+
+    Map<Proxy, Set<Cookie>> getMapProxyToCookie() {return javaScriptEnabledCrawler.getMapProxyToCookie();
     }
     boolean isSeleniumActive() {return javaScriptEnabledCrawler.isSeleniumActive();
     }

@@ -2,6 +2,8 @@ package com.rc.crawler;
 
 import org.openqa.selenium.Cookie;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -12,7 +14,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Created by rafaelcastro on 8/18/17.
  * Holds the different objects that are enabled when the crawler can parse Javascript
  */
-public class JavascriptEnabledCrawler {
+class JavascriptEnabledCrawler {
     //Is the crawler capable of parsing javascript websites
     private boolean isSeleniumActive = false;
     //Queue of blocked proxies
@@ -23,6 +25,17 @@ public class JavascriptEnabledCrawler {
     private ConcurrentLinkedQueue<Proxy> queueOfUnlockedProxies = new ConcurrentLinkedQueue<>();
     //Map of proxy to the cookies of the drive that unlocked it
     private Map<Proxy, Set<Cookie>> mapProxyToCookie = Collections.synchronizedMap(new HashMap<Proxy, Set<Cookie>>());
+
+    /**
+     * Loads any previously stored cookied
+     */
+    JavascriptEnabledCrawler() {
+        Logger logger = Logger.getInstance();
+        try {
+            mapProxyToCookie = logger.readCookieFile();
+        } catch (FileNotFoundException ignored) {
+        }
+    }
 
     boolean isSeleniumActive() {
         return isSeleniumActive;

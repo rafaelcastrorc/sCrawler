@@ -1,10 +1,13 @@
 package com.rc.crawler;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+
+import java.io.IOException;
 
 /**
  * Created by rafaelcastro on 6/7/17.
@@ -26,6 +29,18 @@ public class View extends Application {
         primaryStage.setScene(loadingScene);
         primaryStage.setResizable(false);
         primaryStage.show();
+
+        //Close the app correctly
+        primaryStage.setOnCloseRequest(e -> {
+//            try {
+//                Runtime.getRuntime().exec("-c pkill -f phantomjs");
+//            } catch (IOException e1) {
+//                e1.printStackTrace();
+//            }
+            Platform.exit();
+            System.exit(0);
+        });
+
 
     }
 }
