@@ -1,14 +1,33 @@
 package com.rc.crawler;
 
-import org.jsoup.nodes.Document;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.BasicCookieStore;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.cookie.BasicClientCookie;
+import org.openqa.selenium.Cookie;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.phantomjs.PhantomJSDriver;
+import org.openqa.selenium.phantomjs.PhantomJSDriverService;
+import org.openqa.selenium.remote.CapabilityType;
+import org.openqa.selenium.remote.DesiredCapabilities;
+import org.apache.http.client.CookieStore;
+import org.openqa.selenium.support.ui.ExpectedCondition;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
 
 import java.io.*;
 import java.net.*;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.logging.Level;
+
 
 /**
  * Created by rafaelcastro on 6/14/17.
@@ -17,6 +36,11 @@ import java.util.regex.Pattern;
 class PDFDownloader {
     private GUILabelManagement guiLabels;
     private String path = "";
+    private Crawler crawler;
+    private String url;
+    private int pdfCounter;
+    private Proxy ipAndPort;
+    private boolean speedUp;
 
     /**
      * Gets the folder where the files are going to be stored for a given query
@@ -39,15 +63,19 @@ class PDFDownloader {
      */
     void downloadPDF(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp)
             throws Exception {
+        this.url = url;
+        this.ipAndPort = ipAndPort;
+        this.pdfCounter = pdfCounter;
         this.guiLabels = guiLabels;
-        DownloadPDFTask downloadPDFTask = new DownloadPDFTask(url, pdfCounter, guiLabels, ipAndPort, speedUp);
+        this.speedUp = speedUp;
+        DownloadPDFTask downloadPDFTask = new DownloadPDFTask();
         ExecutorService executorService = Executors.newSingleThreadExecutor(new MyThreadFactory());
-        Future<String> future =executorService.submit(downloadPDFTask);
+        Future<String> future = executorService.submit(downloadPDFTask);
         String result;
         try {
-            //Limit of 2 minute to download a file
+            //Limit of 3 minute to download a file
             result = future.get(3, TimeUnit.MINUTES);
-        } catch (Exception e){
+        } catch (Exception e) {
             future.cancel(true);
             System.out.println("Timeout download: " + url);
             result = "Timeout";
@@ -59,7 +87,7 @@ class PDFDownloader {
     }
 
     public void setCrawler(Crawler crawler) {
-        Crawler crawler1 = crawler;
+        this.crawler = crawler;
     }
 
 
@@ -67,55 +95,24 @@ class PDFDownloader {
      * Class to download PDF files using threads
      */
     class DownloadPDFTask implements Callable<String> {
+        private HttpURLConnection connection;
+        private java.net.Proxy proxy;
+        private Set<Cookie> cookies;
 
-        private String url;
-        private final int pdfCounter;
-        private final GUILabelManagement guiLabels;
-        private final Proxy ipAndPort;
-        private final boolean speedUp;
-
-        DownloadPDFTask(String url, int pdfCounter, GUILabelManagement guiLabels, Proxy ipAndPort, boolean speedUp) {
-            this.url = url;
-            this.pdfCounter = pdfCounter;
-            this.guiLabels = guiLabels;
-            this.ipAndPort = ipAndPort;
-            this.speedUp = speedUp;
+        DownloadPDFTask() {
         }
 
         @Override
         public String call() throws Exception {
             String result = "";
+            //Connect to the site holding the pdf and download it
             try {
-                URL urlObj = new URL(url);
-                HttpURLConnection connection;
-                java.net.Proxy proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(), ipAndPort.getPort()));
-
-                if (!speedUp) {
-                    connection = (HttpURLConnection) urlObj.openConnection(proxy);
-                } else {
-                    connection = (HttpURLConnection) urlObj.openConnection();
-
+                System.out.println("Trying to download URL " + url);
+                if (crawler.isSeleniumActive()) {
+                    java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
+                    cookies = connectUsingSelenium();
                 }
-                //Set request property to avoid error 403
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
-                connection.setRequestProperty("Referer", "https://scholar.google.com/");
-                int status = connection.getResponseCode();
-
-                if (status == 429) {
-                    //If we have sent too many request to server, change proxy
-                    String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
-                    connection.disconnect();
-                    guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
-                    //If server blocks us, then we connect via the current proxy we are using
-                    connection = (HttpURLConnection) urlObj.openConnection(proxy);
-                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-                    connection.setRequestProperty("Referer", "https://scholar.google.com/");
-                    connection.setRequestProperty("Cookie", cookie);
-                    status = connection.getResponseCode();
-                }
-                connection.connect();
-
-
+                int status = connectUsingNetClass();
                 boolean redirect = false;
                 if (status != HttpURLConnection.HTTP_OK) {
                     if (status == HttpURLConnection.HTTP_MOVED_TEMP
@@ -125,61 +122,207 @@ class PDFDownloader {
                 }
                 if (status == 403) {
                     throw new IOException("Error 403");
-
                 }
                 if (redirect) {
-                    while (redirect) {
-                        // get redirect url from "location" header field
-                        String newUrl = connection.getHeaderField("Location");
-                        url = newUrl;
-                        // open the new connection again
-                        if (!speedUp) {
-                            connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
-                        } else {
-                            connection = (HttpURLConnection) new URL(newUrl).openConnection();
-                        }
-                        connection.setRequestProperty("User-Agent", "Chrome");
-                        status = connection.getResponseCode();
-                        if (status == 429) {
-                            String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
-                            connection.disconnect();
-                            guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
-                            //If server blocks us, then we connect via the current proxy we are using
-                            connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
-                            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-                            connection.setRequestProperty("Cookie", cookie);
-                            status = connection.getResponseCode();
-
-                        }
-
-                        connection.connect();
-                        ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                        FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
-                        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-
-                        if (status != HttpURLConnection.HTTP_OK) {
-                            if (status == HttpURLConnection.HTTP_MOVED_TEMP
-                                    || status == HttpURLConnection.HTTP_MOVED_PERM
-                                    || status == HttpURLConnection.HTTP_SEE_OTHER)
-                                redirect = true;
-                        } else {
-                            redirect = false;
-                        }
-
-                    }
+                    redirect(connection, proxy);
                 } else {
                     ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                    FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
+                    FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + "" +
+                            ".pdf");
                     fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
                 }
-            }catch (Exception e) {
-                e.printStackTrace();
+
+            } catch (Exception e) {
+                e.printStackTrace(System.out);
                 result = e.getMessage();
             }
 
             return result;
         }
+
+        /**
+         * Connects to a URL using selenium
+         */
+        Set<Cookie> connectUsingSelenium() {
+            Set<Cookie> cookies;
+            WebDriver driver = null;
+            try {
+                org.openqa.selenium.Proxy nProxy = null;
+                if (speedUp) {
+                    nProxy = new org.openqa.selenium.Proxy();
+                    final String proxyString = ipAndPort.getProxy() + ":" + String.valueOf(ipAndPort.getPort());
+                    nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
+                }
+                ArrayList<String> cliArgsCap = new ArrayList<>();
+                DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
+                cliArgsCap.add("--web-security=false");
+                cliArgsCap.add("--ssl-protocol=any");
+                cliArgsCap.add("--ignore-ssl-errors=true");
+                cliArgsCap.add("--webdriver-loglevel=NONE");
+
+                if (speedUp) {
+                    cliArgsCap.add("--proxy=" + ipAndPort.getProxy() + ":" + ipAndPort.getPort());
+                }
+                capabilities.setCapability(
+                        PhantomJSDriverService.PHANTOMJS_CLI_ARGS, cliArgsCap);
+                if (speedUp) {
+                    capabilities.setCapability(CapabilityType.PROXY, nProxy);
+                }
+
+                //Initiate the driver
+                driver = new PhantomJSDriver(capabilities);
+
+                driver.manage().timeouts().pageLoadTimeout(2, TimeUnit.MINUTES);
+                driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
+                driver.get(url);
+                waitForLoad(driver);
+                cookies = driver.manage().getCookies();
+
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new IllegalArgumentException();
+            } finally {
+                try {
+                    //Close the driver
+                    if (driver != null) {
+                        driver.close();
+                        driver.quit();
+                        driver = null;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            return cookies;
+        }
+
+
+        /**
+         * Stores the cookies that the drive obtained when it connected to the site.
+         *
+         * @return CookieStore
+         */
+        private CookieStore seleniumCookiesToCookieStore(Set<Cookie> cookies) {
+
+            CookieStore cookieStore = new BasicCookieStore();
+
+            for (Cookie seleniumCookie : cookies) {
+                BasicClientCookie basicClientCookie =
+                        new BasicClientCookie(seleniumCookie.getName(), seleniumCookie.getValue());
+                basicClientCookie.setDomain(seleniumCookie.getDomain());
+                basicClientCookie.setExpiryDate(seleniumCookie.getExpiry());
+                basicClientCookie.setPath(seleniumCookie.getPath());
+                cookieStore.addCookie(basicClientCookie);
+            }
+
+            return cookieStore;
+        }
+
+        /**
+         * Connects to a URL using java net class
+         */
+        private int connectUsingNetClass() throws IOException {
+            URL urlObj = new URL(url);
+            this.connection = null;
+            this.proxy = new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress(ipAndPort.getProxy(),
+                    ipAndPort.getPort()));
+
+            if (!speedUp) {
+                connection = (HttpURLConnection) urlObj.openConnection(proxy);
+            } else {
+                connection = (HttpURLConnection) urlObj.openConnection();
+
+            }
+            //Set request property to avoid error 403
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
+                    "Gecko/20070725 Firefox/2.0.0.6");
+            connection.setRequestProperty("Referer", "https://scholar.google.com/");
+            if (crawler.isSeleniumActive()) {
+                for (Cookie cookie : cookies) {
+                    connection.addRequestProperty("Cookie", cookie.toString());
+                }
+            }
+            int status = connection.getResponseCode();
+
+            if (status == 429) {
+                //If we have sent too many request to server, change proxy
+                String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
+                connection.disconnect();
+                guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
+                //If server blocks us, then we connect via the current proxy we are using
+                connection = (HttpURLConnection) urlObj.openConnection(proxy);
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                connection.setRequestProperty("Referer", "https://scholar.google.com/");
+                connection.setRequestProperty("Cookie", cookie);
+                status = connection.getResponseCode();
+            }
+            connection.connect();
+            return status;
+
+        }
+
+        /**
+         * Redirects a connection
+         */
+        private void redirect(HttpURLConnection connection, java.net.Proxy proxy) throws IOException {
+            boolean redirect = true;
+            while (redirect) {
+                // get redirect url from "location" header field
+                String newUrl = connection.getHeaderField("Location");
+                url = newUrl;
+                // open the new connection again
+                if (!speedUp) {
+                    connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                } else {
+                    connection = (HttpURLConnection) new URL(newUrl).openConnection();
+                }
+                connection.setRequestProperty("User-Agent", "Chrome");
+                int status = connection.getResponseCode();
+                if (status == 429) {
+                    String cookie = connection.getHeaderField("Set-Cookie").split(";")[0];
+                    connection.disconnect();
+                    guiLabels.setConnectionOutput("We have been blocked by this server. Using proxy to connect...");
+                    //If server blocks us, then we connect via the current proxy we are using
+                    connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    connection.setRequestProperty("Cookie", cookie);
+                    status = connection.getResponseCode();
+
+                }
+
+                connection.connect();
+                ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + ".pdf");
+                fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+
+                if (status != HttpURLConnection.HTTP_OK) {
+                    if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                            || status == HttpURLConnection.HTTP_MOVED_PERM
+                            || status == HttpURLConnection.HTTP_SEE_OTHER)
+                        redirect = true;
+                } else {
+                    redirect = false;
+                }
+
+            }
+        }
+    }
+
+    /**
+     * Waits for the driver to correctly load the page
+     *
+     * @param driver Driver
+     */
+
+    private void waitForLoad(WebDriver driver) {
+        try {
+            new WebDriverWait(driver, 120).until((ExpectedCondition<Boolean>) wd ->
+                    ((JavascriptExecutor) wd).executeScript("return document.readyState").equals("complete"));
+        } catch (Exception e) {
+            System.out.println("THERE WAS AN EXCEPTION");
+        }
+
     }
 
 
@@ -222,8 +365,6 @@ class PDFDownloader {
         path = nameOfFolder;
         return nameOfFolder;
     }
-
-
 
 
 }

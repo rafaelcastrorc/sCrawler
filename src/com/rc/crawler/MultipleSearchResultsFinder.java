@@ -51,6 +51,11 @@ class MultipleSearchResultsFinder {
                 for (Element link : links) {
                     text = link.text();
                     String absLink = link.attr("abs:href");
+                    if (absLink.isEmpty()) {
+                        String baseURL = "https://scholar.google.com";
+                        String relativeURL = link.attr("href");
+                        absLink = baseURL + relativeURL;
+                    }
                     Pattern pattern =
                             Pattern.compile("((www\\.)?scholar\\.google\\.com)|(www\\.(support\\.)?google\\" +
                                     ".com)");

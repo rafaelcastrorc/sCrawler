@@ -34,9 +34,10 @@ class SingleSearchResultFinder {
 
     /**
      * Finds a google search result and gets its link and text
-     * @param links All links of the current page
-     * @param type type of search performed
-     * @param url URL of the doc we are analyzing
+     *
+     * @param links            All links of the current page
+     * @param type             type of search performed
+     * @param url              URL of the doc we are analyzing
      * @param isMultipleSearch true if it is being performed in multiple search mode
      * @return true if a search result was found, false otherwise
      */
@@ -44,7 +45,6 @@ class SingleSearchResultFinder {
                                    boolean isMultipleSearch) {
         String firstSearchResultURL = "";
         String fullViewURL = "";
-        String htmlFileURL = "";
         if (type.equals("searchForCitedBy")) {
             //If we are searching for the articles that cite the article
             for (Element link : links) {
@@ -52,6 +52,11 @@ class SingleSearchResultFinder {
                 this.absLink = link.attr("abs:href");
                 if (text.contains("Cited by")) {
                     found = true;
+                    if (absLink.isEmpty()) {
+                        String baseURL = "https://scholar.google.com";
+                        String relativeURL = link.attr("href");
+                        this.absLink = baseURL + relativeURL;
+                    }
                     break;
                 }
             }
@@ -128,8 +133,7 @@ class SingleSearchResultFinder {
                     found = true;
                     //Add the url of the google search and the url of the first search result
                     this.paperVersionsURL = url + "∆" + firstSearchResultURL;
-                }
-                else {
+                } else {
                     text = "";
                     found = false;
                     //We could not retrieve a URL, so we won't be able to get the pdf from gscholar
@@ -148,7 +152,7 @@ class SingleSearchResultFinder {
 
     private String formatFullView(String fullViewURL) {
         Document doc = crawler.changeIP(fullViewURL, true, false);
-        Pattern redirectPattern =  Pattern.compile("<script>location\\.replace[^©]*</script>");
+        Pattern redirectPattern = Pattern.compile("<script>location\\.replace[^©]*</script>");
         Matcher redirectMatcher = redirectPattern.matcher(doc.html());
         if (redirectMatcher.find()) {
             Pattern linkPattern = Pattern.compile("http(s)?:/[^\"']*");

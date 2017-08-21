@@ -36,21 +36,25 @@ class Request implements Callable<Proxy> {
             boolean valid = false;
             while (!valid) {
                 try {
-                    crawler.changeIP("https://scholar.google.com/scholar?q=hola&hl=en&as_sdt=0,39", false,
+                    crawler.changeIP("https://scholar.google.com/scholar?q=this+is+the+one&btnG=&hl=en&as_sdt=0%2C39", false,
                             true);
                     valid = true;
                 } catch (Exception ignored) {
                 }
             }
-            if (atRuntime) {
-                //If it is at runtime, add it to the queue from here
-                Proxy temp = crawler.getMapThreadIdToProxy().get(Thread.currentThread().getId());
-                crawler.getQueueOfConnections().add(temp);
-                guiLabels.setNumberOfWorkingIPs("add," + temp.getProxy() + " Port: " + temp.getPort());
-            }
+
+            //If it is at runtime, add it to the queue from here
+            Proxy temp = crawler.getMapThreadIdToProxy().get(Thread.currentThread().getId());
+            crawler.getQueueOfConnections().add(temp);
+            guiLabels.setNumberOfWorkingIPs("add," + temp.getProxy() + " Port: " + temp.getPort());
+
             return crawler.getMapThreadIdToProxy().get(Thread.currentThread().getId());
         }
         return null;
     }
 
+
+    void updateGUI() {
+
+    }
 }

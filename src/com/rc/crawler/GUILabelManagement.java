@@ -85,16 +85,16 @@ class GUILabelManagement {
     /**
      * Sets a pop up alert
      *
-     * @param alertPopUp String with message to display
+     * @param alertPopUp String with message to show
      */
     void setAlertPopUp(String alertPopUp) {
         this.alertPopUp.set(alertPopUp);
     }
 
     /**
-     * Sets what the searchResult label will display
+     * Sets what the searchResult label will show
      *
-     * @param searchResultLabel String with message to display
+     * @param searchResultLabel String with message to show
      */
     void setSearchResultLabel(String searchResultLabel) {
         this.searchResultLabel.set(searchResultLabel);
@@ -112,7 +112,7 @@ class GUILabelManagement {
     /**
      * Sets the output displayed in the status label
      *
-     * @param output String with message to display
+     * @param output String with message to show
      */
     void setOutput(String output) {
         this.output.set(output);
@@ -121,7 +121,7 @@ class GUILabelManagement {
     /**
      * Sets all the IO and debugging output in the connectionOutput label
      *
-     * @param connectionOutput String with message to display
+     * @param connectionOutput String with message to show
      */
     void setConnectionOutput(String connectionOutput) {
         this.connectionOutput.set(connectionOutput);
@@ -149,7 +149,7 @@ class GUILabelManagement {
     /**
      * Sets the output displayed in the status label in multiple article mode
      *
-     * @param outputMultiple String with message to display
+     * @param outputMultiple String with message to show
      */
     void setOutputMultiple(String outputMultiple) {
         this.outputMultiple.set(outputMultiple);
@@ -185,9 +185,9 @@ class GUILabelManagement {
 
 
     /**
-     * Changes GUI if there is an alert to display
+     * Changes GUI if there is an alert to show
      *
-     * @param isThereAnAlert true if it needs to display alert button
+     * @param isThereAnAlert true if it needs to show alert button
      */
     void setIsThereAnAlert(boolean isThereAnAlert) {
         this.isThereAnAlert.set(isThereAnAlert);

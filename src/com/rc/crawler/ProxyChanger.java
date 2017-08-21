@@ -3,7 +3,6 @@ package com.rc.crawler;
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.WebClient;
 import org.apache.commons.lang3.SystemUtils;
-import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -11,6 +10,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
@@ -26,9 +26,9 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -135,15 +135,19 @@ class ProxyChanger {
                     guiLabels.setOutputMultiple("No internet connection");
                     verifyIfThereIsConnection();
                 }
-                //Try to use one of the unlocked proxies first
-                if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
-                    proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
-                    cookies = crawler.getMapProxyToCookie().get(proxyToBeUsed);
-                    System.out.println("Using proxy from unlocked proxies");
-                }
-                //If there are no unlocked proxies, or the queue returned null, try finding a new connection
-                if (proxyToBeUsed == null) {
-                    proxyToBeUsed = crawler.addConnection();
+                while (proxyToBeUsed == null || crawler.getNumberOfRequestFromMap(url, proxyToBeUsed) > 40) {
+                    //Try to use one of the unlocked proxies first
+                    if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
+                        proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
+                        cookies = crawler.getMapProxyToCookie().get(proxyToBeUsed);
+                        System.out.println("Using proxy from unlocked proxies");
+                        crawler.addRequestToMapOfRequests("https://scholar.google.com", proxyToBeUsed, 0);
+
+                    }
+                    //If there are no unlocked proxies, or the queue returned null, try finding a new connection
+                    if (proxyToBeUsed == null) {
+                        proxyToBeUsed = crawler.addConnection();
+                    }
                 }
 
                 try {
@@ -152,6 +156,10 @@ class ProxyChanger {
                     }
                     //If Selenium is enabled, get the Document using a webdriver
                     if (crawler.isSeleniumActive()) {
+                        //Check if it requires cookies
+                        if (crawler.getMapProxyToCookie().containsKey(proxyToBeUsed)) {
+                            cookies = crawler.getMapProxyToCookie().get(proxyToBeUsed);
+                        }
                         doc = useSelenium(proxyToBeUsed, url, true, cookies);
                         //If no error happens add it
                         connected = true;
@@ -278,7 +286,7 @@ class ProxyChanger {
                 thereWasAnErrorWithProxy = true;
                 attempt++;
             }
-            crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID));
+            crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID), -1);
         }
         return doc;
     }
@@ -291,10 +299,10 @@ class ProxyChanger {
      * @param currThreadID ID of the current thread
      */
     private Document useProxyAgain(String url, long currThreadID) {
-        Proxy ipAndPort = crawler.getMapThreadIdToProxy().get(currThreadID);
         Document doc = null;
-
+        Proxy ipAndPort = null;
         try {
+            ipAndPort = crawler.getMapThreadIdToProxy().get(currThreadID);
             Set<Cookie> cookies = null;
             if (crawler.isSeleniumActive()) {
                 //Check if the proxy requires cookies
@@ -323,6 +331,7 @@ class ProxyChanger {
             guiLabels.setConnectionOutput(e2.getMessage());
 
         } catch (Exception e) {
+            System.out.println("There was a problem using a proxy agin");
             e.printStackTrace(System.out);
             thereWasAnErrorWithProxy = true;
             guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
@@ -379,6 +388,8 @@ class ProxyChanger {
     Document useSelenium(Proxy proxyToUse, String url, boolean usesProxy, Set<Cookie> cookies) throws
             IllegalArgumentException {
         Document doc;
+        java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
+
         try {
             org.openqa.selenium.Proxy nProxy = null;
             if (usesProxy) {
@@ -395,6 +406,7 @@ class ProxyChanger {
             cliArgsCap.add("--web-security=false");
             cliArgsCap.add("--ssl-protocol=any");
             cliArgsCap.add("--ignore-ssl-errors=true");
+            cliArgsCap.add("--webdriver-loglevel=NONE");
             if (usesProxy) {
                 cliArgsCap.add("--proxy=" + proxyToUse.getProxy() + ":" + proxyToUse.getPort());
             }
@@ -404,27 +416,13 @@ class ProxyChanger {
                 capabilities.setCapability(CapabilityType.PROXY, nProxy);
             }
 
+
             //Initiate the driver
             PhantomJSDriver driver = new PhantomJSDriver(capabilities);
 
-
-//            //Set up headless chrome driver to crawl the websites
-//            //Set up chrome specific capabilities
-//            ChromeOptions options = new ChromeOptions();
-//            options.addArguments("--headless");
-//            options.addArguments("window-size=1200x600");
-//
-//            //Set up the browser capabilities
-//            DesiredCapabilities capabilities = DesiredCapabilities.chrome();
-//            capabilities.setJavascriptEnabled(true);
-//            if (usesProxy) {
-//                capabilities.setCapability(CapabilityType.PROXY, nProxy);
-//            }
-//            capabilities.setCapability(ChromeOptions.CAPABILITY, options);
-//            ChromeDriver driver = new ChromeDriver(capabilities);
             String pageSource = "";
             try {
-                driver.manage().timeouts().pageLoadTimeout(5, TimeUnit.MINUTES);
+                driver.manage().timeouts().pageLoadTimeout(2, TimeUnit.MINUTES);
                 driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
                 if (cookies != null) {
                     driver.manage().deleteAllCookies();
@@ -432,7 +430,13 @@ class ProxyChanger {
                         driver.manage().addCookie(c);
                     }
                 }
-                driver.get(url);
+                try {
+                    driver.get(url);
+                } catch (TimeoutException e) {
+                    if (cookies != null && cookies.size() > 0) {
+                        driver.get(url);
+                    }
+                }
                 waitForLoad(driver);
                 pageSource = driver.getPageSource();
 
@@ -441,9 +445,7 @@ class ProxyChanger {
             } finally {
                 try {
                     //Close the driver
-                    driver.close();
-                    driver.quit();
-                    driver = null;
+                    stopPhantomDrive(driver);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -471,13 +473,34 @@ class ProxyChanger {
                     //Send email if possible
                     crawler.sendBlockedProxies();
                 }
+                crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
                 throw new IllegalArgumentException();
             }
 
         } catch (Exception e) {
+            if (!e.getClass().getCanonicalName().contains("IllegalArgument")) {
+                e.printStackTrace();
+            }
             throw new IllegalArgumentException();
         }
         return doc;
+    }
+
+
+    /**
+     * Attempts to close phantomjs correctly
+     *
+     * @param driver WebDriver
+     */
+    private void stopPhantomDrive(PhantomJSDriver driver) throws IOException, InterruptedException {
+        try {
+            driver.close();
+            driver.quit();
+            driver = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
     }
 
 
@@ -506,7 +529,7 @@ class ProxyChanger {
             driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
 
             if (url == null) {
-                driver.get("https://scholar.google.com/scholar?hl=en&q=this+is+the+one&btnG=&as_sdt=1%2C39&as_sdtp=");
+                driver.get("https://scholar.google.com/scholar?q=this+is+the+one&btnG=&hl=en&as_sdt=0%2C39");
             } else {
                 driver.get(url);
             }
@@ -523,24 +546,24 @@ class ProxyChanger {
      * Configures Selenium the first time
      */
     boolean setUpSelenium() {
+        guiLabels.setOutput("Configuring Selenium");
         try {
-            System.setProperty("phantomjs.binary.path", "./phantomjs/bin/phantomjs");
-            String userAgent = "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/13.0.782.41" +
-                    " Safari/535.1";
-            System.setProperty("phantomjs.page.settings.userAgent", userAgent);
-            guiLabels.setOutput("Configuring Selenium");
-            String type = null;
-
+            String type;
             if (SystemUtils.IS_OS_MAC_OSX) {
                 type = "mac";
 
             } else if (SystemUtils.IS_OS_WINDOWS) {
                 type = "win";
-
+            } else {
+                type = null;
             }
-            //Check if chromedriver exist
+
+
+            //Check if chromedriver and phantomjs exist
             File[] files = new File(".").listFiles();
             File chromeDriver = new File("chromedriver");
+            File phantomjs = new File("phantomjs/bin/phantomjs");
+
             if (files != null) {
                 for (File curr : files) {
                     if (curr.getName().contains("chrome")) {
@@ -549,34 +572,53 @@ class ProxyChanger {
                         }
                         chromeDriver = new File(curr.getName());
 
+                    } else if (curr.getName().contains("phantomjs")) {
+                        if (curr.getName().contains("zip") || curr.getName().contains("log")) {
+                            continue;
+                        }
+                        phantomjs = new File(curr.getName() + "/bin/phantomjs");
                     }
                 }
             }
 
             if (type == null) {
-                guiLabels.setAlertPopUp("Cannot use Javascript enable websites with your computer");
+                guiLabels.setAlertPopUp("Cannot use Javascript enable websites with your computer. sCrawler does " +
+                        "not " +
+                        "fully support your operating system");
                 return false;
             }
             if (!chromeDriver.exists()) {
                 chromeDriver = downloadChromeDriver(type);
             }
-            if (chromeDriver == null || !chromeDriver.exists()) {
+            if (!phantomjs.exists()) {
+                phantomjs = downloadPhantomJS(type);
+            }
+            if (chromeDriver == null || !chromeDriver.exists() || phantomjs == null || !phantomjs.exists()) {
 
-                guiLabels.setAlertPopUp("There was a problem downloading chromedriver. You won't be" +
-                        "able to use Javascript-enabled websites with this crawler. If you believe that this is an " +
-                        "error," +
-
+                guiLabels.setAlertPopUp("There was a problem downloading chromedriver and/or phantomjs in your " +
+                        "computer. You won't be able to use Javascript-enabled websites with this crawler. If you" +
+                        " " +
+                        "believe that this is an error," +
                         " try restarting this crawler.\nYou can also manually download them from: http://docs" +
-                        ".seleniumhq" +
-                        ".org/download/ and put it in the same directory where this crawler is located, just " +
-                        "decompress " +
-                        "the folder once it is downloaded, and restart the crawler.");
+                        ".seleniumhq.org/download/ and put it in the same directory where this crawler is " +
+                        "located, just" +
+                        "decompress the folder once it is downloaded, and restart the crawler.");
                 return false;
             } else {
+
+                //Set up chromedriver
                 String path = chromeDriver.getAbsolutePath();
                 path = path.replaceAll("\\./", "");
                 System.setProperty("webdriver.chrome.driver", path);
+                //Set up phantomjs
+                System.setProperty("phantomjs.binary.path", phantomjs.getAbsolutePath());
+                String userAgent = "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/535.1 (KHTML, like Gecko) " +
+                        "Chrome/13.0.782.41" +
+                        " Safari/535.1";
+                System.setProperty("phantomjs.page.settings.userAgent", userAgent);
                 guiLabels.setOutput("Finding working proxies...");
+
+                testWebDrivers();
             }
         } catch (Exception e) {
             e.printStackTrace(System.out);
@@ -584,6 +626,82 @@ class ProxyChanger {
         return true;
     }
 
+    /**
+     * Verify that the Web Drivers are working
+     */
+    private void testWebDrivers() throws IOException, InterruptedException {
+        guiLabels.setOutput("Verifying web drivers...");
+
+        //Test phantomjs
+        PhantomJSDriver driver = new PhantomJSDriver();
+        driver.manage().timeouts().pageLoadTimeout(5, TimeUnit.MINUTES);
+        driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
+        driver.get("https://www.google.com");
+        waitForLoad(driver);
+        stopPhantomDrive(driver);
+
+        //Test chromedriver
+
+        ChromeDriver driver2 = new ChromeDriver();
+        driver2.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
+        driver2.get("https://www.google.com");
+        waitForLoad(driver2);
+        driver2.close();
+        driver2.quit();
+        guiLabels.setOutput("Web drivers are working");
+
+    }
+
+    /**
+     * Downloads the chrome driver into the local computer
+     */
+
+    private File downloadPhantomJS(String type) {
+        guiLabels.setOutput("Downloading PhantomJS for " + type);
+        try {
+            //Get download link
+            Document doc = Jsoup.connect("http://phantomjs.org/download.html").timeout(10 * 1000).userAgent
+                    ("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
+                            "Gecko/20070725 Firefox/2.0.0.6").get();
+            Elements links = doc.select("a[href]");
+            String href = "";
+            for (Element link : links) {
+                if (link.toString().contains(type)) {
+                    href = link.attr("href");
+                    break;
+                }
+            }
+
+            if (!href.isEmpty()) {
+                //Download file
+                URL url = new URL(href);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                InputStream in = connection.getInputStream();
+                FileOutputStream out = new FileOutputStream("./phantomjs.zip");
+                copy(in, out);
+                out.close();
+
+                //Unzip file
+                String fileName = unzip("./phantomjs.zip", "./");
+                File phantomJS = new File("./" + fileName);
+                if (type.equals("mac")) {
+                    Runtime.getRuntime().exec("chmod u+x " + phantomJS);
+                }
+                return phantomJS;
+
+            }
+        } catch (Exception e) {
+            guiLabels.setAlertPopUp("There was a problem downloading PhantomJS. You won't be able to use " +
+                    "Javascript-enabled websites nor unlock proxies with this crawler. If you believe that this is an" +
+                    " error, try restarting this crawler.\nYou can also manually download it and put it in the same " +
+                    "directory" +
+                    " where this crawler is located, just decompress the folder, change the folder name to " +
+                    "phantomjs and restart the crawler.");
+            return null;
+        }
+        return null;
+    }
 
     /**
      * Downloads the chrome driver into the local computer
@@ -697,6 +815,7 @@ class ProxyChanger {
         boolean first = true;
         File destDir = new File(destDirectory);
         if (!destDir.exists()) {
+            //noinspection ResultOfMethodCallIgnored
             destDir.mkdir();
         }
         ZipInputStream zipIn = new ZipInputStream(new FileInputStream(zipFilePath));
@@ -714,6 +833,7 @@ class ProxyChanger {
             } else {
                 // if the entry is a directory, make the directory
                 File dir = new File(filePath);
+                //noinspection ResultOfMethodCallIgnored
                 dir.mkdir();
             }
             zipIn.closeEntry();
@@ -756,7 +876,6 @@ class ProxyChanger {
         }
         output.flush();
     }
-
 
 }
 

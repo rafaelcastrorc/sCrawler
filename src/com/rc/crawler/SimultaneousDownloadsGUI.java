@@ -15,7 +15,7 @@ import java.util.Map;
  * Created by rafaelcastro on 6/17/17.
  * GUI for the Simultaneous Downloads section, which keeps track of each individual download. There are at most 4
  * simultaneous downloads at a time, and each download has its own GUI group (T1, T2, T3, ... Ti). A GUI group consists
- * of a label display the title of the article, a progress bar, and a label to display the status.
+ * of a label show the title of the article, a progress bar, and a label to show the status.
  */
 class SimultaneousDownloadsGUI {
     private int numOfSimultaneousDownloads;

@@ -32,11 +32,21 @@ public class View extends Application {
 
         //Close the app correctly
         primaryStage.setOnCloseRequest(e -> {
-//            try {
-//                Runtime.getRuntime().exec("-c pkill -f phantomjs");
-//            } catch (IOException e1) {
-//                e1.printStackTrace();
-//            }
+//             //Kil process
+            Runtime rt = Runtime.getRuntime();
+            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+                try {
+                    rt.exec("taskkill /F /IM phantomjs.exe");
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }else {
+                try {
+                    rt.exec("pkill -f phantomjs" );
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
             Platform.exit();
             System.exit(0);
         });

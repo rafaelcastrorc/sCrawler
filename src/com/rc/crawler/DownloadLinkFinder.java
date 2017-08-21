@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 8/10/17.
- * Crawls a website to find download links.
+ * Handles the logic for finding and downloading the PDFs that appear in a website
  */
 class DownloadLinkFinder {
 
@@ -43,7 +43,17 @@ class DownloadLinkFinder {
     }
 
 
-    Object[] getPDFS(String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader, String typeOfSearch,
+    /**
+     * Starts the process for searching inside a website, or multiple websites, looking for PDF download links
+     * @param citingPapersURL Main URL where the papers that cite a paper appear.
+     * @param isMultipleSearch Boolean
+     * @param pdfDownloader Class that handles the download process of a PDF
+     * @param typeOfSearch searchForCitedBy or searchForTheArticle
+     * @param limit Number of PDFs to download
+     * @return Array where item at index 0 is the number of PDFs downloaded, and the item at index 1 is a boolean
+     * that is only true if there was at least 1 PDF available to download.
+     */
+    Object[] getPDFs(String citingPapersURL, boolean isMultipleSearch, PDFDownloader pdfDownloader, String typeOfSearch,
                      int limit) {
         this.isMultipleSearch = isMultipleSearch;
         this.pdfDownloader = pdfDownloader;
@@ -54,7 +64,7 @@ class DownloadLinkFinder {
         numberOfSearches = 0;
         thereWasAPDF = false;
         if (!isMultipleSearch) {
-            guiLabels.setOutput("Downloading...");
+            guiLabels.setOutput("Starting download process...");
         }
         pdfCounter = 0;
         //Go though all the search result links
@@ -81,13 +91,17 @@ class DownloadLinkFinder {
                 currUrl = currUrl.replaceAll("pdf\\+html", "pdf");
             }
 
-            //Pause the current thread before searching
-            pause(currUrl, isMultipleSearch);
+            //Pause the current thread before searching for a random period of time
+            randomPause(currUrl, isMultipleSearch);
             //Get the Document from the current url
+            guiLabels.setOutput("Trying to connect to search result...");
+            System.out.println("URL We are searching " + currUrl);
             Document citingPaper = getCitingPaper(currUrl, currThreadID);
             if (citingPaper == null) {
+                guiLabels.setOutput("Could not download, trying again");
                 continue;
             }
+            //If the crawler was able to connect, then parse the website
             String result = parseWebsite(currThreadID, currUrl, isMultipleSearch, citingPaper,
                     limit);
             if (result == null) {
@@ -101,15 +115,16 @@ class DownloadLinkFinder {
     }
 
     /**
-     * Parse the website to find at least 1 download link
+     * Parse the website Document to find at least 1 download link
      */
     private String parseWebsite(Long currThreadID, String currUrl, boolean isMultipleSearch, Document citingPapers,
                                 int limit) {
 
         //Add request to current website
+        String baseURL = "";
         try {
-            String baseURL = crawler.addRequestToMapOfRequests(currUrl, crawler.getMapThreadIdToProxy().get
-                    (currThreadID));
+             baseURL = crawler.addRequestToMapOfRequests(currUrl, crawler.getMapThreadIdToProxy().get
+                    (currThreadID), -1);
             //Update GUI
             guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + crawler
                     .getMapThreadIdToProxy().get(currThreadID).getProxy() + " = " + crawler.getNumberOfRequestFromMap
@@ -144,14 +159,14 @@ class DownloadLinkFinder {
         if (!isMultipleSearch) {
             guiLabels.setOutput("Downloading...");
         }
-        getPDFsHelper(citingPapers, currThreadID);
+        getPDFsHelper(baseURL, citingPapers, currThreadID);
         return "";
     }
 
     /**
      * Pauses the current thread before going to the search results
      */
-    private void pause(String currUrl, boolean isMultipleSearch) {
+    private void randomPause(String currUrl, boolean isMultipleSearch) {
         //Wait before going to search results or website
         int timeToWait = crawler.getTimeToWait();
         if (!currUrl.contains("scholar.google")) {
@@ -161,6 +176,10 @@ class DownloadLinkFinder {
         //Update GUI
         guiLabels.setConnectionOutput("Waiting " + timeToWait + " seconds before going to the search results");
         if (!isMultipleSearch) {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException ignored) {
+            }
             guiLabels.setOutput("Waiting " + timeToWait + " seconds before going to the search results");
         } else {
             simultaneousDownloadsGUI.updateStatus("Waiting " + timeToWait + " s");
@@ -177,7 +196,7 @@ class DownloadLinkFinder {
 
 
     /**
-     * Gets the Document of the current URL
+     * Gets the Document (JSoup Document) of the current URL
      *
      * @return Jsoup Document
      */
@@ -185,11 +204,16 @@ class DownloadLinkFinder {
         //Increase counter for every new google link
         Document citingPapers;
         try {
+            //Check if the proxy has at least 40 request to a given website to replace it
             if (crawler.getNumberOfRequestFromMap(currUrl, crawler.getMapThreadIdToProxy().get(currThreadID)) >= 50) {
                 guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
                         " amount of requests...");
+                if (!isMultipleSearch) {
+                    guiLabels.setOutput("Changing proxy because of amounts of requests");
+                }
                 citingPapers = crawler.changeIP(currUrl, false, false);
             } else {
+                //If not, just connect to the previous proxy
                 citingPapers = crawler.changeIP(currUrl, true, false);
             }
         } catch (IllegalArgumentException e) {
@@ -214,7 +238,13 @@ class DownloadLinkFinder {
 
     }
 
-    private void getPDFsHelper(Document citingPapers, Long currThreadID) {
+    /**
+     * Final step for downloading a PDF.
+     * Retrieves all the PDF links that a website has and tries to download as many as requested.
+     * @param citingPapers The Document of the website that contains the download links.
+     * @param currThreadID The current thread id.
+     */
+    private void getPDFsHelper(String baseURL, Document citingPapers, Long currThreadID) {
         //Go through all the links of the search result, and find links that contain PDFs
         Elements linksInsidePaper = citingPapers.select("a[href]");
         String text;
@@ -222,11 +252,15 @@ class DownloadLinkFinder {
         for (Element link : linksInsidePaper) {
             text = link.text();
             absLink = link.attr("abs:href");
+            if (absLink.isEmpty() && !baseURL.isEmpty()) {
+                String relativeURL = link.attr("href");
+                absLink = baseURL + relativeURL;
+            }
             if (absLink.contains("pdf+html")) {
                 absLink = absLink.replaceAll("pdf\\+html", "pdf");
             }
             if (absLink.contains("authguide") || absLink.contains("masthead") || absLink.contains
-                    ("/pb-assets/documents")) {
+                    ("/pb-assets/documents") || absLink.isEmpty()) {
                 continue;
             }
             if (text.contains("PDF")) {
@@ -241,6 +275,9 @@ class DownloadLinkFinder {
                         Proxy proxyToUSe = crawler.getMapThreadIdToProxy().get(currThreadID);
                         if (attempt > 0) {
                             proxyToUSe = crawler.getQueueOfConnections().peek();
+                        }
+                        if (!isMultipleSearch) {
+                            guiLabels.setOutput("Downloading...");
                         }
                         pdfDownloader.setCrawler(crawler);
                         pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, crawler.getSpeedUp());

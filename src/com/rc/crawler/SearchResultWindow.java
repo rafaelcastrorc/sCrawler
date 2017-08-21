@@ -19,7 +19,7 @@ import java.util.concurrent.Callable;
 
 /**
  * Created by rafaelcastro on 6/14/17.
- * Creates a search result window to display all the search results. Implements callable.
+ * Creates a search result window to show all the search results. Implements callable.
  */
 class SearchResultWindow implements Callable<Void> {
 
