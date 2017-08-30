@@ -1,10 +1,7 @@
 package com.rc.crawler;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.CookieStore;
 import org.apache.http.impl.client.BasicCookieStore;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.cookie.BasicClientCookie;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
@@ -13,17 +10,18 @@ import org.openqa.selenium.phantomjs.PhantomJSDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.DesiredCapabilities;
-import org.apache.http.client.CookieStore;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-
-import java.io.*;
-import java.net.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -77,7 +75,6 @@ class PDFDownloader {
             result = future.get(3, TimeUnit.MINUTES);
         } catch (Exception e) {
             future.cancel(true);
-            System.out.println("Timeout download: " + url);
             result = "Timeout";
         }
         //If result is not empty, it means that an exception was thrown inside the thread, or there was a timeout
@@ -107,7 +104,6 @@ class PDFDownloader {
             String result = "";
             //Connect to the site holding the pdf and download it
             try {
-                System.out.println("Trying to download URL " + url);
                 if (crawler.isSeleniumActive()) {
                     java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
                     cookies = connectUsingSelenium();
@@ -170,10 +166,11 @@ class PDFDownloader {
                     capabilities.setCapability(CapabilityType.PROXY, nProxy);
                 }
 
+
                 //Initiate the driver
                 driver = new PhantomJSDriver(capabilities);
 
-                driver.manage().timeouts().pageLoadTimeout(2, TimeUnit.MINUTES);
+                driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.MINUTES);
                 driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
                 driver.get(url);
                 waitForLoad(driver);
@@ -181,7 +178,8 @@ class PDFDownloader {
 
 
             } catch (Exception e) {
-                e.printStackTrace();
+                System.out.println("ERROR WHILE DOWNLOADING I");
+                e.printStackTrace(System.out);
                 throw new IllegalArgumentException();
             } finally {
                 try {
@@ -195,28 +193,6 @@ class PDFDownloader {
                 }
             }
             return cookies;
-        }
-
-
-        /**
-         * Stores the cookies that the drive obtained when it connected to the site.
-         *
-         * @return CookieStore
-         */
-        private CookieStore seleniumCookiesToCookieStore(Set<Cookie> cookies) {
-
-            CookieStore cookieStore = new BasicCookieStore();
-
-            for (Cookie seleniumCookie : cookies) {
-                BasicClientCookie basicClientCookie =
-                        new BasicClientCookie(seleniumCookie.getName(), seleniumCookie.getValue());
-                basicClientCookie.setDomain(seleniumCookie.getDomain());
-                basicClientCookie.setExpiryDate(seleniumCookie.getExpiry());
-                basicClientCookie.setPath(seleniumCookie.getPath());
-                cookieStore.addCookie(basicClientCookie);
-            }
-
-            return cookieStore;
         }
 
         /**
@@ -319,8 +295,7 @@ class PDFDownloader {
         try {
             new WebDriverWait(driver, 120).until((ExpectedCondition<Boolean>) wd ->
                     ((JavascriptExecutor) wd).executeScript("return document.readyState").equals("complete"));
-        } catch (Exception e) {
-            System.out.println("THERE WAS AN EXCEPTION");
+        } catch (Exception ignored) {
         }
 
     }

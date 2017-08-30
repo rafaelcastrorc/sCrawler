@@ -154,7 +154,6 @@ class ProxiesDownloader {
                                 }
                                 getProxiesFromWebsiteHelper(elt, crawler, logger, ips, ipAndPort,
                                         numberOfProxiesToDownload);
-
                             }
                         }
                         Double d = (proxyCounter1 / (double) numberOfProxiesToDownload) * 0.7;

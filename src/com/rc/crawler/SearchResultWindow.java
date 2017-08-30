@@ -39,6 +39,7 @@ class SearchResultWindow implements Callable<Void> {
 
     /**
      * Sets the query string that had multiple search results.
+     *
      * @param queryStr String with multiple matches
      */
     void setQueryStr(String queryStr) {

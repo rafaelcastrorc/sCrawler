@@ -21,6 +21,8 @@ class SingleSearchResultFinder {
     private String text = "";
     private String paperVersionsURL = "";
     private String absLink = "";
+    private String firstSearchResultURL;
+    private String fullViewURL;
 
 
     SingleSearchResultFinder(Crawler crawler, GUILabelManagement guiLabels, SimultaneousDownloadsGUI
@@ -43,113 +45,132 @@ class SingleSearchResultFinder {
      */
     boolean findSingleSearchResult(Elements links, String type, String url,
                                    boolean isMultipleSearch) {
-        String firstSearchResultURL = "";
-        String fullViewURL = "";
+        firstSearchResultURL = "";
+        fullViewURL = "";
         if (type.equals("searchForCitedBy")) {
             //If we are searching for the articles that cite the article
-            for (Element link : links) {
-                text = link.text();
-                this.absLink = link.attr("abs:href");
-                if (text.contains("Cited by")) {
-                    found = true;
-                    if (absLink.isEmpty()) {
-                        String baseURL = "https://scholar.google.com";
-                        String relativeURL = link.attr("href");
-                        this.absLink = baseURL + relativeURL;
-                    }
-                    break;
-                }
-            }
+            searchForCitedBy(links);
         } else {
-            //If we are searching for the article
-            Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
-                    "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
-            Matcher gScholarSRMatcher = gScholarSearchResult.matcher(doc.html());
-            if (gScholarSRMatcher.find()) {
-                String gsSearchResult = gScholarSRMatcher.group();
-                //Get the link of the search result and the text
-                Pattern linkAndTextPattern = Pattern.compile("http(s)?:/[^<]*");
-                Matcher linkAndTextMatcher = linkAndTextPattern.matcher(gsSearchResult);
-                text = "";
-                while (linkAndTextMatcher.find()) {
-                    //Retrieve the link of the first search result website
-                    String linkAndText = linkAndTextMatcher.group();
-                    Pattern linkPattern = Pattern.compile("http(s)?:/[^\"]*");
-                    Matcher linkPatternMatcher = linkPattern.matcher(linkAndText);
-                    if (linkPatternMatcher.find()) {
-                        try {
-                            firstSearchResultURL = linkPatternMatcher.group();
-                            text = linkAndText;
-                            text = text.replace(firstSearchResultURL, "");
-                            text = text.replaceAll("\"[^>]*>", "");
-                            text = text.replaceAll("<(/)?\\D>", "");
-                            if (text.contains("span class")) {
-                                text = "";
-                            }
-                            if (text.contains("Full View")) {
-                                firstSearchResultURL = firstSearchResultURL.replaceAll("amp;", "");
-                                firstSearchResultURL = firstSearchResultURL.replaceAll("&nossl=1", "");
-                                fullViewURL = firstSearchResultURL;
-                                fullViewURL = formatFullView(fullViewURL);
-                                text = "";
-                            }
-                            if (!text.isEmpty()) {
-                                break;
-                            }
-                        } catch (IllegalStateException ignored) {
-                        }
-                    }
-                }
-            }
-
-            //Capture the Version link
-            String baseURI = "https://scholar.google.com";
-            Pattern pattern = Pattern.compile("<a href=([^<])*All \\d* versions</a>");
-            Matcher matcher = pattern.matcher(doc.html());
-            //Get the first match
-            if (matcher.find()) {
-                //Get just the link
-                Pattern linkPattern = Pattern.compile("/[^\"]*");
-                Matcher linkMatcher = linkPattern.matcher(matcher.group());
-                if (linkMatcher.find()) {
-                    paperVersionsURL = baseURI + linkMatcher.group();
-                    //Put the Version URL and the first search result URL, and the search result URL
-                    paperVersionsURL = paperVersionsURL + "∆" + firstSearchResultURL + "∆" + url;
-                    //If there is a full view url, then add it as well
-                    if (!fullViewURL.isEmpty()) {
-                        paperVersionsURL = paperVersionsURL + "∆" + fullViewURL;
-                    }
-                    text = "found";
-                    found = true;
-                }
-
-            }
-            //When there is no "Version" feature for the article
-            if (paperVersionsURL.isEmpty()) {
-
-                //Check if there is 1 search result, if so, get the link
-                if (gScholarSRMatcher.find()) {
-                    text = "found";
-                    found = true;
-                    //Add the url of the google search and the url of the first search result
-                    this.paperVersionsURL = url + "∆" + firstSearchResultURL;
-                } else {
-                    text = "";
-                    found = false;
-                    //We could not retrieve a URL, so we won't be able to get the pdf from gscholar
-                    if (!isMultipleSearch) {
-                        guiLabels.setSearchResultLabel(type + ",Could not find the PDF versions " +
-                                "of this paper");
-                    } else {
-                        simultaneousDownloadsGUI.updateStatus("Could not find the PDF version of " +
-                                "this paper");
-                    }
-                }
-            }
+            searchForTheArticle(isMultipleSearch, type, url);
         }
         return found;
     }
 
+    /**
+     * Finds the "All Version" URL, the URL of the first search result, and if possible, the "Full View"
+     * URL which likely contains a PDF
+     */
+    private void searchForTheArticle(boolean isMultipleSearch, String type, String url) {
+        //If we are searching for the article
+        Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
+                "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
+        Matcher gScholarSRMatcher = gScholarSearchResult.matcher(doc.html());
+        if (gScholarSRMatcher.find()) {
+            String gsSearchResult = gScholarSRMatcher.group();
+            //Get the link of the search result and the text
+            Pattern linkAndTextPattern = Pattern.compile("http(s)?:/[^<]*");
+            Matcher linkAndTextMatcher = linkAndTextPattern.matcher(gsSearchResult);
+            text = "";
+            while (linkAndTextMatcher.find()) {
+                //Retrieve the link of the first search result website
+                String linkAndText = linkAndTextMatcher.group();
+                Pattern linkPattern = Pattern.compile("http(s)?:/[^\"]*");
+                Matcher linkPatternMatcher = linkPattern.matcher(linkAndText);
+                if (linkPatternMatcher.find()) {
+                    try {
+                        firstSearchResultURL = linkPatternMatcher.group();
+                        text = linkAndText;
+                        text = text.replace(firstSearchResultURL, "");
+                        text = text.replaceAll("\"[^>]*>", "");
+                        text = text.replaceAll("<(/)?\\D>", "");
+                        if (text.contains("span class")) {
+                            text = "";
+                        }
+                        if (text.contains("Full View")) {
+                            firstSearchResultURL = firstSearchResultURL.replaceAll("amp;", "");
+                            firstSearchResultURL = firstSearchResultURL.replaceAll("&nossl=1", "");
+                            fullViewURL = firstSearchResultURL;
+                            fullViewURL = formatFullView(fullViewURL);
+                            text = "";
+                        }
+                        if (!text.isEmpty()) {
+                            break;
+                        }
+                    } catch (IllegalStateException ignored) {
+                    }
+                }
+            }
+        }
+        //Capture the Version link
+        String baseURI = "https://scholar.google.com";
+        Pattern pattern = Pattern.compile("<a href=([^<])*All \\d* versions</a>");
+        Matcher matcher = pattern.matcher(doc.html());
+        //Get the first match
+        if (matcher.find()) {
+            //Get just the link
+            Pattern linkPattern = Pattern.compile("/[^\"]*");
+            Matcher linkMatcher = linkPattern.matcher(matcher.group());
+            if (linkMatcher.find()) {
+                paperVersionsURL = baseURI + linkMatcher.group();
+                //Put the Version URL and the first search result URL, and the search result URL
+                paperVersionsURL = paperVersionsURL + "∆" + firstSearchResultURL + "∆" + url;
+                //If there is a full view url, then add it as well
+                if (!fullViewURL.isEmpty()) {
+                    paperVersionsURL = paperVersionsURL + "∆" + fullViewURL;
+                }
+                text = "found";
+                found = true;
+            }
+
+        }
+        //When there is no "Version" feature for the article
+        if (paperVersionsURL.isEmpty()) {
+
+            //Check if there is 1 search result, if so, get the link
+            if (gScholarSRMatcher.find()) {
+                text = "found";
+                found = true;
+                //Add the url of the google search and the url of the first search result
+                this.paperVersionsURL = url + "∆" + firstSearchResultURL;
+            } else {
+                text = "";
+                found = false;
+                //We could not retrieve a URL, so we won't be able to get the pdf from gscholar
+                if (!isMultipleSearch) {
+                    guiLabels.setSearchResultLabel(type + ",Could not find the PDF versions " +
+                            "of this paper");
+                } else {
+                    simultaneousDownloadsGUI.updateStatus("Could not find the PDF version of " +
+                            "this paper");
+                }
+            }
+        }
+    }
+
+    /**
+     * Finds the "Cited by" link
+     *
+     * @param links Jsoup Elements
+     */
+    private void searchForCitedBy(Elements links) {
+        for (Element link : links) {
+            text = link.text();
+            this.absLink = link.attr("abs:href");
+            if (text.contains("Cited by")) {
+                found = true;
+                if (absLink.isEmpty()) {
+                    String baseURL = "https://scholar.google.com";
+                    String relativeURL = link.attr("href");
+                    this.absLink = baseURL + relativeURL;
+                }
+                break;
+            }
+        }
+    }
+
+    /**
+     * Formats the "Full View" URL correctly. This URL usually contains a PDF
+     */
     private String formatFullView(String fullViewURL) {
         Document doc = crawler.changeIP(fullViewURL, true, false);
         Pattern redirectPattern = Pattern.compile("<script>location\\.replace[^©]*</script>");

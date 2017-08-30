@@ -379,5 +379,4 @@ class Logger {
     }
 
 
-
 }

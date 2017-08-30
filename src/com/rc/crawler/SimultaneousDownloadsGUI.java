@@ -115,7 +115,8 @@ class SimultaneousDownloadsGUI {
         try {
             int group = mapThreadToGroup.get(Thread.currentThread().getId());
             Platform.runLater(() -> statusT[group].setText("Status: " + s));
-        }catch(NullPointerException ignored) {}
+        } catch (NullPointerException ignored) {
+        }
     }
 
     /**
@@ -140,6 +141,7 @@ class SimultaneousDownloadsGUI {
 
     /**
      * Sets the number of allowed simultaneous downloads
+     *
      * @param numOfSimultaneousDownloads int
      */
     void setNumOfSimultaneousDownloads(int numOfSimultaneousDownloads) {

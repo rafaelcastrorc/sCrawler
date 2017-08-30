@@ -45,11 +45,12 @@ class DownloadLinkFinder {
 
     /**
      * Starts the process for searching inside a website, or multiple websites, looking for PDF download links
-     * @param citingPapersURL Main URL where the papers that cite a paper appear.
+     *
+     * @param citingPapersURL  Main URL where the papers that cite a paper appear.
      * @param isMultipleSearch Boolean
-     * @param pdfDownloader Class that handles the download process of a PDF
-     * @param typeOfSearch searchForCitedBy or searchForTheArticle
-     * @param limit Number of PDFs to download
+     * @param pdfDownloader    Class that handles the download process of a PDF
+     * @param typeOfSearch     searchForCitedBy or searchForTheArticle
+     * @param limit            Number of PDFs to download
      * @return Array where item at index 0 is the number of PDFs downloaded, and the item at index 1 is a boolean
      * that is only true if there was at least 1 PDF available to download.
      */
@@ -95,7 +96,6 @@ class DownloadLinkFinder {
             randomPause(currUrl, isMultipleSearch);
             //Get the Document from the current url
             guiLabels.setOutput("Trying to connect to search result...");
-            System.out.println("URL We are searching " + currUrl);
             Document citingPaper = getCitingPaper(currUrl, currThreadID);
             if (citingPaper == null) {
                 guiLabels.setOutput("Could not download, trying again");
@@ -123,13 +123,13 @@ class DownloadLinkFinder {
         //Add request to current website
         String baseURL = "";
         try {
-             baseURL = crawler.addRequestToMapOfRequests(currUrl, crawler.getMapThreadIdToProxy().get
+            baseURL = crawler.addRequestToMapOfRequests(currUrl, crawler.getMapThreadIdToProxy().get
                     (currThreadID), -1);
             //Update GUI
             guiLabels.setConnectionOutput("Number of reqs to " + baseURL + " from proxy " + crawler
                     .getMapThreadIdToProxy().get(currThreadID).getProxy() + " = " + crawler.getNumberOfRequestFromMap
                     (currUrl,
-                    crawler.getMapThreadIdToProxy().get(currThreadID)));
+                            crawler.getMapThreadIdToProxy().get(currThreadID)));
         } catch (IllegalArgumentException e) {
             //the current url is not correct
             return "";
@@ -155,11 +155,11 @@ class DownloadLinkFinder {
             }
             return null;
         }
-
-        if (!isMultipleSearch) {
-            guiLabels.setOutput("Downloading...");
+        try {
+            getPDFsHelper(baseURL, citingPapers, currThreadID);
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
         }
-        getPDFsHelper(baseURL, citingPapers, currThreadID);
         return "";
     }
 
@@ -241,6 +241,7 @@ class DownloadLinkFinder {
     /**
      * Final step for downloading a PDF.
      * Retrieves all the PDF links that a website has and tries to download as many as requested.
+     *
      * @param citingPapers The Document of the website that contains the download links.
      * @param currThreadID The current thread id.
      */
@@ -279,22 +280,30 @@ class DownloadLinkFinder {
                         if (!isMultipleSearch) {
                             guiLabels.setOutput("Downloading...");
                         }
+                        //Download the file
                         pdfDownloader.setCrawler(crawler);
                         pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, crawler.getSpeedUp());
+
                         file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
                                 + ".pdf");
                         if (file.length() == 0 || !file.canRead()) {
                             thereWasAPDF = true;
                             throw new IOException("File is invalid");
                         }
-
-                        PDFVerifier pdfVerifier = new PDFVerifier(file);
+                        System.out.println("HERE MATE");
+                        PDFVerifier pdfVerifier = null;
+                        try {
+                            pdfVerifier = new PDFVerifier(file);
+                        } catch (Exception | Error e) {
+                            e.printStackTrace(System.out);
+                        }
                         ExecutorService executorService3 = Executors.newSingleThreadExecutor(new MyThreadFactory());
                         Future<String> future = executorService3.submit(pdfVerifier);
                         String result = "";
                         try {
                             result = future.get(15 * 1000, TimeUnit.MILLISECONDS);
                         } catch (Exception e) {
+                            e.printStackTrace(System.out);
                             thereWasAPDF = true;
                             future.cancel(true);
                         }
@@ -321,7 +330,6 @@ class DownloadLinkFinder {
                         if (e2.getMessage() == null || !e2.getMessage().contains("Error 403") &&
                                 !e2.getMessage().contains("response code: 429") &&
                                 !e2.getMessage().contains("Unable to tunnel through proxy.")) {
-                            System.out.println("Error: " + e2.getMessage());
                             if (file != null) {
                                 //If the file was created, delete it
                                 //noinspection ResultOfMethodCallIgnored
@@ -332,6 +340,7 @@ class DownloadLinkFinder {
                             thereWasAPDF = true;
                         }
                     }
+
 
                 }
 
@@ -362,5 +371,6 @@ class DownloadLinkFinder {
             guiLabels.setNumberOfPDFsMultiple(typeOfSearch + "," + crawler.getAtomicCounter().value());
 
         }
+
     }
 }

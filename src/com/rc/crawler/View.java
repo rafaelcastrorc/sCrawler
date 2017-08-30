@@ -15,14 +15,15 @@ import java.io.IOException;
  */
 public class View extends Application {
 
-    public View(){}
+    public View() {
+    }
 
     @Override
     public void start(Stage primaryStage) throws Exception {
         //Loads all the necessary components to start the application
         FXMLLoader loader = new FXMLLoader(getClass().getResource("View.fxml"));
         Parent root = loader.load();
-        primaryStage.setTitle(""+ getClass().getProtectionDomain().getCodeSource().getLocation());
+        primaryStage.setTitle("" + getClass().getProtectionDomain().getCodeSource().getLocation());
         Scene loadingScene = new Scene(root);
         loadingScene.getStylesheets().add("Style.css");
         loadingScene.getStylesheets().add("https://fonts.googleapis.com/css?family=Roboto");
@@ -32,7 +33,7 @@ public class View extends Application {
 
         //Close the app correctly
         primaryStage.setOnCloseRequest(e -> {
-//             //Kil process
+            //Kil the phantomjs process
             Runtime rt = Runtime.getRuntime();
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
                 try {
@@ -40,9 +41,9 @@ public class View extends Application {
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
-            }else {
+            } else {
                 try {
-                    rt.exec("pkill -f phantomjs" );
+                    rt.exec("pkill -f phantomjs");
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }

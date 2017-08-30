@@ -668,8 +668,10 @@ public class Controller implements Initializable {
                 alert.setTitle("Google has detected a robot");
                 alert.setHeaderText("Google has blocked the following proxy: " + proxy.getProxy() + ":" + proxy.getPort() +
 
-                        "\nHelp the crawler by unlocking it. Once you are done " +
-                        "press\nthe 'Proxy is Unlocked' button");
+                        "\nHelp the crawler by unlocking it. Once you are done press the\n" +
+                        "'Proxy is Unlocked' button.\n" +
+                        "Note: If the page does not fully load, try reloading it multiple\n" +
+                        "times, or go to scholar.google.com and search for something\ndifferent.");
                 alert.setContentText(null);
                 ButtonType unlock = new ButtonType("Unlock Proxy");
                 ButtonType proxyIsUnlocked = new ButtonType("Proxy is Unlocked");
@@ -696,9 +698,12 @@ public class Controller implements Initializable {
                                 //Don't close window
                                 event.consume();
                             } else {
-                                //If the text of the button is Can't be unlocked
-                                driver[0].close();
-                                driver[0].quit();
+                                //If the text of the button is Can't be unlocked'
+                                try {
+                                    driver[0].close();
+                                    driver[0].quit();
+                                }catch (Exception ignored){
+                                }
                             }
 
                         }
@@ -712,13 +717,19 @@ public class Controller implements Initializable {
                         try {
                             driver[0].close();
                             driver[0].quit();
-                        } catch (RuntimeException ignored) {
+                            //Add it to queue of working proxies
+                            crawler.addUnlockedProxy(proxy, cookies);
+                        } catch (Exception ignored) {
                         }
-                        //Add it to queue of working proxies
-                        crawler.addUnlockedProxy(proxy, cookies);
+
                     } else {
                         //If user press cancel, we add it back to the list of blocked proxies
                         crawler.getQueueOfBlockedProxies().add(proxy);
+                        try {
+                            driver[0].close();
+                            driver[0].quit();
+                        } catch (Exception ignored) {
+                        }
                         break;
                     }
                 }
@@ -805,13 +816,13 @@ public class Controller implements Initializable {
         Long currentThreadId = Thread.currentThread().getId();
         SearchResultWindow searchResultWindow = guiLabels.getMapThreadToSearchResultW().get(currentThreadId);
         searchResultWindow.setQueryStr(title);
-        SearchResultDisplay searchResultDisplay = new SearchResultDisplay(searchResultWindow, guiLabels, crawler,
-                this);
+        SearchResultDisplay searchResultDisplay = new SearchResultDisplay(searchResultWindow, guiLabels, crawler
+        ,this);
         citingPapersURL = searchResultDisplay.show(isMultipleSearch, typeOfSearch, currentThreadId, title);
     }
 
     /**
-     * Call upon start.
+     * Call upon start. Initializes the controller.
      *
      * @param location  Location
      * @param resources ResourceBundle
@@ -844,6 +855,8 @@ public class Controller implements Initializable {
 
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
+        //Initializes object that holds different maps
+
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         crawler = new Crawler(guiLabels);
         DoWork task = new DoWork("initialize", null, null);

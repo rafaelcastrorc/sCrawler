@@ -1,7 +1,5 @@
 package com.rc.crawler;
 
-import javafx.application.Platform;
-import javafx.beans.property.StringProperty;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -12,9 +10,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Scanner;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
 
 /**
  * Created by rafaelcastro on 7/6/17.
@@ -55,7 +52,6 @@ class SetupFile extends Task<Void> implements Callable<Void> {
                 }
             }
             finishedDownloads.close();
-
         } catch (FileNotFoundException ignored) {
         }
 
@@ -108,7 +104,6 @@ class SetupFile extends Task<Void> implements Callable<Void> {
         ArrayList<String> holder = new ArrayList<>();
         try {
             scanner = new Scanner(new FileInputStream(submittedFile));
-            System.out.println(scanner.hasNext());
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
                 if (line.contains(typeOfSearch)) {
@@ -129,7 +124,7 @@ class SetupFile extends Task<Void> implements Callable<Void> {
 
         } catch (FileNotFoundException ignored) {
         }
-        if (articleNames.size()>1) {
+        if (articleNames.size() > 1) {
             //If there are files that can be re-downloaded, ask the user what he wants to do
 
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "You can try to download " +
@@ -146,14 +141,14 @@ class SetupFile extends Task<Void> implements Callable<Void> {
                 }
                 for (String s : holder) {
                     try {
-                        logger.writeToFilesNotDownloaded("\n"+s);
-                    } catch (IOException e) {
+                        logger.writeToFilesNotDownloaded("\n" + s);
+                    } catch (IOException ignored) {
                     }
                 }
                 try {
                     //Create a new txt file with all the files to download
                     logger.setListOfFilesToDownload();
-                    for (String article: articleNames) {
+                    for (String article : articleNames) {
                         logger.writeToFilesToDownload("\n" + article);
                     }
                     //clear completed downloads
@@ -161,13 +156,9 @@ class SetupFile extends Task<Void> implements Callable<Void> {
 
                 } catch (IOException ignored) {
                 }
-
                 controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
-
             }
-
-        }
-        else {
+        } else {
             Alert alert = new Alert(Alert.AlertType.INFORMATION, "There are no files that can be downloaded",
                     ButtonType.OK);
             alert.setHeaderText(null);

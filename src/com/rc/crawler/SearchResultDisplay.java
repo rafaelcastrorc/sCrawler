@@ -8,13 +8,13 @@ import java.util.concurrent.FutureTask;
 
 /**
  * Created by rafaelcastro on 8/20/17.
- * Displays a SearchResultWindow, when there are multiple search results for a given query.
+ * Displays a SearchResultWindow object, when there are multiple search results for a given query.
  */
 class SearchResultDisplay {
+    private final Controller controller;
     private SearchResultWindow searchResultWindow;
     private GUILabelManagement guiLabels;
     private Crawler crawler;
-    private Controller controller;
 
 
     SearchResultDisplay(SearchResultWindow searchResultWindow, GUILabelManagement guiLabels, Crawler crawler,
@@ -28,9 +28,10 @@ class SearchResultDisplay {
 
     /**
      * Show the Search Result Window to the user
+     *
      * @param isMultipleSearch true if it is multiple search mode
-     * @param typeOfSearch searchForCitedBy or searchForTheArticle
-     * @param currentThreadId ID of the current thread
+     * @param typeOfSearch     searchForCitedBy or searchForTheArticle
+     * @param currentThreadId  ID of the current thread
      * @return citing paper URL
      */
     String show(boolean isMultipleSearch, String typeOfSearch, Long currentThreadId, String title) {

@@ -3,6 +3,8 @@ package com.rc.crawler;
 import org.apache.pdfbox.cos.COSDocument;
 import org.apache.pdfbox.io.RandomAccessBufferedFileInputStream;
 import org.apache.pdfbox.pdfparser.PDFParser;
+import org.apache.pdfbox.pdfparser.PDFStreamParser;
+import org.apache.pdfbox.pdmodel.PDDocument;
 
 import java.io.File;
 import java.util.concurrent.Callable;
@@ -19,13 +21,15 @@ class PDFVerifier implements Callable<String> {
     }
 
     @Override
-    public String call() throws Exception {
+    public String call() {
         String result = "";
         try {
-            PDFParser parser = new PDFParser(new RandomAccessBufferedFileInputStream(file));
-            parser.parse();
-            COSDocument cosDoc = parser.getDocument();
+            PDDocument doc = PDDocument.load(file);
+            doc.getNumberOfPages();
+            COSDocument cosDoc = doc.getDocument();
             cosDoc.close();
+            doc.close();
+            //Catch any type of exception caused for parsing the document
         } catch (Exception e) {
             result = "Invalid File";
         }

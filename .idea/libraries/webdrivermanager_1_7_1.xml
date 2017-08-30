@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="pdfbox-2.0.6 (1)">
+  <library name="webdrivermanager-1.7.1">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/pdfbox-2.0.6 (1).jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/webdrivermanager-1.7.1.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

@@ -225,7 +225,7 @@ class ProxyChanger {
 
                 //Since we are using a new proxy, we need to find a replacement
                 if (first) {
-                    Request request = new Request(true, "getConnection", crawler, guiLabels);
+                    Request request = new Request("getConnection", crawler, guiLabels);
                     crawler.getExecutorService().submit(request);
                     guiLabels.setNumberOfWorkingIPs("remove,none");
                     first = false;
@@ -246,7 +246,7 @@ class ProxyChanger {
             //Since we are using a new proxy, we need to find a replacement
             //If there are already 12 proxies in the queue, then don't add more
             if (crawler.getQueueOfConnections().size() <= 12 && !isError404) {
-                Request request = new Request(true, "getConnection", crawler, guiLabels);
+                Request request = new Request("getConnection", crawler, guiLabels);
                 crawler.getExecutorService().submit(request);
                 guiLabels.setNumberOfWorkingIPs("remove,none");
             }
@@ -286,7 +286,12 @@ class ProxyChanger {
                 thereWasAnErrorWithProxy = true;
                 attempt++;
             }
-            crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID), -1);
+            try {
+                crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID), -1);
+            }catch (IllegalArgumentException e){
+                e.printStackTrace(System.out);
+                System.out.println(e.getMessage());
+            }
         }
         return doc;
     }
@@ -402,6 +407,7 @@ class ProxyChanger {
             }
 
             ArrayList<String> cliArgsCap = new ArrayList<>();
+            //Add the capabilities
             DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
             cliArgsCap.add("--web-security=false");
             cliArgsCap.add("--ssl-protocol=any");
@@ -415,8 +421,6 @@ class ProxyChanger {
             if (usesProxy) {
                 capabilities.setCapability(CapabilityType.PROXY, nProxy);
             }
-
-
             //Initiate the driver
             PhantomJSDriver driver = new PhantomJSDriver(capabilities);
 
@@ -425,6 +429,7 @@ class ProxyChanger {
                 driver.manage().timeouts().pageLoadTimeout(2, TimeUnit.MINUTES);
                 driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
                 if (cookies != null) {
+                    //If there are cookies, add them
                     driver.manage().deleteAllCookies();
                     for (Cookie c : cookies) {
                         driver.manage().addCookie(c);
@@ -446,8 +451,7 @@ class ProxyChanger {
                 try {
                     //Close the driver
                     stopPhantomDrive(driver);
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } catch (Exception ignored) {
                 }
             }
             doc = Jsoup.parse(pageSource);
@@ -796,7 +800,7 @@ class ProxyChanger {
             new WebDriverWait(driver, 120).until((ExpectedCondition<Boolean>) wd ->
                     ((JavascriptExecutor) wd).executeScript("return document.readyState").equals("complete"));
         } catch (Exception e) {
-            System.out.println("THERE WAS AN EXCEPTION");
+            System.out.println("THERE WAS A TIMEOUT WHILE LOADING");
         }
 
     }
