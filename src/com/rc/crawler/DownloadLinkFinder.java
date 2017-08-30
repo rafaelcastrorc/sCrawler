@@ -290,7 +290,6 @@ class DownloadLinkFinder {
                             thereWasAPDF = true;
                             throw new IOException("File is invalid");
                         }
-                        System.out.println("HERE MATE");
                         PDFVerifier pdfVerifier = null;
                         try {
                             pdfVerifier = new PDFVerifier(file);

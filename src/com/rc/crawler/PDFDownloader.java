@@ -178,7 +178,6 @@ class PDFDownloader {
 
 
             } catch (Exception e) {
-                System.out.println("ERROR WHILE DOWNLOADING I");
                 e.printStackTrace(System.out);
                 throw new IllegalArgumentException();
             } finally {
