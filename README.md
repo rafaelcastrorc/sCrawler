@@ -19,19 +19,22 @@ Works on Windows and OSX.
 
 *Modern GUI designed using JavaFX.
 
-*Email progress reports and blocked proxies.
+*Reports blocked proxies, and allows the user to unlock them.
 
  
  
 To be able to download multiple papers at the same time without being banned, the program searches for publicly available proxies, and selects the ones that are working.
  
 **Screenshots:**
- 
- 
+
+<img src="https://github.com/rafaelcastrorc/sCrawler/blob/master/imgs/p3.png" width="400">
+<img src="https://github.com/rafaelcastrorc/sCrawler/blob/master/imgs/p2.png" width="400">
+<img src="https://github.com/rafaelcastrorc/sCrawler/blob/master/imgs/p1.png" width="400">
+<img src="https://github.com/rafaelcastrorc/sCrawler/blob/master/imgs/p4.png" width="400">
+
 **Program download link:**
 
-https://github.com/blog/1547-release-your-software\
- 
+https://github.com/rafaelcastrorc/sCrawler/releases 
  
 **How does the program avoid getting caught?**
 
