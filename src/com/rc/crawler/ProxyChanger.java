@@ -19,6 +19,7 @@ import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.support.ui.ExpectedCondition;
+import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.io.*;
@@ -41,10 +42,12 @@ class ProxyChanger {
     private Crawler crawler;
     private boolean isError404;
     private boolean thereWasAnErrorWithProxy = false;
+    private SearchEngine.SupportedSearchEngine engine;
 
-    ProxyChanger(GUILabelManagement guiLabels, Crawler crawler) {
+    ProxyChanger(GUILabelManagement guiLabels, Crawler crawler, SearchEngine.SupportedSearchEngine engine) {
         this.guiLabels = guiLabels;
         this.crawler = crawler;
+        this.engine = engine;
     }
 
     /**
@@ -139,9 +142,10 @@ class ProxyChanger {
                     //Try to use one of the unlocked proxies first
                     if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
                         proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
-                        cookies = crawler.getMapProxyToCookie().get(proxyToBeUsed);
+                        cookies = crawler.getCookie(proxyToBeUsed, engine);
                         System.out.println("Using proxy from unlocked proxies");
-                        crawler.addRequestToMapOfRequests("https://scholar.google.com", proxyToBeUsed, 0);
+
+                        crawler.addRequestToMapOfRequests(SearchEngine.getBaseURL(engine), proxyToBeUsed, 0);
 
                     }
                     //If there are no unlocked proxies, or the queue returned null, try finding a new connection
@@ -157,9 +161,7 @@ class ProxyChanger {
                     //If Selenium is enabled, get the Document using a webdriver
                     if (crawler.isSeleniumActive()) {
                         //Check if it requires cookies
-                        if (crawler.getMapProxyToCookie().containsKey(proxyToBeUsed)) {
-                            cookies = crawler.getMapProxyToCookie().get(proxyToBeUsed);
-                        }
+                        cookies = crawler.getCookie(proxyToBeUsed, engine);
                         doc = useSelenium(proxyToBeUsed, url, true, cookies);
                         //If no error happens add it
                         connected = true;
@@ -199,7 +201,7 @@ class ProxyChanger {
             guiLabels.setConnectionOutput("Proxy has more than 40 requests");
         }
         int limit = 3;
-        if (url.contains("scholar.google")) {
+        if (url.contains("scholar.google") || url.contains("academic.microsoft")) {
             limit = 30;
         }
         boolean connected = false;
@@ -225,7 +227,7 @@ class ProxyChanger {
 
                 //Since we are using a new proxy, we need to find a replacement
                 if (first) {
-                    Request request = new Request("getConnection", crawler, guiLabels);
+                    Request request = new Request("getConnection", crawler, guiLabels, engine);
                     crawler.getExecutorService().submit(request);
                     guiLabels.setNumberOfWorkingIPs("remove,none");
                     first = false;
@@ -246,7 +248,7 @@ class ProxyChanger {
             //Since we are using a new proxy, we need to find a replacement
             //If there are already 12 proxies in the queue, then don't add more
             if (crawler.getQueueOfConnections().size() <= 12 && !isError404) {
-                Request request = new Request("getConnection", crawler, guiLabels);
+                Request request = new Request("getConnection", crawler, guiLabels, engine);
                 crawler.getExecutorService().submit(request);
                 guiLabels.setNumberOfWorkingIPs("remove,none");
             }
@@ -255,17 +257,15 @@ class ProxyChanger {
                 //Check if selenium is active
                 if (crawler.isSeleniumActive()) {
                     //Check if the proxy requires cookies
-                    Set<Cookie> cookies = null;
-                    if (crawler.getMapProxyToCookie().containsKey(proxyToUse)) {
-                        cookies = crawler.getMapProxyToCookie().get(proxyToUse);
-                    }
+                    Set<Cookie> cookies = crawler.getCookie(proxyToUse, engine);
                     doc = useSelenium(proxyToUse, url, true, cookies);
                 } else {
                     doc = getDocUsingJavaNetClass(proxyToUse, url);
                 }
                 if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
                         doc.text().contains("your computer or network may be sending automated queries")) {
-                    throw new IllegalArgumentException("Google flagged your IP as a bot. Changing to a different " +
+                    throw new IllegalArgumentException(engine.name() + " flagged your IP as a bot. Changing to a " +
+                            "different " +
                             "one");
 
                 }
@@ -288,7 +288,7 @@ class ProxyChanger {
             }
             try {
                 crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID), -1);
-            }catch (IllegalArgumentException e){
+            } catch (IllegalArgumentException e) {
                 e.printStackTrace(System.out);
                 System.out.println(e.getMessage());
             }
@@ -311,9 +311,7 @@ class ProxyChanger {
             Set<Cookie> cookies = null;
             if (crawler.isSeleniumActive()) {
                 //Check if the proxy requires cookies
-                if (crawler.getMapProxyToCookie().containsKey(ipAndPort)) {
-                    cookies = crawler.getMapProxyToCookie().get(ipAndPort);
-                }
+                cookies = crawler.getCookie(ipAndPort, engine);
                 doc = useSelenium(ipAndPort, url, true, cookies);
             } else {
                 doc = getDocUsingJavaNetClass(ipAndPort, url);
@@ -336,7 +334,7 @@ class ProxyChanger {
             guiLabels.setConnectionOutput(e2.getMessage());
 
         } catch (Exception e) {
-            System.out.println("There was a problem using a proxy agin");
+            System.out.println("There was a problem using a proxy again");
             e.printStackTrace(System.out);
             thereWasAnErrorWithProxy = true;
             guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
@@ -356,7 +354,7 @@ class ProxyChanger {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(proxy);
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; " +
                 "rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6");
-        connection.setRequestProperty("Referer", "https://scholar.google.com/");
+        connection.setRequestProperty("Referer", SearchEngine.getBaseURL(engine));
         connection.connect();
 
         //Check for response code
@@ -373,7 +371,7 @@ class ProxyChanger {
 
         Document doc = Jsoup.parse(String.valueOf(tmp));
 
-        //Google flagged this proxy if this happens
+        //The current Search Engine flagged this proxy if this happens
         if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
                 doc.text().contains("your computer or network may be sending automated queries")) {
             throw new IllegalArgumentException();
@@ -426,9 +424,9 @@ class ProxyChanger {
 
             String pageSource = "";
             try {
-                driver.manage().timeouts().pageLoadTimeout(2, TimeUnit.MINUTES);
-                driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
-                if (cookies != null) {
+                driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.MINUTES);
+                driver.manage().timeouts().implicitlyWait(5, TimeUnit.MINUTES);
+                if (cookies != null && cookies.size() > 0) {
                     //If there are cookies, add them
                     driver.manage().deleteAllCookies();
                     for (Cookie c : cookies) {
@@ -439,10 +437,11 @@ class ProxyChanger {
                     driver.get(url);
                 } catch (TimeoutException e) {
                     if (cookies != null && cookies.size() > 0) {
+                        //Try again to download
                         driver.get(url);
                     }
                 }
-                waitForLoad(driver);
+                waitForLoad(driver, true, url);
                 pageSource = driver.getPageSource();
 
             } catch (Exception e) {
@@ -455,6 +454,7 @@ class ProxyChanger {
                 }
             }
             doc = Jsoup.parse(pageSource);
+
             //These errors cannot be fixed
             if (pageSource.contains("This site can’t be reached") ||
                     pageSource.contains("ERR_PROXY_CONNECTION_FAILED") ||
@@ -533,11 +533,11 @@ class ProxyChanger {
             driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
 
             if (url == null) {
-                driver.get("https://scholar.google.com/scholar?q=this+is+the+one&btnG=&hl=en&as_sdt=0%2C39");
+                driver.get(SearchEngine.getTestURL(engine));
             } else {
                 driver.get(url);
             }
-            waitForLoad(driver);
+            waitForLoad(driver, false, url);
 
 
         } catch (Exception | Error e) {
@@ -641,7 +641,7 @@ class ProxyChanger {
         driver.manage().timeouts().pageLoadTimeout(5, TimeUnit.MINUTES);
         driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
         driver.get("https://www.google.com");
-        waitForLoad(driver);
+        waitForLoad(driver, false, "https://www.google.com");
         stopPhantomDrive(driver);
 
         //Test chromedriver
@@ -649,7 +649,7 @@ class ProxyChanger {
         ChromeDriver driver2 = new ChromeDriver();
         driver2.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
         driver2.get("https://www.google.com");
-        waitForLoad(driver2);
+        waitForLoad(driver2, false, "https://www.google.com");
         driver2.close();
         driver2.quit();
         guiLabels.setOutput("Web drivers are working");
@@ -749,7 +749,6 @@ class ProxyChanger {
             links = doc.select("a[href]");
             href = "";
             for (Element link : links) {
-                System.out.println(link.toString());
                 if (link.toString().contains(type)) {
                     href = link.attr("href");
                     break;
@@ -795,10 +794,24 @@ class ProxyChanger {
      * @param driver Driver
      */
 
-    private void waitForLoad(WebDriver driver) {
+    private void waitForLoad(WebDriver driver, boolean isSearch, String url) {
         try {
-            new WebDriverWait(driver, 120).until((ExpectedCondition<Boolean>) wd ->
-                    ((JavascriptExecutor) wd).executeScript("return document.readyState").equals("complete"));
+            ExpectedCondition<Boolean> expectation = driver1 -> ((JavascriptExecutor) driver1).
+                    executeScript("return document.readyState").equals("complete");
+            Wait<WebDriver> wait = new WebDriverWait(driver,240);
+            wait.until(expectation);
+            if (engine == SearchEngine.SupportedSearchEngine.MicrosoftAcademic && isSearch && url.contains("academic.microsoft")) {
+                // validat
+                //todo: modify this part to wait for website to load
+                int attempts = 0;
+                String pageSource = driver.getPageSource();
+                Thread.sleep(20*1000);
+                pageSource = driver.getPageSource();
+                attempts++;
+                if (pageSource.length() < 50000 && !pageSource.equals("<html><head></head><body></body></html>")) {
+                    Thread.sleep(20*1000);
+                }
+            }
         } catch (Exception e) {
             System.out.println("THERE WAS A TIMEOUT WHILE LOADING");
         }

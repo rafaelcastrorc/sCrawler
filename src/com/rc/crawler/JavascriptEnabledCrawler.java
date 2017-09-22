@@ -3,11 +3,7 @@ package com.rc.crawler;
 import org.openqa.selenium.Cookie;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -24,7 +20,8 @@ class JavascriptEnabledCrawler {
     //Queue of unlocked proxies
     private ConcurrentLinkedQueue<Proxy> queueOfUnlockedProxies = new ConcurrentLinkedQueue<>();
     //Map of proxy to the cookies of the drive that unlocked it
-    private Map<Proxy, Set<Cookie>> mapProxyToCookie = Collections.synchronizedMap(new HashMap<Proxy, Set<Cookie>>());
+    private Map<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> mapProxyToSearchEngineToCookie = Collections.synchronizedMap(new
+            HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>>());
 
     /**
      * Loads any previously stored cookied
@@ -32,7 +29,7 @@ class JavascriptEnabledCrawler {
     JavascriptEnabledCrawler() {
         Logger logger = Logger.getInstance();
         try {
-            mapProxyToCookie = logger.readCookieFile();
+            mapProxyToSearchEngineToCookie = logger.readCookieFile();
         } catch (FileNotFoundException ignored) {
         }
     }
@@ -69,11 +66,38 @@ class JavascriptEnabledCrawler {
         this.queueOfUnlockedProxies = queueOfUnlockedProxies;
     }
 
-    Map<Proxy, Set<Cookie>> getMapProxyToCookie() {
-        return mapProxyToCookie;
+    /**
+     * Adds cookie to map
+     * @param p Proxy
+     * @param engine SupportedSearchEngine
+     * @param cookies Set of cookies
+     */
+    void addCookieToMap(Proxy p, SearchEngine.SupportedSearchEngine engine, Set<Cookie> cookies) {
+        if (mapProxyToSearchEngineToCookie.containsKey(p)) {
+            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = mapProxyToSearchEngineToCookie.get(p);
+            map.put(engine, cookies);
+            mapProxyToSearchEngineToCookie.put(p, map);
+        } else {
+            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
+            map.put(engine, cookies);
+            mapProxyToSearchEngineToCookie.put(p, map);
+
+        }
     }
 
-    void setMapProxyToCookie(Map<Proxy, Set<Cookie>> mapProxyToCookie) {
-        this.mapProxyToCookie = mapProxyToCookie;
+    /**
+     * Retrieves a cookie for a given proxy, based on the search engine being used.
+     * @param proxy Proxy
+     * @param engine SupportedSearchEngine
+     * @return Set<Cookie></Cookie>
+     */
+    Set<Cookie> getCookie(Proxy proxy, SearchEngine.SupportedSearchEngine engine) {
+        if (mapProxyToSearchEngineToCookie.containsKey(proxy)) {
+            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = mapProxyToSearchEngineToCookie.get(proxy);
+            if (map.containsKey(engine)) {
+                return map.get(engine);
+            }
+        }
+        return new HashSet<>();
     }
 }

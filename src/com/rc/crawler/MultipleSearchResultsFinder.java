@@ -19,21 +19,159 @@ class MultipleSearchResultsFinder {
     private GUILabelManagement guiLabels;
     private String type;
     private Crawler crawler;
+    private SearchEngine.SupportedSearchEngine engine;
 
     MultipleSearchResultsFinder(Document doc, boolean isMultipleSearch, GUILabelManagement guiLabels, String type,
-                                Crawler crawler) {
+                                Crawler crawler, SearchEngine.SupportedSearchEngine engine) {
         this.doc = doc;
         this.isMultipleSearch = isMultipleSearch;
         this.guiLabels = guiLabels;
         this.type = type;
         this.crawler = crawler;
+        this.engine = engine;
     }
+
     MultipleSearchResultsFinder(Crawler crawler) {
         this.crawler = crawler;
     }
 
     boolean findMultipleSearchResult(Elements links, HashMap<String, String[]> searchResultToLink) {
+        if (engine == SearchEngine.SupportedSearchEngine.MicrosoftAcademic) {
+            return findMultipleResultsMSFT(links, searchResultToLink);
+        } else if (engine == SearchEngine.SupportedSearchEngine.GoogleScholar) {
+            return findMultipleResultsGoogle(links, searchResultToLink);
+        }
+        return false;
+    }
 
+    private boolean findMultipleResultsMSFT(Elements links, HashMap<String, String[]> searchResultToLink) {
+        Pattern msftAcademicSearchResult = Pattern.compile("(<paper-tile)([^∞])+?(?=(</paper-tile))");
+        Matcher msftAcademicSRMatcher = msftAcademicSearchResult.matcher(doc.html());
+        int numOfResults = 0;
+        while (msftAcademicSRMatcher.find()) {
+            numOfResults++;
+        }
+        if (numOfResults < 2) {
+            return false;
+        }
+        if (!isMultipleSearch) {
+            guiLabels.setSearchResultLabel(type + ",There was more than 1 result found");
+        }
+        if (type.equals("searchForCitedBy")) {
+            return findSearchForCitedByMSFT(links, searchResultToLink);
+        }
+        else {
+            return findSearchForTheArticle(links, searchResultToLink);
+        }
+    }
+
+    /**
+     * Finds all the search result links when we are looking for the article itself and there is more than 1 search
+     * result
+     */
+    private boolean findSearchForTheArticle(Elements links, HashMap<String, String[]> searchResultToLink) {
+        Pattern msftAcademicSearchResult = Pattern.compile("(<paper-tile)([^∞])+?(?=(</paper-tile))");
+        Matcher msftAcademicSRMatcher = msftAcademicSearchResult.matcher(doc.html());
+        String searchResult = "";
+        while (msftAcademicSRMatcher.find()) {
+            String msftSearchResult = msftAcademicSRMatcher.group();
+            //Get the title section of the search result
+            Pattern titleSectionPattern = Pattern.compile("(<section class=\"paper-title)([^∞])+?(?=(</section))");
+            Matcher titleSectionMatcher = titleSectionPattern.matcher(msftSearchResult);
+            searchResult = "";
+            if (titleSectionMatcher.find()) {
+                searchResult = titleSectionMatcher.group();
+                searchResult = searchResult.replaceAll("(<section class=\"paper-title)([^∞])+?(?=(title=))", "");
+                searchResult = searchResult.replaceAll("title=\"", "");
+                searchResult = searchResult.replaceAll("\" target.*", "");
+                searchResult = searchResult.trim();
+                if (searchResult.isEmpty()) {
+                    //If there is no title move to the next search result
+                    continue;
+                }
+            }
+
+            //See if it contains the pdf of the file itself, if not, get the link to the search result itself
+            Pattern downloadLinkPattern = Pattern.compile("(<a class=\"source-grab\")([^∞])+?(?=(</li))");
+            Matcher downloadLinkMatcher = downloadLinkPattern.matcher(msftSearchResult);
+            String url = "";
+            if (downloadLinkMatcher.find()) {
+                url = downloadLinkMatcher.group();
+                url = url.replaceAll("(<a class=\"source-grab\")([^∞])+?(?=(href=)" +
+                        ")", "");
+                url = url.replaceAll("href=\"", "");
+                url = url.replaceAll("\".*", "");
+                if (url.isEmpty()) {
+                    //Get the link of the search result instead
+                    Pattern firstSearchResultPattern = Pattern.compile("#/detail/[^\"]*");
+                    Matcher firstSearchResultMatcher = firstSearchResultPattern.matcher(msftSearchResult);
+                    if (firstSearchResultMatcher.find()) {
+                        String link  = SearchEngine.getBaseURL(engine)+firstSearchResultMatcher.group();
+                        Document doc = crawler.changeIP(link, true, false, engine);
+                        String firstSearchResultLink = firstSearchResultMatcher.group();
+                        if (!firstSearchResultLink.isEmpty()) {
+                            url = new SingleSearchResultFinder().findFirstResultSource(doc.html());
+                        }
+                    }
+                }
+                if (url.isEmpty()) continue;
+                searchResultToLink.put(searchResult, new String[]{url, searchResult});
+                System.out.println(searchResult);
+                System.out.println(url);
+                //Adds a search result to the search result window
+                guiLabels.setMultipleSearchResult(searchResult);
+            }
+        }
+        return (searchResultToLink.size() > 0);
+    }
+
+    /**
+     * Finds all the search result links when we are looking for the article that cite the article and there is more
+     * than 1 search
+     * result
+     */
+    private boolean findSearchForCitedByMSFT(Elements links, HashMap<String, String[]> searchResultToLink) {
+        Pattern msftAcademicSearchResult = Pattern.compile("(<paper-tile)([^∞])+?(?=(</paper-tile))");
+        Matcher msftAcademicSRMatcher = msftAcademicSearchResult.matcher(doc.html());
+        String searchResult = "";
+        while (msftAcademicSRMatcher.find()) {
+            String msftSearchResult = msftAcademicSRMatcher.group();
+            //Get the title section of the search result
+            Pattern titleSectionPattern = Pattern.compile("(<section class=\"paper-title)([^∞])+?(?=(</section))");
+            Matcher titleSectionMatcher = titleSectionPattern.matcher(msftSearchResult);
+            searchResult = "";
+            if (titleSectionMatcher.find()) {
+                searchResult = titleSectionMatcher.group();
+                searchResult = searchResult.replaceAll("(<section class=\"paper-title)([^∞])+?(?=(title=))", "");
+                searchResult = searchResult.replaceAll("title=\"", "");
+                searchResult = searchResult.replaceAll("\" target.*", "");
+                searchResult = searchResult.trim();
+                if (searchResult.isEmpty()) {
+                    //If there is no title move to the next search result
+                    continue;
+                }
+            }
+            Pattern citedByPattern = Pattern.compile("<li>.*citation\".*");
+            Matcher citedByMatcher = citedByPattern.matcher(msftSearchResult);
+            if (citedByMatcher.find()) {
+                Pattern urlPattern = Pattern.compile("href=\"[^\"]*");
+                Matcher urlMatcher = urlPattern.matcher(citedByMatcher.group());
+                if (urlMatcher.find()) {
+                    String url = urlMatcher.group();
+                    url = url.replaceAll("href=\"", "");
+                    String absLink = SearchEngine.getBaseURL(engine) + url;
+                    searchResultToLink.put(searchResult, new String[]{absLink, searchResult});
+                    System.out.println(searchResult);
+                    System.out.println(absLink);
+                    //Adds a search result to the search result window
+                    guiLabels.setMultipleSearchResult(searchResult);
+                }
+            }
+        }
+        return (searchResultToLink.size() > 0);
+    }
+
+    private boolean findMultipleResultsGoogle(Elements links, HashMap<String, String[]> searchResultToLink) {
         boolean result = false;
         String searchResultURL = "";
         String url = "";
@@ -42,7 +180,7 @@ class MultipleSearchResultsFinder {
         if (!resultMatcher.find() && !doc.toString().contains("Showing the best result for " +
                 "this search")) {
             if (!isMultipleSearch) {
-                guiLabels.setSearchResultLabel(type+",There was more than 1 result found");
+                guiLabels.setSearchResultLabel(type + ",There was more than 1 result found");
             }
             boolean searchResultFound = false;
             String searchResult = "";
@@ -118,6 +256,7 @@ class MultipleSearchResultsFinder {
                                     //Get the url for searching the current selection
                                     url = "https://scholar.google.com/scholar?hl=en&q=" + keyword;
                                     //Add the URL of the google search and the URL of the first search result (Case 2.2)
+
                                     paperVersionsURL = url + "∆" + searchResultURL;
                                     searchResultToLink.put(text, new String[]{paperVersionsURL, text});
                                     break;
@@ -147,14 +286,19 @@ class MultipleSearchResultsFinder {
                 }
             }
             return result;
-        } return false;
+        }
+        return result;
     }
 
+
+    /**
+     * Verifies if there are multiple search results for a google search
+     */
     String verifyIfMultipleSearchResult(String url, boolean isMultipleSearch) {
         if (!isMultipleSearch) {
             Document doc;
             try {
-                doc = crawler.changeIP(url, true, false);
+                doc = crawler.changeIP(url, true, false, engine);
             } catch (NullPointerException e) {
                 return "";
             }
@@ -167,7 +311,6 @@ class MultipleSearchResultsFinder {
             }
             if (counter > 1) return "";
             else return url;
-        }
-        else return url;
+        } else return url;
     }
 }

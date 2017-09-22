@@ -255,7 +255,7 @@ class ProxiesDownloader {
 
         if (doc.toString().contains("javascript") && (url.contains("gatherproxy") || url.contains
                 ("freeproxylists"))) {
-            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
+            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, SearchEngine.SupportedSearchEngine.GoogleScholar);
             if (crawler.isSeleniumActive()) {
                 try {
                     doc = proxyChanger.useSelenium(null, url, false, null);

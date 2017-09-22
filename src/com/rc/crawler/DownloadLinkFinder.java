@@ -34,12 +34,14 @@ class DownloadLinkFinder {
     private PDFDownloader pdfDownloader;
     private String typeOfSearch;
     private int limit;
+    private SearchEngine.SupportedSearchEngine engine;
 
     DownloadLinkFinder(GUILabelManagement guiLabels, Crawler crawler, SimultaneousDownloadsGUI
-            simultaneousDownloadsGUI) {
+            simultaneousDownloadsGUI, SearchEngine.SupportedSearchEngine engine) {
         this.guiLabels = guiLabels;
         this.crawler = crawler;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
+        this.engine = engine;
     }
 
 
@@ -69,8 +71,8 @@ class DownloadLinkFinder {
         }
         pdfCounter = 0;
         //Go though all the search result links
-        Map.Entry<ArrayList<String>, Integer> entry = crawler.getAllLinks(citingPapersURL, typeOfSearch,
-                isMultipleSearch);
+        Map.Entry<ArrayList<String>, Integer> entry = SearchEngine.getAllLinks(citingPapersURL, typeOfSearch,
+                isMultipleSearch, engine, crawler);
         ArrayList<String> list = entry.getKey();
         numOfNonGoogleURL = entry.getValue();
         counterOfLinks = 0;
@@ -140,12 +142,10 @@ class DownloadLinkFinder {
             simultaneousDownloadsGUI.updateStatus("No PDF found (" + numberOfSearches + " attempt(s))");
         }
 
-        Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
-                "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
-        Matcher gScholarSRMatcher = gScholarSearchResult.matcher(citingPapers.html());
         //If the url is part of google scholar, and the search result is empty, or  6 google searches are made and
         // no valid result is found, stop.
-        if ((counterOfLinks > numOfNonGoogleURL && !gScholarSRMatcher.find()) || numberOfSearches == 6) {
+        if ((counterOfLinks > numOfNonGoogleURL && !SearchEngine.isThereASearchResult(engine, citingPapers)) || numberOfSearches
+                == 6) {
             guiLabels.setConnectionOutput("No more papers found.");
             if (!isMultipleSearch) {
                 guiLabels.setOutput("No more papers found.");
@@ -211,10 +211,10 @@ class DownloadLinkFinder {
                 if (!isMultipleSearch) {
                     guiLabels.setOutput("Changing proxy because of amounts of requests");
                 }
-                citingPapers = crawler.changeIP(currUrl, false, false);
+                citingPapers = crawler.changeIP(currUrl, false, false, engine);
             } else {
                 //If not, just connect to the previous proxy
-                citingPapers = crawler.changeIP(currUrl, true, false);
+                citingPapers = crawler.changeIP(currUrl, true, false, engine);
             }
         } catch (IllegalArgumentException e) {
             return null;
@@ -229,7 +229,7 @@ class DownloadLinkFinder {
             //In case you been flagged as a bot even before searching
             guiLabels.setConnectionOutput("Google flagged thread " + currThreadID + " proxy as a bot." +
                     "\nChanging to a different one");
-            citingPapers = crawler.changeIP(currUrl, false, false);
+            citingPapers = crawler.changeIP(currUrl, false, false, engine);
             if (citingPapers == null) {
                 return null;
             }
@@ -264,7 +264,7 @@ class DownloadLinkFinder {
                     ("/pb-assets/documents") || absLink.isEmpty()) {
                 continue;
             }
-            if (text.contains("PDF")) {
+            if (text.contains("PDF") || text.contains("Download")) {
                 int attempt = 0;
                 //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
                 //connect, use the proxy that is currently at the top of the queue, without removing it.

@@ -53,6 +53,7 @@ public class Controller implements Initializable {
     private AtomicCounter numOfSuccessful = new AtomicCounter();
     //Counts only the ones that were downloaded
     private AtomicCounter numOfSuccessfulGral = new AtomicCounter();
+    private SearchEngine.SupportedSearchEngine engine;
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -132,7 +133,8 @@ public class Controller implements Initializable {
         }
         String[] result = null;
         try {
-            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
+            result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch,
+                    engine);
         } catch (Exception e) {
             //If there was a problem searching, try searching again
             try {
@@ -140,7 +142,8 @@ public class Controller implements Initializable {
             } catch (InterruptedException ignored) {
             }
             try {
-                result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch);
+                result = crawler.searchForArticle(title, hasSearchedBefore, isMultipleSearch, typeOfSearch,
+                        engine);
             } catch (Exception ignored) {
             }
         }
@@ -295,7 +298,7 @@ public class Controller implements Initializable {
             int numberOfPDFsDownloaded;
 
             Object[] result = crawler.getPDFs(Integer.parseInt(numOfPDFToDownload), URL,
-                    isMultipleSearch, pdfDownloader, typeOfSearch);
+                    isMultipleSearch, pdfDownloader, typeOfSearch, engine);
 
             numberOfPDFsDownloaded = (int) result[0];
             boolean thereWasAPDF = (boolean) result[1];
@@ -693,7 +696,7 @@ public class Controller implements Initializable {
                         event -> {
                             //If the text of the button is Unlock Proxy
                             if (!unlockButton.getText().equals("Can't be unlocked")) {
-                                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler);
+                                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine);
                                 //Use chromedriver to connect
                                 driver[0] = proxyChanger.useChromeDriver(proxy, null);
                                 alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(false);
@@ -722,7 +725,7 @@ public class Controller implements Initializable {
                             driver[0].close();
                             driver[0].quit();
                             //Add it to queue of working proxies
-                            crawler.addUnlockedProxy(proxy, cookies);
+                            crawler.addUnlockedProxy(proxy, cookies, engine);
                         } catch (Exception ignored) {
                         }
 
@@ -861,6 +864,7 @@ public class Controller implements Initializable {
         guiLabels = new GUILabelManagement();
         //Initializes object that holds different maps
 
+        selectEngine();
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         crawler = new Crawler(guiLabels);
         DoWork task = new DoWork("initialize", null, null);
@@ -868,6 +872,25 @@ public class Controller implements Initializable {
         Thread thread = new MyThreadFactory().newThread(task);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * Asks the user to select a search engine
+     */
+    private void selectEngine() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Select academic search engine");
+        alert.setHeaderText("Which academic search engine do you want to use?");
+        alert.setContentText(null);
+        ButtonType gScholar = new ButtonType("Google Scholar");
+        ButtonType msft = new ButtonType("Microsoft Academic");
+        alert.getButtonTypes().setAll(gScholar, msft);
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.get() == gScholar){
+            engine = SearchEngine.SupportedSearchEngine.GoogleScholar;
+        } else {
+            engine = SearchEngine.SupportedSearchEngine.MicrosoftAcademic;
+        }
     }
 
 
@@ -919,27 +942,27 @@ public class Controller implements Initializable {
         return alertButton2;
     }
 
-    public Crawler getCrawler() {
+    Crawler getCrawler() {
         return crawler;
     }
 
-    public ProgressBar getProgressBar() {
+    ProgressBar getProgressBar() {
         return progressBar;
     }
 
-    public String getCitingPapersURL() {
+    String getCitingPapersURL() {
         return citingPapersURL;
     }
 
-    public AtomicCounter getAtomicCounter() {
+    AtomicCounter getAtomicCounter() {
         return atomicCounter;
     }
 
-    public AtomicCounter getNumOfSuccessful() {
+    AtomicCounter getNumOfSuccessful() {
         return numOfSuccessful;
     }
 
-    public AtomicCounter getNumOfSuccessfulGral() {
+    AtomicCounter getNumOfSuccessfulGral() {
         return numOfSuccessfulGral;
     }
 }

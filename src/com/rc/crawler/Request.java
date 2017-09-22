@@ -16,11 +16,13 @@ class Request implements Callable<Proxy> {
     private final String type;
     private Crawler crawler;
     private GUILabelManagement guiLabels;
+    private SearchEngine.SupportedSearchEngine engine;
 
-    Request(String type, Crawler crawler, GUILabelManagement guiLabels) {
+    Request(String type, Crawler crawler, GUILabelManagement guiLabels, SearchEngine.SupportedSearchEngine engine) {
         this.type = type;
         this.crawler = crawler;
         this.guiLabels = guiLabels;
+        this.engine = engine;
     }
 
     @Override
@@ -34,9 +36,7 @@ class Request implements Callable<Proxy> {
             boolean valid = false;
             while (!valid) {
                 try {
-                    crawler.changeIP("https://scholar.google" +
-                                    ".com/scholar?q=this+is+the+one&btnG=&hl=en&as_sdt=0%2C39", false,
-                            true);
+                    crawler.changeIP(SearchEngine.testConnectionToWebsite(engine), false, true, engine);
                     valid = true;
                 } catch (Exception ignored) {
                 }

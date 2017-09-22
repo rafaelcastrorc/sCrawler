@@ -314,9 +314,12 @@ class Logger {
      * @param cookies Set of cookies
      * @param proxy   proxy that was unlocked
      */
-    synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy) throws IOException {
+    synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy, SearchEngine.SupportedSearchEngine engine)
+            throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("Proxy: ").append(proxy.getProxy()).append(":").append(proxy.getPort()).append("\n");
+        sb.append("Search Engine: ").append(engine.name()).append("\n");
+
         for (Cookie cookie : cookies) {
             sb.append(cookie.getName()).append(";").append(cookie.getValue()).append(";").append(cookie.getDomain())
                     .append(";").append(cookie.getPath()).append(";").append(cookie
@@ -333,10 +336,14 @@ class Logger {
     /**
      * Retrieves all the cookies stored locally
      */
-    HashMap<Proxy, Set<Cookie>> readCookieFile() throws FileNotFoundException {
-        HashMap<Proxy, Set<Cookie>> result = new HashMap<>();
+    @SuppressWarnings("Duplicates")
+    HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> readCookieFile() throws
+            FileNotFoundException {
+        HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> result = new HashMap<>();
         Scanner scanner = new Scanner(new File("./AppData/Cookies.dta"));
         Proxy currProxy = null;
+        SearchEngine.SupportedSearchEngine engine = null;
+
         Set<Cookie> cookies = new HashSet<>();
         try {
             while (scanner.hasNextLine()) {
@@ -344,7 +351,16 @@ class Logger {
                 if (line.contains("Proxy: ")) {
                     //If there are cookies, we have already gone through at least one proxy, so we add it to the map.
                     if (!cookies.isEmpty()) {
-                        result.put(currProxy, cookies);
+                        //Check if map already contains the proxy proxy
+                        if (!result.containsKey(currProxy)) {
+                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
+                            map.put(engine, cookies);
+                            result.put(currProxy, map);
+                        } else {
+                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
+                            map.put(engine, cookies);
+                            result.put(currProxy, map);
+                        }
                         cookies = new HashSet<>();
                     }
                     line = line.replace("Proxy: ", "");
@@ -353,6 +369,15 @@ class Logger {
                     String proxyNum = proxy[0];
                     String proxyPort = proxy[1];
                     currProxy = new Proxy(proxyNum, Integer.valueOf(proxyPort));
+                } else if (line.contains("Search Engine")) {
+                    //Find the search engine used
+                    line = line.replaceAll("Search Engine: ", "");
+                    if (line.equalsIgnoreCase(SearchEngine.SupportedSearchEngine.GoogleScholar.name())) {
+                        engine = SearchEngine.SupportedSearchEngine.GoogleScholar;
+                    }
+                    if (line.equalsIgnoreCase(SearchEngine.SupportedSearchEngine.MicrosoftAcademic.name())) {
+                        engine = SearchEngine.SupportedSearchEngine.MicrosoftAcademic;
+                    }
                 } else {
                     //Get the cookie
                     String[] cookieInfo = line.split(";");
@@ -370,7 +395,15 @@ class Logger {
                 }
             }
             if (!cookies.isEmpty()) {
-                result.put(currProxy, cookies);
+                if (!result.containsKey(currProxy)) {
+                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
+                    map.put(engine, cookies);
+                    result.put(currProxy, map);
+                } else {
+                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
+                    map.put(engine, cookies);
+                    result.put(currProxy, map);
+                }
             }
         } catch (NullPointerException e) {
             throw new IllegalArgumentException("The cookies file is not formatted correctly, please revise it");

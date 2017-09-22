@@ -107,7 +107,8 @@ class DoWork extends Task<Void> implements Callable {
             controller.getAlertButton2().setVisible(newValue);
         });
         //Load the crawler
-        controller.getCrawler().loadCrawler();
+        //Todo: Change engine and this
+        controller.getCrawler().loadCrawler(SearchEngine.SupportedSearchEngine.MicrosoftAcademic);
         article = String.valueOf(1);
         waitForConnections();
         connectionEstablished();
@@ -133,7 +134,7 @@ class DoWork extends Task<Void> implements Callable {
     /**
      * Wait for n proxy connections to be established before searching
      */
-    void waitForConnections() {
+    private void waitForConnections() {
         //Create a new loading box to show while application loads
         loading = new LoadingWindow();
         Platform.runLater(() -> loading.display());
@@ -157,7 +158,7 @@ class DoWork extends Task<Void> implements Callable {
     /**
      * Handles the logic behind the multiple search mode
      */
-    void multipleSearch() {
+    private void multipleSearch() {
         //Add thread to a group
         simultaneousDownloadsGUI.addThreadToGroup(Thread.currentThread().getId());
         simultaneousDownloadsGUI.updateStatus("Searching...");
@@ -229,7 +230,7 @@ class DoWork extends Task<Void> implements Callable {
      * Called when there is more than one search result for a given search, but the user decides to not download the
      * file
      */
-    void multipleSearchModeMultipleSR() {
+    private void multipleSearchModeMultipleSR() {
         simultaneousDownloadsGUI.updateStatus("File was not downloaded");
         simultaneousDownloadsGUI.updateProgressBar(1.0);
         controller.getAtomicCounter().increment();
@@ -323,7 +324,7 @@ class DoWork extends Task<Void> implements Callable {
     /**
      * Updates the GUI for single search mode once an article has being processed, and downloads the paper.
      */
-    void singleSearchModeFinish() {
+    private void singleSearchModeFinish() {
         controller.updateSearchLabel(typeOfSearch + ",Done searching");
         //Downloads articles that cite a given article
         controller.getProgressBar().progressProperty().setValue(0);
@@ -334,8 +335,8 @@ class DoWork extends Task<Void> implements Callable {
     }
 
 
-    public void setObjects(Controller controller, SimultaneousDownloadsGUI simultaneousDownloadsGUI,
-                           GUILabelManagement guiLabels) {
+    void setObjects(Controller controller, SimultaneousDownloadsGUI simultaneousDownloadsGUI,
+                    GUILabelManagement guiLabels) {
         this.controller = controller;
         this.guiLabels = guiLabels;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
