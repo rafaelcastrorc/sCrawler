@@ -1,5 +1,6 @@
 package com.rc.crawler;
 
+import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -8,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -98,10 +100,14 @@ class DownloadLinkFinder {
             randomPause(currUrl, isMultipleSearch);
             //Get the Document from the current url
             guiLabels.setOutput("Trying to connect to search result...");
-            Document citingPaper = getCitingPaper(currUrl, currThreadID);
-            if (citingPaper == null) {
-                guiLabels.setOutput("Could not download, trying again");
-                continue;
+            Document citingPaper = null;
+            if (!currUrl.contains(".pdf")) {
+                try {
+                    citingPaper = getCitingPaper(currUrl, currThreadID);
+                } catch (IllegalArgumentException e) {
+                    guiLabels.setOutput("Could not download, trying again");
+                    continue;
+                }
             }
             //If the crawler was able to connect, then parse the website
             String result = parseWebsite(currThreadID, currUrl, isMultipleSearch, citingPaper,
@@ -144,8 +150,9 @@ class DownloadLinkFinder {
 
         //If the url is part of google scholar, and the search result is empty, or  6 google searches are made and
         // no valid result is found, stop.
-        if ((counterOfLinks > numOfNonGoogleURL && !SearchEngine.isThereASearchResult(engine, citingPapers)) || numberOfSearches
-                == 6) {
+        if ((counterOfLinks > numOfNonGoogleURL && !SearchEngine.isThereASearchResult(engine, citingPapers, currUrl)) ||
+                numberOfSearches
+                        == 6) {
             guiLabels.setConnectionOutput("No more papers found.");
             if (!isMultipleSearch) {
                 guiLabels.setOutput("No more papers found.");
@@ -156,7 +163,7 @@ class DownloadLinkFinder {
             return null;
         }
         try {
-            getPDFsHelper(baseURL, citingPapers, currThreadID);
+            getPDFsHelper(baseURL, currUrl, citingPapers, currThreadID);
         } catch (Exception e) {
             e.printStackTrace(System.out);
         }
@@ -203,21 +210,20 @@ class DownloadLinkFinder {
     private Document getCitingPaper(String currUrl, Long currThreadID) {
         //Increase counter for every new google link
         Document citingPapers;
-        try {
-            //Check if the proxy has at least 40 request to a given website to replace it
-            if (crawler.getNumberOfRequestFromMap(currUrl, crawler.getMapThreadIdToProxy().get(currThreadID)) >= 50) {
-                guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
-                        " amount of requests...");
-                if (!isMultipleSearch) {
-                    guiLabels.setOutput("Changing proxy because of amounts of requests");
-                }
-                citingPapers = crawler.changeIP(currUrl, false, false, engine);
-            } else {
-                //If not, just connect to the previous proxy
-                citingPapers = crawler.changeIP(currUrl, true, false, engine);
+
+        //Check if the proxy has at least 40 request to a given website to replace it
+        if (crawler.getNumberOfRequestFromMap(currUrl, crawler.getMapThreadIdToProxy().get(currThreadID)) >= 50) {
+            guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
+                    " amount of requests...");
+            if (!isMultipleSearch) {
+                guiLabels.setOutput("Changing proxy because of amounts of requests");
             }
-        } catch (IllegalArgumentException e) {
-            return null;
+            citingPapers = crawler.changeIP(currUrl, false, false, engine, Optional.empty());
+        } else {
+            //If not, just connect to the previous proxy
+            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine);
+            proxyChanger.setComesFromDownload(true);
+            citingPapers = proxyChanger.getProxy(currUrl, true, false);
         }
 
         if (citingPapers == null) {
@@ -229,9 +235,9 @@ class DownloadLinkFinder {
             //In case you been flagged as a bot even before searching
             guiLabels.setConnectionOutput("Google flagged thread " + currThreadID + " proxy as a bot." +
                     "\nChanging to a different one");
-            citingPapers = crawler.changeIP(currUrl, false, false, engine);
+            citingPapers = crawler.changeIP(currUrl, false, false, engine, Optional.empty());
             if (citingPapers == null) {
-                return null;
+                throw new IllegalArgumentException();
             }
         }
         return citingPapers;
@@ -242,12 +248,18 @@ class DownloadLinkFinder {
      * Final step for downloading a PDF.
      * Retrieves all the PDF links that a website has and tries to download as many as requested.
      *
+     * @param currUrl      CUrrent url
      * @param citingPapers The Document of the website that contains the download links.
      * @param currThreadID The current thread id.
      */
-    private void getPDFsHelper(String baseURL, Document citingPapers, Long currThreadID) {
+    private void getPDFsHelper(String baseURL, String currUrl, Document citingPapers, Long currThreadID) {
         //Go through all the links of the search result, and find links that contain PDFs
-        Elements linksInsidePaper = citingPapers.select("a[href]");
+        Elements linksInsidePaper;
+        if (citingPapers == null) {
+            String html = "<p>Remove links<a href=\"" + currUrl + "\">Download</a> Download.&nbsp;</p>";
+            citingPapers = Jsoup.parse(html);
+        }
+        linksInsidePaper = citingPapers.select("a[href]");
         String text;
         String absLink;
         for (Element link : linksInsidePaper) {

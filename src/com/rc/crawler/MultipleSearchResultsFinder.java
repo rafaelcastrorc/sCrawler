@@ -5,6 +5,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -107,7 +108,7 @@ class MultipleSearchResultsFinder {
                     Matcher firstSearchResultMatcher = firstSearchResultPattern.matcher(msftSearchResult);
                     if (firstSearchResultMatcher.find()) {
                         String link  = SearchEngine.getBaseURL(engine)+firstSearchResultMatcher.group();
-                        Document doc = crawler.changeIP(link, true, false, engine);
+                        Document doc = crawler.changeIP(link, true, false, engine, Optional.empty());
                         String firstSearchResultLink = firstSearchResultMatcher.group();
                         if (!firstSearchResultLink.isEmpty()) {
                             url = new SingleSearchResultFinder().findFirstResultSource(doc.html());
@@ -298,7 +299,7 @@ class MultipleSearchResultsFinder {
         if (!isMultipleSearch) {
             Document doc;
             try {
-                doc = crawler.changeIP(url, true, false, engine);
+                doc = crawler.changeIP(url, true, false, engine, Optional.empty());
             } catch (NullPointerException e) {
                 return "";
             }

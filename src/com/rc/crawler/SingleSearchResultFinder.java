@@ -5,6 +5,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -116,7 +117,7 @@ class SingleSearchResultFinder {
             Matcher firstSearchResultMatcher = firstSearchResultPattern.matcher(msftSearchResult);
             if (firstSearchResultMatcher.find()) {
                 String link  = SearchEngine.getBaseURL(engine)+firstSearchResultMatcher.group();
-                Document doc = crawler.changeIP(link, true, false, engine);
+                Document doc = crawler.changeIP(link, true, false, engine, Optional.empty());
                 String firstSearchResultLink = firstSearchResultMatcher.group();
                 if (!firstSearchResultLink.isEmpty()) {
                     findFirstResultSource(doc.html());
@@ -328,7 +329,7 @@ class SingleSearchResultFinder {
      * Formats the "Full View" URL correctly. This URL usually contains a PDF
      */
     private String formatFullView(String fullViewURL) {
-        Document doc = crawler.changeIP(fullViewURL, true, false, engine);
+        Document doc = crawler.changeIP(fullViewURL, true, false, engine, Optional.empty());
         Pattern redirectPattern = Pattern.compile("<script>location\\.replace[^©]*</script>");
         Matcher redirectMatcher = redirectPattern.matcher(doc.html());
         if (redirectMatcher.find()) {

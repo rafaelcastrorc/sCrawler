@@ -30,6 +30,8 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -43,6 +45,9 @@ class ProxyChanger {
     private boolean isError404;
     private boolean thereWasAnErrorWithProxy = false;
     private SearchEngine.SupportedSearchEngine engine;
+    private Long threadID = null;
+    private boolean isPageEmpty = false;
+    private boolean comesFromDownload = false;
 
     ProxyChanger(GUILabelManagement guiLabels, Crawler crawler, SearchEngine.SupportedSearchEngine engine) {
         this.guiLabels = guiLabels;
@@ -73,7 +78,10 @@ class ProxyChanger {
      * @return Document
      */
     Document getProxy(String url, boolean hasSearchBefore, boolean comesFromThread) {
-        long currThreadID = Thread.currentThread().getId();
+        Long currThreadID = threadID;
+        if (currThreadID == null) {
+            currThreadID = Thread.currentThread().getId();
+        }
 
         //Step 1. Check if there is internet connection
         if (!crawler.isThereConnection()) {
@@ -162,7 +170,7 @@ class ProxyChanger {
                     if (crawler.isSeleniumActive()) {
                         //Check if it requires cookies
                         cookies = crawler.getCookie(proxyToBeUsed, engine);
-                        doc = useSelenium(proxyToBeUsed, url, true, cookies);
+                        doc = useSelenium(proxyToBeUsed, url, true, cookies, false);
                         //If no error happens add it
                         connected = true;
                         crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
@@ -258,7 +266,7 @@ class ProxyChanger {
                 if (crawler.isSeleniumActive()) {
                     //Check if the proxy requires cookies
                     Set<Cookie> cookies = crawler.getCookie(proxyToUse, engine);
-                    doc = useSelenium(proxyToUse, url, true, cookies);
+                    doc = useSelenium(proxyToUse, url, true, cookies, true);
                 } else {
                     doc = getDocUsingJavaNetClass(proxyToUse, url);
                 }
@@ -280,6 +288,9 @@ class ProxyChanger {
                 attempt++;
                 guiLabels.setConnectionOutput(e.getMessage());
             } catch (Exception e) {
+                if (isPageEmpty && comesFromDownload) {
+                    return null;
+                }
                 e.printStackTrace(System.out);
                 guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
                         "queue. Removing it");
@@ -312,7 +323,7 @@ class ProxyChanger {
             if (crawler.isSeleniumActive()) {
                 //Check if the proxy requires cookies
                 cookies = crawler.getCookie(ipAndPort, engine);
-                doc = useSelenium(ipAndPort, url, true, cookies);
+                doc = useSelenium(ipAndPort, url, true, cookies, false);
             } else {
                 doc = getDocUsingJavaNetClass(ipAndPort, url);
             }
@@ -383,12 +394,14 @@ class ProxyChanger {
     /**
      * Use selenium to parse a website
      *
-     * @param proxyToUse Proxy
-     * @param url        url that needs to be parsed
-     * @param cookies    Set of cookies. Null if there are no cookies
+     * @param proxyToUse          Proxy
+     * @param url                 url that needs to be parsed
+     * @param cookies             Set of cookies. Null if there are no cookies
+     * @param proxyComesFromQueue
      * @return Document
      */
-    Document useSelenium(Proxy proxyToUse, String url, boolean usesProxy, Set<Cookie> cookies) throws
+    Document useSelenium(Proxy proxyToUse, String url, boolean usesProxy, Set<Cookie> cookies, boolean
+            proxyComesFromQueue) throws
             IllegalArgumentException {
         Document doc;
         java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
@@ -441,8 +454,7 @@ class ProxyChanger {
                         driver.get(url);
                     }
                 }
-                waitForLoad(driver, true, url);
-                pageSource = driver.getPageSource();
+                pageSource = waitForLoad(driver, true, url);
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -455,6 +467,8 @@ class ProxyChanger {
             }
             doc = Jsoup.parse(pageSource);
 
+            isPageEmpty = proxyComesFromQueue && pageSource.equals("<html><head></head><body></body></html>");
+
             //These errors cannot be fixed
             if (pageSource.contains("This site can’t be reached") ||
                     pageSource.contains("ERR_PROXY_CONNECTION_FAILED") ||
@@ -463,11 +477,15 @@ class ProxyChanger {
                     pageSource.equals("<html><head></head><body></body></html>") ||
                     pageSource.equals("") ||
                     pageSource.split(" ").length < 200) {
+                crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
+
                 throw new IllegalArgumentException();
             }
             //These errors can be fixed
             if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
-                    pageSource.contains("Our systems have detected unusual traffic from your computer network")) {
+                    pageSource.contains("Our systems have detected unusual traffic from your computer network") ||
+                    pageSource.contains("ContentKeeper")) {
+                if (pageSource.contains("ContentKeeper"));
                 System.out.println("There is a blocked proxy");
                 //Add to the queue of blocked proxies
                 if (crawler.isSeleniumActive()) {
@@ -794,27 +812,58 @@ class ProxyChanger {
      * @param driver Driver
      */
 
-    private void waitForLoad(WebDriver driver, boolean isSearch, String url) {
+    private String waitForLoad(WebDriver driver, boolean isSearch, String url) {
+        String pageSource = "";
         try {
             ExpectedCondition<Boolean> expectation = driver1 -> ((JavascriptExecutor) driver1).
                     executeScript("return document.readyState").equals("complete");
-            Wait<WebDriver> wait = new WebDriverWait(driver,240);
+            Wait<WebDriver> wait = new WebDriverWait(driver, 240);
             wait.until(expectation);
-            if (engine == SearchEngine.SupportedSearchEngine.MicrosoftAcademic && isSearch && url.contains("academic.microsoft")) {
-                // validat
-                //todo: modify this part to wait for website to load
+            //Loading for Microsoft academic is different, so wait for website to fully load javascript
+            if (engine == SearchEngine.SupportedSearchEngine.MicrosoftAcademic && isSearch && url.contains("academic" +
+                    ".microsoft")) {
                 int attempts = 0;
-                String pageSource = driver.getPageSource();
-                Thread.sleep(20*1000);
+                Thread.sleep(15 * 1000);
                 pageSource = driver.getPageSource();
-                attempts++;
-                if (pageSource.length() < 50000 && !pageSource.equals("<html><head></head><body></body></html>")) {
-                    Thread.sleep(20*1000);
+                //Verify if MSFT has not blocked us for t minutes
+                boolean needsToWait = true;
+                int attempt2 = 0;
+                while (needsToWait) {
+                    Pattern pattern = Pattern.compile("You can wait .* to issue");
+                    Matcher matcher = pattern.matcher(pageSource);
+                    if (matcher.find()) {
+                        //Reload page after t minuts
+                        String s = matcher.group();
+                        s = s.replaceAll("\\D+", "");
+                        int timeToWait = Integer.valueOf(s);
+                        Thread.sleep(timeToWait * 60 * 1000 + (5*1000));
+                        driver.get(url);
+                        pageSource = driver.getPageSource();
+                        attempt2++;
+                        if (attempt2 > 3) throw new IllegalArgumentException();
+                    }
+                    else {
+                        needsToWait = false;
+                    }
+                }
+
+                while (pageSource.length() < 50000 && !pageSource.equals("<html><head></head><body></body></html>")
+                        && attempts < 3) {
+                    Thread.sleep(15 * 1000);
+                    attempts++;
+                    pageSource = driver.getPageSource();
                 }
             }
         } catch (Exception e) {
             System.out.println("THERE WAS A TIMEOUT WHILE LOADING");
         }
+
+        pageSource = driver.getPageSource();
+        if (engine == SearchEngine.SupportedSearchEngine.MicrosoftAcademic && pageSource.length() < 50000 && !pageSource
+                .equals("<html><head></head><body></body></html>")) {
+            pageSource = "This site can’t be reached";
+        }
+        return pageSource;
 
     }
 
@@ -894,6 +943,19 @@ class ProxyChanger {
         output.flush();
     }
 
+    void setThreadID(Long threadID) {
+        this.threadID = threadID;
+    }
+
+
+    boolean isPageEmpty() {
+        return this.isPageEmpty;
+    }
+
+
+    public void setComesFromDownload(boolean comesFromDownload) {
+        this.comesFromDownload = comesFromDownload;
+    }
 }
 
 

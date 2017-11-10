@@ -108,7 +108,8 @@ class DoWork extends Task<Void> implements Callable {
         });
         //Load the crawler
         //Todo: Change engine and this
-        controller.getCrawler().loadCrawler(SearchEngine.SupportedSearchEngine.MicrosoftAcademic);
+
+        controller.getCrawler().loadCrawler(controller.getSearchEngine());
         article = String.valueOf(1);
         waitForConnections();
         connectionEstablished();

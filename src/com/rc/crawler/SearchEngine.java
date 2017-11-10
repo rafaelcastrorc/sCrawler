@@ -199,9 +199,10 @@ class SearchEngine {
      * Checks if there are still search results in the current page
      * @param engine SupportedSearchEngine
      * @param citingPapers Document of the current url
+     * @param currUrl
      * @return true if there is at least 1 search result
      */
-    static boolean isThereASearchResult(SupportedSearchEngine engine, Document citingPapers) {
+    static boolean isThereASearchResult(SupportedSearchEngine engine, Document citingPapers, String currUrl) {
         if (engine == SupportedSearchEngine.GoogleScholar) {
             Pattern gScholarSearchResult = Pattern.compile("(<div class=\"gs_r\">)([^∞])+?(?=(<div " +
                     "class=\"gs_r\">)|(<div id=\"gs_ccl_bottom\">))");
@@ -210,6 +211,7 @@ class SearchEngine {
 
         }
         else if (engine == SupportedSearchEngine.MicrosoftAcademic) {
+            if (currUrl.contains(".pdf") || citingPapers == null) return true;
             Pattern msftAcademicSearchResult = Pattern.compile("(<paper-tile)([^∞])+?(?=(</paper-tile))");
             Matcher msftAcademicSRMatcher = msftAcademicSearchResult.matcher(citingPapers.html());
             return msftAcademicSRMatcher.find();

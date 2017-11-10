@@ -289,7 +289,7 @@ public class Controller implements Initializable {
             paperDownloaded = originalArticle + " (Selected in SW: " + currTitle + ")";
         }
         try {
-            PDFDownloader pdfDownloader = new PDFDownloader();
+            PDFDownloader pdfDownloader = new PDFDownloader(engine);
             //Generate a unique folder name
             String path = pdfDownloader.createUniqueFolder(currTitle);
             if (isMultipleSearch) {
@@ -964,5 +964,9 @@ public class Controller implements Initializable {
 
     AtomicCounter getNumOfSuccessfulGral() {
         return numOfSuccessfulGral;
+    }
+
+    SearchEngine.SupportedSearchEngine getSearchEngine() {
+        return engine;
     }
 }

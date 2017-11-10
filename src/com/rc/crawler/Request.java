@@ -36,7 +36,7 @@ class Request implements Callable<Proxy> {
             boolean valid = false;
             while (!valid) {
                 try {
-                    crawler.changeIP(SearchEngine.testConnectionToWebsite(engine), false, true, engine);
+                    crawler.changeIP(SearchEngine.testConnectionToWebsite(engine), false, true, engine, Optional.empty());
                     valid = true;
                 } catch (Exception ignored) {
                 }

@@ -1,8 +1,5 @@
 package com.rc.crawler;
 
-import org.apache.http.client.CookieStore;
-import org.apache.http.impl.client.BasicCookieStore;
-import org.apache.http.impl.cookie.BasicClientCookie;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
@@ -13,15 +10,14 @@ import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -39,6 +35,13 @@ class PDFDownloader {
     private int pdfCounter;
     private Proxy ipAndPort;
     private boolean speedUp;
+    private SearchEngine.SupportedSearchEngine engine;
+    Long currThreadID;
+
+    PDFDownloader(SearchEngine.SupportedSearchEngine engine) {
+        this.engine = engine;
+        currThreadID = Thread.currentThread().getId();
+    }
 
     /**
      * Gets the folder where the files are going to be stored for a given query
@@ -95,6 +98,7 @@ class PDFDownloader {
         private HttpURLConnection connection;
         private java.net.Proxy proxy;
         private Set<Cookie> cookies;
+        private String pageSource;
 
         DownloadPDFTask() {
         }
@@ -108,26 +112,27 @@ class PDFDownloader {
                     java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
                     cookies = connectUsingSelenium();
                 }
-                int status = connectUsingNetClass();
-                boolean redirect = false;
-                if (status != HttpURLConnection.HTTP_OK) {
-                    if (status == HttpURLConnection.HTTP_MOVED_TEMP
-                            || status == HttpURLConnection.HTTP_MOVED_PERM
-                            || status == HttpURLConnection.HTTP_SEE_OTHER)
-                        redirect = true;
-                }
-                if (status == 403) {
-                    throw new IOException("Error 403");
-                }
-                if (redirect) {
-                    redirect(connection, proxy);
-                } else {
-                    ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                    FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + "" +
-                            ".pdf");
-                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+                    int status = connectUsingNetClass();
+                    boolean redirect = false;
+                    if (status != HttpURLConnection.HTTP_OK) {
+                        if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                                || status == HttpURLConnection.HTTP_MOVED_PERM
+                                || status == HttpURLConnection.HTTP_SEE_OTHER)
+                            redirect = true;
+                    }
+                    if (status == 403) {
+                        throw new IOException("Error 403");
+                    }
+                    if (redirect) {
+                        redirect(connection, proxy);
+                    } else {
 
-                }
+                        ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                        FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + "" +
+                                ".pdf");
+                        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+
+                    }
 
             } catch (Exception e) {
                 e.printStackTrace(System.out);
@@ -175,6 +180,7 @@ class PDFDownloader {
                 driver.get(url);
                 waitForLoad(driver);
                 cookies = driver.manage().getCookies();
+                pageSource = driver.getPageSource();
 
 
             } catch (Exception e) {
@@ -251,6 +257,11 @@ class PDFDownloader {
                     connection = (HttpURLConnection) new URL(newUrl).openConnection(proxy);
                 } else {
                     connection = (HttpURLConnection) new URL(newUrl).openConnection();
+                }
+                if (crawler.isSeleniumActive()) {
+                    for (Cookie cookie : cookies) {
+                        connection.addRequestProperty("Cookie", cookie.toString());
+                    }
                 }
                 connection.setRequestProperty("User-Agent", "Chrome");
                 int status = connection.getResponseCode();

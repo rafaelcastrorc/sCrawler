@@ -258,7 +258,7 @@ class ProxiesDownloader {
             ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, SearchEngine.SupportedSearchEngine.GoogleScholar);
             if (crawler.isSeleniumActive()) {
                 try {
-                    doc = proxyChanger.useSelenium(null, url, false, null);
+                    doc = proxyChanger.useSelenium(null, url, false, null, false);
                 } catch (RuntimeException e) {
                     e.printStackTrace(System.out);
                     return null;
