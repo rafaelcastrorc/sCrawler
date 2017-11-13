@@ -14,8 +14,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Created by rafaelcastro on 8/10/17.
@@ -37,13 +35,15 @@ class DownloadLinkFinder {
     private String typeOfSearch;
     private int limit;
     private SearchEngine.SupportedSearchEngine engine;
+    private StatsGUI stats;
 
     DownloadLinkFinder(GUILabelManagement guiLabels, Crawler crawler, SimultaneousDownloadsGUI
-            simultaneousDownloadsGUI, SearchEngine.SupportedSearchEngine engine) {
+            simultaneousDownloadsGUI, SearchEngine.SupportedSearchEngine engine, StatsGUI stats) {
         this.guiLabels = guiLabels;
         this.crawler = crawler;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
         this.engine = engine;
+        this.stats = stats;
     }
 
 
@@ -221,7 +221,7 @@ class DownloadLinkFinder {
             citingPapers = crawler.changeIP(currUrl, false, false, engine, Optional.empty());
         } else {
             //If not, just connect to the previous proxy
-            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine);
+            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine, stats);
             proxyChanger.setComesFromDownload(true);
             citingPapers = proxyChanger.getProxy(currUrl, true, false);
         }

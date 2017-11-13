@@ -68,15 +68,15 @@ class ProxiesDownloader {
 
     /**
      * Downloads proxies from different websites, without duplicates.
-     *
-     * @param numberOfProxiesToDownload Limit of proxies to download
+     *  @param numberOfProxiesToDownload Limit of proxies to download
      * @param proxyCounter              The number of proxies that have been downloaded so far.
      * @param guiLabels                 GUILabelManagement obj
      * @param crawler                   crawler reference
      * @param addMore                   true if the program is trying to add more proxies.
+     * @param stats
      */
     synchronized int getProxiesFromWebsite(int numberOfProxiesToDownload, int proxyCounter, GUILabelManagement
-            guiLabels, Crawler crawler, boolean addMore) {
+            guiLabels, Crawler crawler, boolean addMore, StatsGUI stats) {
 
         //Set a new file, if there was one before, overwrite it
         Logger logger = Logger.getInstance();
@@ -111,7 +111,7 @@ class ProxiesDownloader {
                 while (areThereMoreEntries) {
 
                     try {
-                        doc = getWebsiteDoc(url, baseURI, crawler, absLink, guiLabels);
+                        doc = getWebsiteDoc(url, baseURI, crawler, absLink, guiLabels, stats);
                         if (doc == null) {
                             areThereMoreEntries = false;
                             continue;
@@ -231,10 +231,11 @@ class ProxiesDownloader {
      * @param crawler   Crawler instance
      * @param absLink   Absolute link of the current url
      * @param guiLabels GuiLabelManagement obj
+     * @param stats
      * @return Document
      */
     private Document getWebsiteDoc(String url, String baseURI, Crawler crawler, String absLink, GUILabelManagement
-            guiLabels) {
+            guiLabels, StatsGUI stats) {
         Document doc;
         try {
             if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
@@ -255,7 +256,7 @@ class ProxiesDownloader {
 
         if (doc.toString().contains("javascript") && (url.contains("gatherproxy") || url.contains
                 ("freeproxylists"))) {
-            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, SearchEngine.SupportedSearchEngine.GoogleScholar);
+            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, SearchEngine.SupportedSearchEngine.GoogleScholar, stats);
             if (crawler.isSeleniumActive()) {
                 try {
                     doc = proxyChanger.useSelenium(null, url, false, null, false);

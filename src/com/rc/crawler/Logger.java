@@ -351,7 +351,7 @@ class Logger {
                 if (line.contains("Proxy: ")) {
                     //If there are cookies, we have already gone through at least one proxy, so we add it to the map.
                     if (!cookies.isEmpty()) {
-                        //Check if map already contains the proxy proxy
+                        //Check if map already contains the proxy. If it does, replace it
                         if (!result.containsKey(currProxy)) {
                             Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
                             map.put(engine, cookies);

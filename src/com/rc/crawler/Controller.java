@@ -104,6 +104,17 @@ public class Controller implements Initializable {
     private JFXRadioButton increaseSpeedButton1;
     @FXML
     private JFXRadioButton increaseSpeedButton;
+    @FXML
+    private Text startTimeGUI;
+    @FXML
+    private Text numberOfLockedProxies;
+    @FXML
+    private Text relocked;
+    @FXML
+    private Text numOfUnlocked;
+    @FXML
+    private Text lockedByProvider;
+    private StatsGUI stats;
 
 
     @SuppressWarnings("WeakerAccess")
@@ -231,7 +242,7 @@ public class Controller implements Initializable {
             try {
                 DoWork task = new DoWork("download", articleName, "searchForCitedBy"
                 );
-                task.setObjects(this, simultaneousDownloadsGUI, guiLabels);
+                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -258,7 +269,7 @@ public class Controller implements Initializable {
             numOfPDFToDownload = matcher.group();
             try {
                 DoWork task = new DoWork("download", articleName, "searchForTheArticle");
-                task.setObjects(this, simultaneousDownloadsGUI, guiLabels);
+                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -411,7 +422,7 @@ public class Controller implements Initializable {
         Node node = (Node) e.getSource();
         window = node.getScene().getWindow();
         DoWork task = new DoWork("upload", null, null);
-        task.setObjects(this, simultaneousDownloadsGUI, guiLabels);
+        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
         singleThreadExecutor.submit((Runnable) task);
 
     }
@@ -461,7 +472,7 @@ public class Controller implements Initializable {
                     simultaneousDownloadsGUI.addGUI(scrollPanel);
                     DoWork task = new DoWork("waitForNConnections", String.valueOf
                             (numOfConnectionsNeeded), null);
-                    task.setObjects(this, simultaneousDownloadsGUI, guiLabels);
+                    task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
 
                     Thread t = new MyThreadFactory().newThread(task);
                     singleThreadExecutor.submit((t));
@@ -552,7 +563,7 @@ public class Controller implements Initializable {
         List<Future> futures = new ArrayList<>();
         for (String article : articleNames) {
             DoWork task = new DoWork("multipleSearch", article, typeOfSearch);
-            task.setObjects(this, simultaneousDownloadsGUI, guiLabels);
+            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
             futures.add(taskCompletionService.submit(task));
         }
         Task task = new Task() {
@@ -673,7 +684,8 @@ public class Controller implements Initializable {
                 Proxy proxy = crawler.getQueueOfBlockedProxies().poll();
 
                 alert.setTitle("Google has detected a robot");
-                alert.setHeaderText("Google has blocked the following proxy: " + proxy.getProxy() + ":" + proxy.getPort() +
+                alert.setHeaderText("Google has blocked the following proxy: " + proxy.getProxy() + ":" + proxy
+                        .getPort() +
 
                         "\nHelp the crawler by unlocking it. Once you are done press the\n" +
                         "'Proxy is Unlocked' button.\n" +
@@ -696,7 +708,7 @@ public class Controller implements Initializable {
                         event -> {
                             //If the text of the button is Unlock Proxy
                             if (!unlockButton.getText().equals("Can't be unlocked")) {
-                                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine);
+                                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine, stats);
                                 //Use chromedriver to connect
                                 driver[0] = proxyChanger.useChromeDriver(proxy, null);
                                 alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(false);
@@ -709,7 +721,7 @@ public class Controller implements Initializable {
                                 try {
                                     driver[0].close();
                                     driver[0].quit();
-                                }catch (Exception ignored){
+                                } catch (Exception ignored) {
                                 }
                             }
 
@@ -801,6 +813,50 @@ public class Controller implements Initializable {
         Platform.runLater(() -> outputMultiple.setText(message));
     }
 
+    /**
+     * Updates the number of blocked proxies in the Statistics section
+     *
+     * @param newValue number of blocked proxies
+     */
+    void updateNumberOfBlocked(int newValue) { Platform.runLater(() -> numberOfLockedProxies.setText(String.valueOf
+            (newValue)));
+    }
+
+    /**
+     * Updates the number of relocked proxies in the Statistics section
+     *
+     * @param newValue number of blocked proxies
+     */
+    void updateNumberOfRelocked(int newValue) { Platform.runLater(() -> relocked.setText(String.valueOf
+            (newValue)));
+    }
+
+    /**
+     * Updates the number of unlocked proxies in the Statistics section
+     *
+     * @param newValue number of unlocked proxies
+     */
+    void updateNumberOfUnlocked(int newValue) { Platform.runLater(() -> numOfUnlocked.setText(String.valueOf
+            (newValue)));
+    }
+
+    /**
+     * Updates the number of proxies locked by the proxy provider
+     *
+     * @param newValue number of blocked proxies
+     */
+    void updateNumberOfLockedByProvider(int newValue) { Platform.runLater(() -> lockedByProvider.setText(String.valueOf
+            (newValue)));
+    }
+
+    /**
+     * Updates the number of blocked proxies in the Statistics section
+     *
+     * @param newValue start time
+     */
+    void updateStartTime(String newValue) {
+        Platform.runLater(() -> startTimeGUI.setText(newValue));
+    }
 
     /**
      * Creates a pop up message that says Loading...
@@ -824,7 +880,7 @@ public class Controller implements Initializable {
         SearchResultWindow searchResultWindow = guiLabels.getMapThreadToSearchResultW().get(currentThreadId);
         searchResultWindow.setQueryStr(title);
         SearchResultDisplay searchResultDisplay = new SearchResultDisplay(searchResultWindow, guiLabels, crawler
-        ,this);
+                , this);
         citingPapersURL = searchResultDisplay.show(isMultipleSearch, typeOfSearch, currentThreadId, title);
     }
 
@@ -862,13 +918,14 @@ public class Controller implements Initializable {
 
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
-        //Initializes object that holds different maps
-
+        //Select the correct search engine
         selectEngine();
+        //Initialize stats
+        stats = new StatsGUI();
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
-        crawler = new Crawler(guiLabels);
+        crawler = new Crawler(guiLabels, stats);
         DoWork task = new DoWork("initialize", null, null);
-        task.setObjects(this, simultaneousDownloadsGUI, guiLabels);
+        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
         Thread thread = new MyThreadFactory().newThread(task);
         thread.setDaemon(true);
         thread.start();
@@ -886,7 +943,7 @@ public class Controller implements Initializable {
         ButtonType msft = new ButtonType("Microsoft Academic");
         alert.getButtonTypes().setAll(gScholar, msft);
         Optional<ButtonType> result = alert.showAndWait();
-        if (result.get() == gScholar){
+        if (result.get() == gScholar) {
             engine = SearchEngine.SupportedSearchEngine.GoogleScholar;
         } else {
             engine = SearchEngine.SupportedSearchEngine.MicrosoftAcademic;
@@ -932,12 +989,14 @@ public class Controller implements Initializable {
         }
     }
 
-    Map<Long,String> getMapThreadToTitle() {
+    Map<Long, String> getMapThreadToTitle() {
         return mapThreadToTitle;
     }
+
     JFXButton getAlertButton() {
         return alertButton;
     }
+
     JFXButton getAlertButton2() {
         return alertButton2;
     }
@@ -969,4 +1028,5 @@ public class Controller implements Initializable {
     SearchEngine.SupportedSearchEngine getSearchEngine() {
         return engine;
     }
+
 }

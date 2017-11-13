@@ -48,11 +48,14 @@ class ProxyChanger {
     private Long threadID = null;
     private boolean isPageEmpty = false;
     private boolean comesFromDownload = false;
+    private StatsGUI stats;
 
-    ProxyChanger(GUILabelManagement guiLabels, Crawler crawler, SearchEngine.SupportedSearchEngine engine) {
+    ProxyChanger(GUILabelManagement guiLabels, Crawler crawler, SearchEngine.SupportedSearchEngine engine, StatsGUI
+            stats) {
         this.guiLabels = guiLabels;
         this.crawler = crawler;
         this.engine = engine;
+        this.stats = stats;
     }
 
     /**
@@ -151,10 +154,7 @@ class ProxyChanger {
                     if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
                         proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
                         cookies = crawler.getCookie(proxyToBeUsed, engine);
-                        System.out.println("Using proxy from unlocked proxies");
-
                         crawler.addRequestToMapOfRequests(SearchEngine.getBaseURL(engine), proxyToBeUsed, 0);
-
                     }
                     //If there are no unlocked proxies, or the queue returned null, try finding a new connection
                     if (proxyToBeUsed == null) {
@@ -475,17 +475,26 @@ class ProxyChanger {
                     pageSource.contains("your computer or network may be sending " +
                             "automated queries. To protect our users, we can't process your request right now") ||
                     pageSource.equals("<html><head></head><body></body></html>") ||
-                    pageSource.equals("") ||
+                    pageSource.equals("") || pageSource.contains("ContentKeeper") ||
                     pageSource.split(" ").length < 200) {
+
+                if (pageSource.contains("ContentKeeper")) {
+                    //This happens if the proxy provider  blocks us
+                    int curr = stats.getNumberOfLockedByProvider().get() + 1;
+                    stats.updateNumberOfLockedByProvider(curr);
+                    if (cookies != null && cookies.size() > 0) {
+                        stats.updateNumberOfUnlocked(stats.getNumberOfUnlockedProxies().get() - 1);
+                    }
+                }
+
                 crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
 
                 throw new IllegalArgumentException();
             }
             //These errors can be fixed
             if (doc.text().contains("Sorry, we can't verify that you're not a robot") ||
-                    pageSource.contains("Our systems have detected unusual traffic from your computer network") ||
-                    pageSource.contains("ContentKeeper")) {
-                if (pageSource.contains("ContentKeeper"));
+                    pageSource.contains("Our systems have detected unusual traffic from your computer network")) {
+
                 System.out.println("There is a blocked proxy");
                 //Add to the queue of blocked proxies
                 if (crawler.isSeleniumActive()) {
@@ -494,6 +503,14 @@ class ProxyChanger {
                     guiLabels.setIsThereAnAlert(true);
                     //Send email if possible
                     crawler.sendBlockedProxies();
+                    //Update stats
+                    stats.updateNumberOfBlockedProxies(crawler.getQueueOfBlockedProxies().size());
+                    if (cookies != null && cookies.size() > 0) {
+                        //If this happens, it means that Google blocked a previously unlocked proxy
+                        stats.updateNumberOfRelockedProxies(stats.getNumberOfRelockedProxies().get() + 1);
+                        stats.updateNumberOfUnlocked(stats.getNumberOfUnlockedProxies().get() - 1);
+                    }
+
                 }
                 crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
                 throw new IllegalArgumentException();

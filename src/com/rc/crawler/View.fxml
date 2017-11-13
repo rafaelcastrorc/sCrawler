@@ -496,6 +496,72 @@
                                     </AnchorPane>
                                 </content>
                               </Tab>
+                              <Tab text="Statistics">
+                                 <content>
+                                    <AnchorPane minHeight="338.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" style="-fx-background-color: #434141;">
+                                       <children>
+                                          <Pane layoutX="-8.0" maxHeight="332.0" minWidth="338.0" prefHeight="338.0" prefWidth="600.0" style="-fx-background-color: #e1e2e1;">
+                                             <children>
+                                                <VBox layoutX="13.0" layoutY="6.0" maxHeight="288.0" minHeight="288.0" prefHeight="288.0" prefWidth="580.0" spacing="5.0">
+                                                   <children>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="26.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Start time (from the moment the program started downloading):" wrappingWidth="556.6454467773438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fx:id="startTimeGUI" fill="#282828" layoutX="14.0" layoutY="47.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="97.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Current number of unlocked proxies:" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fx:id="numOfUnlocked" fill="#282828" layoutX="14.0" layoutY="118.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="14.0" layoutY="245.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Total number of re-locked proxies:" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fx:id="relocked" fill="#282828" layoutX="14.0" layoutY="266.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" layoutX="13.0" layoutY="319.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Total number of proxies blocked by proxy provider:" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fx:id="lockedByProvider" fill="#282828" layoutX="13.0" layoutY="340.0" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fill="#282828" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" text="Current number of locked proxies found:" wrappingWidth="382.01849365234375">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="16.0" />
+                                                         </font>
+                                                      </Text>
+                                                      <Text fx:id="numberOfLockedProxies" fill="#282828" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-line-spacing: 3;" textAlignment="JUSTIFY" wrappingWidth="579.0184936523438">
+                                                         <font>
+                                                            <Font name="Roboto Light" size="12.0" />
+                                                         </font>
+                                                      </Text>
+                                                   </children>
+                                                </VBox>
+                                             </children>
+                                          </Pane>
+                                       </children>
+                                    </AnchorPane>
+                                 </content>
+                              </Tab>
                            </tabs>
                         </JFXTabPane>
                      </children>

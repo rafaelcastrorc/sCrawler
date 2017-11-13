@@ -26,10 +26,11 @@ class JavascriptEnabledCrawler {
     /**
      * Loads any previously stored cookied
      */
-    JavascriptEnabledCrawler() {
+    JavascriptEnabledCrawler(StatsGUI stats) {
         Logger logger = Logger.getInstance();
         try {
             mapProxyToSearchEngineToCookie = logger.readCookieFile();
+            stats.updateNumberOfUnlocked(mapProxyToSearchEngineToCookie.size());
         } catch (FileNotFoundException ignored) {
         }
     }

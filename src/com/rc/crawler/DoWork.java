@@ -20,6 +20,7 @@ class DoWork extends Task<Void> implements Callable {
     private LoadingWindow loading;
     private Controller controller;
     private SimultaneousDownloadsGUI simultaneousDownloadsGUI;
+    private StatsGUI stats;
     private GUILabelManagement guiLabels;
 
 
@@ -106,9 +107,8 @@ class DoWork extends Task<Void> implements Callable {
             controller.getAlertButton().setVisible(newValue);
             controller.getAlertButton2().setVisible(newValue);
         });
+        initializeStats();
         //Load the crawler
-        //Todo: Change engine and this
-
         controller.getCrawler().loadCrawler(controller.getSearchEngine());
         article = String.valueOf(1);
         waitForConnections();
@@ -166,6 +166,7 @@ class DoWork extends Task<Void> implements Callable {
         simultaneousDownloadsGUI.updateArticleName("Not set");
         String url = "";
         simultaneousDownloadsGUI.updateProgressBar(0.0);
+        stats.setStartTime();
         String[] result = controller.search(article, true, typeOfSearch);
         String numOfCitations = result[0];
         if (numOfCitations.isEmpty() || numOfCitations.equals("Provide feedback")) {
@@ -284,11 +285,13 @@ class DoWork extends Task<Void> implements Callable {
      */
     private void singleSearch() {
         controller.getProgressBar().progressProperty().setValue(0);
+        stats.setStartTime();
         if (article != null) {
             controller.getMapThreadToTitle().put(Thread.currentThread().getId(), article);
         }
         Logger logger = Logger.getInstance();
         controller.updateOutput("Searching...");
+
         String[] result = controller.search(article, false, typeOfSearch);
         String numOfCitations = result[0];
         //In case the title changed, then retrieve the new article name
@@ -337,10 +340,26 @@ class DoWork extends Task<Void> implements Callable {
 
 
     void setObjects(Controller controller, SimultaneousDownloadsGUI simultaneousDownloadsGUI,
-                    GUILabelManagement guiLabels) {
+                    GUILabelManagement guiLabels, StatsGUI stats) {
         this.controller = controller;
         this.guiLabels = guiLabels;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
+        this.stats = stats;
+    }
 
+    /**
+     * Initializes the StatisticsGUI
+     */
+    void initializeStats() {
+        stats.getStartTime().addListener((observable, oldValue, newValue) -> controller
+                .updateStartTime(newValue));
+        stats.getNumberOfBlockedProxies().addListener((observable, oldValue, newValue) -> controller
+                .updateNumberOfBlocked((Integer) newValue));
+        stats.getNumberOfRelockedProxies().addListener((observable, oldValue, newValue) -> controller
+                .updateNumberOfRelocked((Integer) newValue));
+        stats.getNumberOfUnlockedProxies().addListener((observable, oldValue, newValue) -> controller
+                .updateNumberOfUnlocked((Integer) newValue));
+        stats.getNumberOfLockedByProvider().addListener((observable, oldValue, newValue) -> controller
+                .updateNumberOfLockedByProvider((Integer) newValue));
     }
 }
