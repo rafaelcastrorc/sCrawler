@@ -115,6 +115,7 @@ public class Controller implements Initializable {
     @FXML
     private Text lockedByProvider;
     private StatsGUI stats;
+    DatabaseDriver db;
 
 
     @SuppressWarnings("WeakerAccess")
@@ -385,7 +386,9 @@ public class Controller implements Initializable {
         } catch (Exception e) {
 
             //Add the information to the List of files not downloaded, and the report
-            displayAlert("There was an error downloading a file");
+            if (!isMultipleSearch) {
+                displayAlert("There was an error downloading a file");
+            }
             e.printStackTrace(System.out);
             Logger logger = Logger.getInstance();
             File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
@@ -470,13 +473,6 @@ public class Controller implements Initializable {
                         this.numOfConnectionsNeeded = 8;
                     }
                     simultaneousDownloadsGUI.addGUI(scrollPanel);
-                    DoWork task = new DoWork("waitForNConnections", String.valueOf
-                            (numOfConnectionsNeeded), null);
-                    task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
-
-                    Thread t = new MyThreadFactory().newThread(task);
-                    singleThreadExecutor.submit((t));
-
                 } catch (FileNotFoundException e) {
                     displayAlert(e.getMessage());
                 }
@@ -494,8 +490,9 @@ public class Controller implements Initializable {
         FileChooser.ExtensionFilter extFilter = new FileChooser.ExtensionFilter("TXT files (*.txt)", "*.txt");
         FileChooser.ExtensionFilter extFilter2 = new FileChooser.ExtensionFilter("CSV file (*.csv)", "*.csv");
 
-        fileChooser.getExtensionFilters().add(extFilter2);
         fileChooser.getExtensionFilters().add(extFilter);
+        fileChooser.getExtensionFilters().add(extFilter2);
+
     }
 
     /**
@@ -506,9 +503,8 @@ public class Controller implements Initializable {
         Object source = event.getSource();
         String buttonUsed = "";
         String typeOfSearch;
-        if (source instanceof Button) { //should always be true in your example
-            Button clickedBtn = (Button) source; // that's the button that was clicked
-            System.out.println(clickedBtn.getId()); // prints the id of the button
+        if (source instanceof Button) {
+            Button clickedBtn = (Button) source;
             buttonUsed = clickedBtn.getId();
         }
         String text;
@@ -527,7 +523,9 @@ public class Controller implements Initializable {
         Pattern numbersOnly = Pattern.compile("^[0-9]+$");
         Matcher matcher = numbersOnly.matcher(text);
         if (matcher.find()) {
-            SetupFile setup = new SetupFile(typeOfSearch, submittedFile, this, matcher.group());
+            DoWork task = new DoWork("waitForNConnections", String.valueOf(numOfConnectionsNeeded), null);
+            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+            SetupFile setup = new SetupFile(typeOfSearch, submittedFile, this, matcher.group(), task);
             //Set up the list of files to download appropriately
             FutureTask<Void> futureTask = new FutureTask<>(setup);
             Platform.runLater(futureTask);
@@ -703,14 +701,14 @@ public class Controller implements Initializable {
                 final WebDriver[] driver = {null};
                 final Button unlockButton = (Button) alert.getDialogPane().lookupButton(unlock);
                 final Button proxyIsUnlockedButton = (Button) alert.getDialogPane().lookupButton(proxyIsUnlocked);
+                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine, stats);
                 unlockButton.addEventFilter(
                         ActionEvent.ACTION,
                         event -> {
                             //If the text of the button is Unlock Proxy
                             if (!unlockButton.getText().equals("Can't be unlocked")) {
-                                ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine, stats);
                                 //Use chromedriver to connect
-                                driver[0] = proxyChanger.useChromeDriver(proxy, null);
+                                driver[0] = proxyChanger.useChromeDriver(proxy, null, new HashSet<>());
                                 alert.getDialogPane().lookupButton(proxyIsUnlocked).setDisable(false);
                                 proxyIsUnlockedButton.setDefaultButton(true);
                                 ((Button) alert.getDialogPane().lookupButton(unlock)).setText("Can't be unlocked");
@@ -734,10 +732,17 @@ public class Controller implements Initializable {
                         //Store the cookie of the brower that solved the captcha
                         Set<Cookie> cookies = driver[0].manage().getCookies();
                         try {
+
                             driver[0].close();
                             driver[0].quit();
+                            driver[0] = proxyChanger.useChromeDriver(proxy, null, cookies);
+                            driver[0].get("https://scholar.google" +
+                                    ".com/scholar?hl=en&as_sdt=0%2C39&q=michael&btnG=");
+                            proxyChanger.useSelenium(proxy, "https://scholar.google" +
+                                    ".com/scholar?hl=en&as_sdt=0%2C39&q=michael&btnG=", true, cookies, false);
+
                             //Add it to queue of working proxies
-                            crawler.addUnlockedProxy(proxy, cookies, engine);
+                            crawler.addUnlockedProxy(proxy, cookies, engine, db);
                         } catch (Exception ignored) {
                         }
 
@@ -818,8 +823,9 @@ public class Controller implements Initializable {
      *
      * @param newValue number of blocked proxies
      */
-    void updateNumberOfBlocked(int newValue) { Platform.runLater(() -> numberOfLockedProxies.setText(String.valueOf
-            (newValue)));
+    void updateNumberOfBlocked(int newValue) {
+        Platform.runLater(() -> numberOfLockedProxies.setText(String.valueOf
+                (newValue)));
     }
 
     /**
@@ -827,8 +833,9 @@ public class Controller implements Initializable {
      *
      * @param newValue number of blocked proxies
      */
-    void updateNumberOfRelocked(int newValue) { Platform.runLater(() -> relocked.setText(String.valueOf
-            (newValue)));
+    void updateNumberOfRelocked(int newValue) {
+        Platform.runLater(() -> relocked.setText(String.valueOf
+                (newValue)));
     }
 
     /**
@@ -836,8 +843,9 @@ public class Controller implements Initializable {
      *
      * @param newValue number of unlocked proxies
      */
-    void updateNumberOfUnlocked(int newValue) { Platform.runLater(() -> numOfUnlocked.setText(String.valueOf
-            (newValue)));
+    void updateNumberOfUnlocked(int newValue) {
+        Platform.runLater(() -> numOfUnlocked.setText(String.valueOf
+                (newValue)));
     }
 
     /**
@@ -845,8 +853,9 @@ public class Controller implements Initializable {
      *
      * @param newValue number of blocked proxies
      */
-    void updateNumberOfLockedByProvider(int newValue) { Platform.runLater(() -> lockedByProvider.setText(String.valueOf
-            (newValue)));
+    void updateNumberOfLockedByProvider(int newValue) {
+        Platform.runLater(() -> lockedByProvider.setText(String.valueOf
+                (newValue)));
     }
 
     /**
@@ -914,10 +923,17 @@ public class Controller implements Initializable {
         }
         increaseSpeedButton.setSelectedColor(Color.web("#7d9a4f"));
         increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
-        //Todo: add the third and 4th  button
-
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
+        //Initialize db
+        try {
+            db = new DatabaseDriver(guiLabels);
+            // Remove any records associated with the previous instance id, if there are any
+            db.removeCrawlerInstance(logger.getPrevName());
+            db.addCrawlerInstance(logger.getInstanceID());
+        } catch (FileNotFoundException e) {
+            guiLabels.setAlertPopUp(e.getMessage());
+        }
         //Select the correct search engine
         selectEngine();
         //Initialize stats
@@ -949,7 +965,6 @@ public class Controller implements Initializable {
             engine = SearchEngine.SupportedSearchEngine.MicrosoftAcademic;
         }
     }
-
 
     /**
      * Increases the download speed by not using a proxy to download the files.

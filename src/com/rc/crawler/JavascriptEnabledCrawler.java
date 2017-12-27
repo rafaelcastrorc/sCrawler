@@ -3,6 +3,7 @@ package com.rc.crawler;
 import org.openqa.selenium.Cookie;
 
 import java.io.FileNotFoundException;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -26,10 +27,10 @@ class JavascriptEnabledCrawler {
     /**
      * Loads any previously stored cookied
      */
-    JavascriptEnabledCrawler(StatsGUI stats) {
+    JavascriptEnabledCrawler(StatsGUI stats, GUILabelManagement guiLabels) throws SQLException {
         Logger logger = Logger.getInstance();
         try {
-            mapProxyToSearchEngineToCookie = logger.readCookieFile();
+            mapProxyToSearchEngineToCookie = logger.readCookieFile(guiLabels);
             stats.updateNumberOfUnlocked(mapProxyToSearchEngineToCookie.size());
         } catch (FileNotFoundException ignored) {
         }

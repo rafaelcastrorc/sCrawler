@@ -27,6 +27,8 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -49,6 +51,7 @@ class ProxyChanger {
     private boolean isPageEmpty = false;
     private boolean comesFromDownload = false;
     private StatsGUI stats;
+    private DatabaseDriver db;
 
     ProxyChanger(GUILabelManagement guiLabels, Crawler crawler, SearchEngine.SupportedSearchEngine engine, StatsGUI
             stats) {
@@ -56,6 +59,7 @@ class ProxyChanger {
         this.crawler = crawler;
         this.engine = engine;
         this.stats = stats;
+        this.db = new DatabaseDriver(guiLabels);
     }
 
     /**
@@ -70,7 +74,6 @@ class ProxyChanger {
             }
         }
     }
-
 
     /**
      * Retrieves a Document after parsing a website.
@@ -112,7 +115,8 @@ class ProxyChanger {
         //If the program searched before with this proxy and it worked, then use previous proxy. But first, verify
         // the amount of request send to the given page is less than 40 for the current proxy
         if (hasSearchBefore && crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get
-                (currThreadID)) <= 40) {
+                (currThreadID)) <= 40 &&
+                db.canUseProxy(crawler.getMapThreadIdToProxy().get(currThreadID))) {
             Document doc = useProxyAgain(url, currThreadID);
             if (doc != null && !(doc.text().contains("Sorry, we can't verify that you're not a robot") && !doc.text()
                     .contains("your computer or network may be sending automated queries"))) {
@@ -137,19 +141,30 @@ class ProxyChanger {
      * @param url             URL we are trying to connect to
      */
     private Document establishNewConnection(boolean comesFromThread, String url) {
+        String instanceID = "";
+        try {
+            instanceID = Logger.getInstance().getInstanceID();
+        } catch (FileNotFoundException e) {
+            guiLabels.setAlertPopUp(e.getMessage());
+        }
         Document doc = null;
+        Proxy proxyToBeUsed = null;
         if (comesFromThread) {
             boolean connected = false;
             boolean thereWasAnError = false;
             Set<Cookie> cookies = null;
             while (!connected) {
-                Proxy proxyToBeUsed = null;
+                proxyToBeUsed = null;
                 if (!crawler.isThereConnection()) {
                     guiLabels.setOutput("No internet connection");
                     guiLabels.setOutputMultiple("No internet connection");
                     verifyIfThereIsConnection();
                 }
-                while (proxyToBeUsed == null || crawler.getNumberOfRequestFromMap(url, proxyToBeUsed) > 40) {
+                //Check if it the proxy is not null, it is being used by less than 4 crawlers, it has less than 40
+                // requests and there is not another thread that has already unlocked
+                while (proxyToBeUsed == null || !db.canUseProxy(proxyToBeUsed) || crawler.getNumberOfRequestFromMap(url,
+                        proxyToBeUsed) > 40 || db.isCurrentInstanceUsingProxy(instanceID, proxyToBeUsed)) {
+
                     //Try to use one of the unlocked proxies first
                     if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
                         proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
@@ -158,11 +173,15 @@ class ProxyChanger {
                     }
                     //If there are no unlocked proxies, or the queue returned null, try finding a new connection
                     if (proxyToBeUsed == null) {
-                        proxyToBeUsed = crawler.addConnection();
+                        proxyToBeUsed = crawler.addConnection(threadID);
                     }
+                    //Verify it is being used by another crawler
                 }
 
                 try {
+                    if (db.isCurrentInstanceUsingProxy(instanceID, proxyToBeUsed)) {
+                        throw new IllegalArgumentException();
+                    }
                     if (!thereWasAnError) {
                         guiLabels.setConnectionOutput("Connecting to Proxy...");
                     }
@@ -191,6 +210,12 @@ class ProxyChanger {
                     thereWasAnError = true;
                 }
             }
+        }
+        Logger logger = Logger.getInstance();
+        try {
+            db.addProxyToCurrentInstance(logger.getInstanceID(), proxyToBeUsed);
+        } catch (FileNotFoundException e) {
+            guiLabels.setAlertPopUp(e.getMessage());
         }
         return doc;
     }
@@ -231,7 +256,8 @@ class ProxyChanger {
             //If the proxy is null, or it has more than 40 request for the current website, then trying finding a new
             //one
             boolean first = true;
-            while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40) {
+            while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40 ||
+                    !db.canUseProxy(proxyToUse)) {
 
                 //Since we are using a new proxy, we need to find a replacement
                 if (first) {
@@ -498,6 +524,8 @@ class ProxyChanger {
                 System.out.println("There is a blocked proxy");
                 //Add to the queue of blocked proxies
                 if (crawler.isSeleniumActive()) {
+                    //Add locked proxy to server
+                    db.addLockedProxy(proxyToUse);
                     crawler.getQueueOfBlockedProxies().add(proxyToUse);
                     //Notify GUI
                     guiLabels.setIsThereAnAlert(true);
@@ -522,6 +550,11 @@ class ProxyChanger {
             }
             throw new IllegalArgumentException();
         }
+        //If there are no cookies, then add it to the list of unlocked proxies since is not already there
+        if ((cookies == null || cookies.size() == 0) && proxyToUse != null) {
+            crawler.addUnlockedProxy(proxyToUse, new HashSet<>(), engine, db);
+        }
+
         return doc;
     }
 
@@ -548,7 +581,7 @@ class ProxyChanger {
      *
      * @return WebDriver
      */
-    WebDriver useChromeDriver(Proxy proxy, String url) {
+    WebDriver useChromeDriver(Proxy proxy, String url, Set<Cookie> cookies) {
         ChromeDriver driver = null;
         try {
             org.openqa.selenium.Proxy nProxy;
@@ -566,6 +599,17 @@ class ProxyChanger {
 
             driver = new ChromeDriver(caps);
             driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
+            if (cookies.size() > 0) {
+                for (Cookie cookie : cookies) {
+                    String s = cookie.getExpiry().toString();
+                    s = s.replaceAll("1970", "2019");
+                    Date d = new Date(s);
+
+                    Cookie cookie1 = new Cookie(cookie.getName(), cookie.getValue(), cookie.getDomain(), cookie
+                            .getPath(), d, cookie.isSecure());
+                    driver.manage().addCookie(cookie1);
+                }
+            }
 
             if (url == null) {
                 driver.get(SearchEngine.getTestURL(engine));
@@ -728,7 +772,6 @@ class ProxyChanger {
                     Runtime.getRuntime().exec("chmod u+x " + phantomJS);
                 }
                 return phantomJS;
-
             }
         } catch (Exception e) {
             guiLabels.setAlertPopUp("There was a problem downloading PhantomJS. You won't be able to use " +
@@ -826,7 +869,7 @@ class ProxyChanger {
     /**
      * Waits for the driver to correctly load the page
      *
-     * @param driver Driver
+     * @param driver DatabaseDriver
      */
 
     private String waitForLoad(WebDriver driver, boolean isSearch, String url) {
@@ -853,13 +896,12 @@ class ProxyChanger {
                         String s = matcher.group();
                         s = s.replaceAll("\\D+", "");
                         int timeToWait = Integer.valueOf(s);
-                        Thread.sleep(timeToWait * 60 * 1000 + (5*1000));
+                        Thread.sleep(timeToWait * 60 * 1000 + (5 * 1000));
                         driver.get(url);
                         pageSource = driver.getPageSource();
                         attempt2++;
                         if (attempt2 > 3) throw new IllegalArgumentException();
-                    }
-                    else {
+                    } else {
                         needsToWait = false;
                     }
                 }
@@ -964,13 +1006,7 @@ class ProxyChanger {
         this.threadID = threadID;
     }
 
-
-    boolean isPageEmpty() {
-        return this.isPageEmpty;
-    }
-
-
-    public void setComesFromDownload(boolean comesFromDownload) {
+    void setComesFromDownload(boolean comesFromDownload) {
         this.comesFromDownload = comesFromDownload;
     }
 }

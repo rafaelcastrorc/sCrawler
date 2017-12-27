@@ -11,6 +11,7 @@ import org.jsoup.select.Elements;
 
 import java.io.IOException;
 import java.net.URL;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.regex.Matcher;
@@ -235,7 +236,7 @@ class ProxiesDownloader {
      * @return Document
      */
     private Document getWebsiteDoc(String url, String baseURI, Crawler crawler, String absLink, GUILabelManagement
-            guiLabels, StatsGUI stats) {
+            guiLabels, StatsGUI stats) throws SQLException {
         Document doc;
         try {
             if (mainPage && !url.contains("http://proxydb.net/?offset=")) {
@@ -256,7 +257,8 @@ class ProxiesDownloader {
 
         if (doc.toString().contains("javascript") && (url.contains("gatherproxy") || url.contains
                 ("freeproxylists"))) {
-            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, SearchEngine.SupportedSearchEngine.GoogleScholar, stats);
+            ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, SearchEngine.SupportedSearchEngine
+                    .GoogleScholar, stats);
             if (crawler.isSeleniumActive()) {
                 try {
                     doc = proxyChanger.useSelenium(null, url, false, null, false);

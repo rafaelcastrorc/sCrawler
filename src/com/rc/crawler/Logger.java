@@ -1,9 +1,11 @@
 package com.rc.crawler;
 
 
+import com.mysql.jdbc.exceptions.MySQLIntegrityConstraintViolationException;
 import org.joda.time.DateTime;
 
 import java.io.*;
+import java.sql.SQLException;
 import java.util.*;
 
 import org.openqa.selenium.Cookie;
@@ -20,22 +22,57 @@ class Logger {
     private static BufferedWriter filesNotDownloaded;
     private BufferedWriter listOfFilesToDownload;
     private BufferedWriter cookieFile;
+    private static String prevName = "";
 
 
     /**
-     * Gets an instance of the Logger
+     * Gets an instance of the Logger. Logs the current instance id when first called.
      *
      * @return Logger
      */
     static Logger getInstance() {
         if (instance == null) {
+            // Log an instance id for the current crawler, which will be used by the db
+            try {
+                File file = new File("./AppData/instanceID.txt");
+                //Check if there was a previous instance name, and eliminate any records that might still be in the
+                try {
+                    Scanner scanner = new Scanner(file);
+                    prevName = scanner.nextLine();
+                } catch (FileNotFoundException ignored) {
+                }
+
+                // database if the program was forced closed
+                BufferedWriter instanceWriter = new BufferedWriter(new FileWriter(file));
+                UUID idOne = UUID.randomUUID();
+                instanceWriter.write(String.valueOf(idOne));
+                instanceWriter.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
             instance = new Logger();
         }
         return instance;
     }
 
+    /** Gets the previous name associated to this instace, if there was any
+     *
+     * @return String
+     */
+    String getPrevName() {
+        return prevName;
+    }
 
     private Logger() {
+    }
+
+    /**
+     * Returns the current instance ID
+     */
+    String getInstanceID() throws FileNotFoundException {
+        Scanner scanner = new Scanner(new File("./AppData/instanceID.txt"));
+        return scanner.nextLine();
     }
 
     /**
@@ -309,106 +346,106 @@ class Logger {
     }
 
     /**
-     * Adds a cookie to the Cookies.dta file
+     * Adds a cookie to the Cookies.dta file and the database file
      *
      * @param cookies Set of cookies
      * @param proxy   proxy that was unlocked
      */
-    synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy, SearchEngine.SupportedSearchEngine engine)
-            throws IOException {
+    synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy, SearchEngine.SupportedSearchEngine engine,
+                                         DatabaseDriver db)
+            throws IOException, SQLException {
         StringBuilder sb = new StringBuilder();
-        sb.append("Proxy: ").append(proxy.getProxy()).append(":").append(proxy.getPort()).append("\n");
-        sb.append("Search Engine: ").append(engine.name()).append("\n");
-
         for (Cookie cookie : cookies) {
             sb.append(cookie.getName()).append(";").append(cookie.getValue()).append(";").append(cookie.getDomain())
                     .append(";").append(cookie.getPath()).append(";").append(cookie
                     .getExpiry()).append(";").append(cookie.isSecure()).append("\n");
         }
-        try {
             cookieFile.write(sb.toString());
             cookieFile.flush();
-        } catch (IOException e) {
-            throw new IOException("Cannot write to cookie file");
-        }
+            //Write to db
+            db.addUnlockedProxy(proxy, sb.toString(), engine);
     }
 
     /**
-     * Retrieves all the cookies stored locally
+     * Retrieves all the cookies
      */
     @SuppressWarnings("Duplicates")
-    HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> readCookieFile() throws
-            FileNotFoundException {
-        HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> result = new HashMap<>();
-        Scanner scanner = new Scanner(new File("./AppData/Cookies.dta"));
-        Proxy currProxy = null;
-        SearchEngine.SupportedSearchEngine engine = null;
-
-        Set<Cookie> cookies = new HashSet<>();
-        try {
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                if (line.contains("Proxy: ")) {
-                    //If there are cookies, we have already gone through at least one proxy, so we add it to the map.
-                    if (!cookies.isEmpty()) {
-                        //Check if map already contains the proxy. If it does, replace it
-                        if (!result.containsKey(currProxy)) {
-                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
-                            map.put(engine, cookies);
-                            result.put(currProxy, map);
-                        } else {
-                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
-                            map.put(engine, cookies);
-                            result.put(currProxy, map);
-                        }
-                        cookies = new HashSet<>();
-                    }
-                    line = line.replace("Proxy: ", "");
-                    //Get the proxy
-                    String[] proxy = line.split(":");
-                    String proxyNum = proxy[0];
-                    String proxyPort = proxy[1];
-                    currProxy = new Proxy(proxyNum, Integer.valueOf(proxyPort));
-                } else if (line.contains("Search Engine")) {
-                    //Find the search engine used
-                    line = line.replaceAll("Search Engine: ", "");
-                    if (line.equalsIgnoreCase(SearchEngine.SupportedSearchEngine.GoogleScholar.name())) {
-                        engine = SearchEngine.SupportedSearchEngine.GoogleScholar;
-                    }
-                    if (line.equalsIgnoreCase(SearchEngine.SupportedSearchEngine.MicrosoftAcademic.name())) {
-                        engine = SearchEngine.SupportedSearchEngine.MicrosoftAcademic;
-                    }
-                } else {
-                    //Get the cookie
-                    String[] cookieInfo = line.split(";");
-                    String name = cookieInfo[0];
-                    String value = cookieInfo[1];
-                    String domain = cookieInfo[2];
-                    String path = cookieInfo[3];
-                    Date expiry = null;
-                    if (cookieInfo[4] != null) {
-                        expiry = new Date(cookieInfo[4]);
-                    }
-                    Boolean isSecure = Boolean.valueOf(cookieInfo[4]);
-                    Cookie ck = new Cookie(name, value, domain, path, expiry, isSecure);
-                    cookies.add(ck);
-                }
-            }
-            if (!cookies.isEmpty()) {
-                if (!result.containsKey(currProxy)) {
-                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
-                    map.put(engine, cookies);
-                    result.put(currProxy, map);
-                } else {
-                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
-                    map.put(engine, cookies);
-                    result.put(currProxy, map);
-                }
-            }
-        } catch (NullPointerException e) {
-            throw new IllegalArgumentException("The cookies file is not formatted correctly, please revise it");
-        }
-        return result;
+    HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> readCookieFile(GUILabelManagement guiLabels)
+            throws
+            FileNotFoundException, SQLException {
+        return new DatabaseDriver(guiLabels).getAllUnlockedProxies();
+//        HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> result = new HashMap<>();
+//        Scanner scanner = new Scanner(new File("./AppData/Cookies.dta"));
+//        Proxy currProxy = null;
+//        SearchEngine.SupportedSearchEngine engine = null;
+//        db = new DatabaseDriver();
+//        Set<Cookie> cookies = new HashSet<>();
+//        try {
+//            while (scanner.hasNextLine()) {
+//                String line = scanner.nextLine();
+//                if (line.contains("Proxy: ")) {
+//                    //If there are cookies, we have already gone through at least one proxy, so we add it to the map.
+//                    if (!cookies.isEmpty()) {
+//                        //Check if map already contains the proxy. If it does, replace it
+//                        if (!result.containsKey(currProxy)) {
+//                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
+//                            map.put(engine, cookies);
+//                            result.put(currProxy, map);
+//                        } else {
+//                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
+//                            map.put(engine, cookies);
+//                            result.put(currProxy, map);
+//                        }
+//
+//                        cookies = new HashSet<>();
+//                    }
+//                    line = line.replace("Proxy: ", "");
+//                    //Get the proxy
+//                    String[] proxy = line.split(":");
+//                    String proxyNum = proxy[0];
+//                    String proxyPort = proxy[1];
+//                    currProxy = new Proxy(proxyNum, Integer.valueOf(proxyPort));
+//                } else if (line.contains("Search Engine")) {
+//                    //Find the search engine used
+//                    line = line.replaceAll("Search Engine: ", "");
+//                    if (line.equalsIgnoreCase(SearchEngine.SupportedSearchEngine.GoogleScholar.name())) {
+//                        engine = SearchEngine.SupportedSearchEngine.GoogleScholar;
+//                    }
+//                    if (line.equalsIgnoreCase(SearchEngine.SupportedSearchEngine.MicrosoftAcademic.name())) {
+//                        engine = SearchEngine.SupportedSearchEngine.MicrosoftAcademic;
+//                    }
+//                } else {
+//                    //Get the cookie
+//                    String[] cookieInfo = line.split(";");
+//                    String name = cookieInfo[0];
+//                    String value = cookieInfo[1];
+//                    String domain = cookieInfo[2];
+//                    String path = cookieInfo[3];
+//                    Date expiry = null;
+//                    if (cookieInfo[4] != null) {
+//                        expiry = new Date(cookieInfo[4]);
+//                    }
+//                    Boolean isSecure = Boolean.valueOf(cookieInfo[4]);
+//                    Cookie ck = new Cookie(name, value, domain, path, expiry, isSecure);
+//                    cookies.add(ck);
+//                }
+//            }
+//            if (!cookies.isEmpty()) {
+//                if (!result.containsKey(currProxy)) {
+//                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
+//                    map.put(engine, cookies);
+//                    result.put(currProxy, map);
+//                } else {
+//                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
+//                    map.put(engine, cookies);
+//                    result.put(currProxy, map);
+//                }
+//
+//            }
+//        } catch (NullPointerException e) {
+//            throw new IllegalArgumentException("The cookies file is not formatted correctly, please revise it");
+//        }
+//        return result;
     }
 
 

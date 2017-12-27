@@ -5,6 +5,7 @@ import javafx.concurrent.Task;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
 import java.io.File;
+import java.util.HashSet;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 
@@ -14,7 +15,7 @@ import java.util.logging.Level;
 class DoWork extends Task<Void> implements Callable {
     //Type of task that will be performed
     private final String type;
-    private final String typeOfSearch;
+    private String typeOfSearch;
     private String article;
     private String originalArticle;
     private LoadingWindow loading;
@@ -22,6 +23,8 @@ class DoWork extends Task<Void> implements Callable {
     private SimultaneousDownloadsGUI simultaneousDownloadsGUI;
     private StatsGUI stats;
     private GUILabelManagement guiLabels;
+    private String numberOfPDFsToDownload;
+    private HashSet<String> articleNames;
 
 
     /**
@@ -52,7 +55,7 @@ class DoWork extends Task<Void> implements Callable {
         switch (type) {
             case "waitForNConnections":
                 this.loading = new LoadingWindow();
-                waitForConnections();
+                waitForConnections(8);
                 break;
 
             case "multipleSearch":
@@ -79,7 +82,7 @@ class DoWork extends Task<Void> implements Callable {
      * Initializes the crawler and links the different GUI elements
      */
     private void initialize() {
-        java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
+        java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.SEVERE);
         //Prepare the GUI
         //For single article mode
         guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> controller.displayAlert
@@ -111,7 +114,7 @@ class DoWork extends Task<Void> implements Callable {
         //Load the crawler
         controller.getCrawler().loadCrawler(controller.getSearchEngine());
         article = String.valueOf(1);
-        waitForConnections();
+        waitForConnections(1);
         connectionEstablished();
     }
 
@@ -134,8 +137,9 @@ class DoWork extends Task<Void> implements Callable {
 
     /**
      * Wait for n proxy connections to be established before searching
+     * @param i The number of connections
      */
-    private void waitForConnections() {
+    private void waitForConnections(int i) {
         //Create a new loading box to show while application loads
         loading = new LoadingWindow();
         Platform.runLater(() -> loading.display());
@@ -153,7 +157,9 @@ class DoWork extends Task<Void> implements Callable {
         }
         Platform.runLater(() -> loading.close());
         controller.updateOutputMultiple("Connected!");
-
+        if (i != 1) {
+        controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
+        }
     }
 
     /**
@@ -350,7 +356,7 @@ class DoWork extends Task<Void> implements Callable {
     /**
      * Initializes the StatisticsGUI
      */
-    void initializeStats() {
+    private void initializeStats() {
         stats.getStartTime().addListener((observable, oldValue, newValue) -> controller
                 .updateStartTime(newValue));
         stats.getNumberOfBlockedProxies().addListener((observable, oldValue, newValue) -> controller
@@ -361,5 +367,15 @@ class DoWork extends Task<Void> implements Callable {
                 .updateNumberOfUnlocked((Integer) newValue));
         stats.getNumberOfLockedByProvider().addListener((observable, oldValue, newValue) -> controller
                 .updateNumberOfLockedByProvider((Integer) newValue));
+    }
+
+    /**
+     * Sets up the different files needed for multiple search mode
+     */
+    void setMultipleDownloadFiles(HashSet<String> articleNames, String numberOfPDFsToDownload, String
+            typeOfSearch) {
+        this.articleNames = articleNames;
+        this.numberOfPDFsToDownload = numberOfPDFsToDownload;
+        this.typeOfSearch = typeOfSearch;
     }
 }

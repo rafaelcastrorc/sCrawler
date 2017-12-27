@@ -1,5 +1,6 @@
 package com.rc.crawler;
 
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -12,6 +13,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Created by rafaelcastro on 7/6/17.
@@ -23,13 +26,19 @@ class SetupFile extends Task<Void> implements Callable<Void> {
     private Controller controller;
     private HashSet<String> articleNames;
     private String numberOfPDFsToDownload;
+    private DoWork task;
+    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor(new MyThreadFactory());
 
 
-    SetupFile(String typeOfSearch, File submittedFile, Controller controller, String numberOfPDFsToDownload) {
+
+    SetupFile(String typeOfSearch, File submittedFile, Controller controller, String numberOfPDFsToDownload, DoWork
+            task) {
         this.typeOfSearch = typeOfSearch;
         this.submittedFile = submittedFile;
         this.controller = controller;
         this.numberOfPDFsToDownload = numberOfPDFsToDownload;
+        this.task = task;
+
     }
 
 
@@ -88,7 +97,9 @@ class SetupFile extends Task<Void> implements Callable<Void> {
                 }
 
             }
-            controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
+            task.setMultipleDownloadFiles(articleNames, numberOfPDFsToDownload, typeOfSearch);
+            Thread t = new MyThreadFactory().newThread(task);
+            singleThreadExecutor.submit((t));
 
         }
         return null;
@@ -156,7 +167,10 @@ class SetupFile extends Task<Void> implements Callable<Void> {
 
                 } catch (IOException ignored) {
                 }
-                controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
+                task.setMultipleDownloadFiles(articleNames, numberOfPDFsToDownload, typeOfSearch);
+                Thread t = new MyThreadFactory().newThread(task);
+                singleThreadExecutor.submit((t));
+
             }
         } else {
             Alert alert = new Alert(Alert.AlertType.INFORMATION, "There are no files that can be downloaded",

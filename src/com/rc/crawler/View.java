@@ -7,7 +7,11 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.Scanner;
 
 /**
  * Created by rafaelcastro on 6/7/17.
@@ -47,6 +51,14 @@ public class View extends Application {
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
+            }
+            //Remove all the information from the db related to this instance
+            DatabaseDriver db = null;
+            try {
+                db = new DatabaseDriver(new GUILabelManagement());
+                db.removeCrawlerInstance(new Scanner(new File("./AppData/instanceID.txt")).nextLine());
+            } catch (FileNotFoundException e1) {
+                e1.printStackTrace();
             }
             Platform.exit();
             System.exit(0);

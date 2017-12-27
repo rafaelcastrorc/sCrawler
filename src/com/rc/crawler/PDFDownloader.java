@@ -298,7 +298,7 @@ class PDFDownloader {
     /**
      * Waits for the driver to correctly load the page
      *
-     * @param driver Driver
+     * @param driver DatabaseDriver
      */
 
     private void waitForLoad(WebDriver driver) {
