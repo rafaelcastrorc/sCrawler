@@ -181,7 +181,6 @@ class ProxiesDownloader {
                                 }
                             }
                         }
-                        guiLabels.setAlertPopUp("There was a problem one of the Proxy Databases.");
                     }
                 }
             }

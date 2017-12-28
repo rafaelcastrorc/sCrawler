@@ -25,6 +25,7 @@ class DoWork extends Task<Void> implements Callable {
     private GUILabelManagement guiLabels;
     private String numberOfPDFsToDownload;
     private HashSet<String> articleNames;
+    private DatabaseDriver db;
 
 
     /**
@@ -223,6 +224,8 @@ class DoWork extends Task<Void> implements Callable {
                 "rate: ~" + String.format("%.2f", rate) + "% | " + String.format("%.2f", rate2) + "%");
 
         Double currPercentage =  controller.getAtomicCounter().value() / ((double)  controller.getAtomicCounter().getMaxNumber());
+        //Add to db
+        db.addDownloadRateToDB(rate2);
         //Add to the list of files that could not be downloaded
         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
         Logger logger = Logger.getInstance();
@@ -252,6 +255,7 @@ class DoWork extends Task<Void> implements Callable {
                 "rate: ~" + String.format("%.2f", rate) + "% | " + String.format("%.2f", rate2) + "%");
 
         Double currPercentage =  controller.getAtomicCounter().value() / ((double)  controller.getAtomicCounter().getMaxNumber());
+        db.addDownloadRateToDB(rate2);
 
         if (currPercentage >= 0.999) {
             controller.updateOutputMultiple("All files have been downloaded");
@@ -279,6 +283,8 @@ class DoWork extends Task<Void> implements Callable {
                 "rate: ~" + String.format("%.2f", rate) + "% | " + String.format("%.2f", rate2) + "%");
 
         Double currPercentage =  controller.getAtomicCounter().value() / ((double)  controller.getAtomicCounter().getMaxNumber());
+        db.addDownloadRateToDB(rate2);
+
         if (currPercentage >= 0.999) {
             controller.updateOutputMultiple("All files have been downloaded");
         }
@@ -346,11 +352,12 @@ class DoWork extends Task<Void> implements Callable {
 
 
     void setObjects(Controller controller, SimultaneousDownloadsGUI simultaneousDownloadsGUI,
-                    GUILabelManagement guiLabels, StatsGUI stats) {
+                    GUILabelManagement guiLabels, StatsGUI stats, DatabaseDriver db) {
         this.controller = controller;
         this.guiLabels = guiLabels;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
         this.stats = stats;
+        this.db = db;
     }
 
     /**
@@ -378,4 +385,5 @@ class DoWork extends Task<Void> implements Callable {
         this.numberOfPDFsToDownload = numberOfPDFsToDownload;
         this.typeOfSearch = typeOfSearch;
     }
+
 }

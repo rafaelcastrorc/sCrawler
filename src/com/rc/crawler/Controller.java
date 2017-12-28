@@ -20,6 +20,7 @@ import javafx.stage.Window;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.openqa.selenium.By;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.WebDriver;
 
@@ -243,7 +244,7 @@ public class Controller implements Initializable {
             try {
                 DoWork task = new DoWork("download", articleName, "searchForCitedBy"
                 );
-                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -270,7 +271,7 @@ public class Controller implements Initializable {
             numOfPDFToDownload = matcher.group();
             try {
                 DoWork task = new DoWork("download", articleName, "searchForTheArticle");
-                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -425,7 +426,7 @@ public class Controller implements Initializable {
         Node node = (Node) e.getSource();
         window = node.getScene().getWindow();
         DoWork task = new DoWork("upload", null, null);
-        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
         singleThreadExecutor.submit((Runnable) task);
 
     }
@@ -524,7 +525,7 @@ public class Controller implements Initializable {
         Matcher matcher = numbersOnly.matcher(text);
         if (matcher.find()) {
             DoWork task = new DoWork("waitForNConnections", String.valueOf(numOfConnectionsNeeded), null);
-            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
             SetupFile setup = new SetupFile(typeOfSearch, submittedFile, this, matcher.group(), task);
             //Set up the list of files to download appropriately
             FutureTask<Void> futureTask = new FutureTask<>(setup);
@@ -561,7 +562,7 @@ public class Controller implements Initializable {
         List<Future> futures = new ArrayList<>();
         for (String article : articleNames) {
             DoWork task = new DoWork("multipleSearch", article, typeOfSearch);
-            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
             futures.add(taskCompletionService.submit(task));
         }
         Task task = new Task() {
@@ -732,15 +733,8 @@ public class Controller implements Initializable {
                         //Store the cookie of the brower that solved the captcha
                         Set<Cookie> cookies = driver[0].manage().getCookies();
                         try {
-
                             driver[0].close();
                             driver[0].quit();
-                            driver[0] = proxyChanger.useChromeDriver(proxy, null, cookies);
-                            driver[0].get("https://scholar.google" +
-                                    ".com/scholar?hl=en&as_sdt=0%2C39&q=michael&btnG=");
-                            proxyChanger.useSelenium(proxy, "https://scholar.google" +
-                                    ".com/scholar?hl=en&as_sdt=0%2C39&q=michael&btnG=", true, cookies, false);
-
                             //Add it to queue of working proxies
                             crawler.addUnlockedProxy(proxy, cookies, engine, db);
                         } catch (Exception ignored) {
@@ -941,7 +935,7 @@ public class Controller implements Initializable {
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         crawler = new Crawler(guiLabels, stats);
         DoWork task = new DoWork("initialize", null, null);
-        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats);
+        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
         Thread thread = new MyThreadFactory().newThread(task);
         thread.setDaemon(true);
         thread.start();

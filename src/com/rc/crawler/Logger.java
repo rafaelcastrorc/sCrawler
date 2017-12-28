@@ -352,7 +352,7 @@ class Logger {
      * @param proxy   proxy that was unlocked
      */
     synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy, SearchEngine.SupportedSearchEngine engine,
-                                         DatabaseDriver db)
+                                         DatabaseDriver db, StatsGUI stats)
             throws IOException, SQLException {
         StringBuilder sb = new StringBuilder();
         for (Cookie cookie : cookies) {
@@ -363,7 +363,7 @@ class Logger {
             cookieFile.write(sb.toString());
             cookieFile.flush();
             //Write to db
-            db.addUnlockedProxy(proxy, sb.toString(), engine);
+            db.addUnlockedProxy(proxy, sb.toString(), engine, stats);
     }
 
     /**

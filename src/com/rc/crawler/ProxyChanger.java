@@ -204,7 +204,6 @@ class ProxyChanger {
                     if (e.getUrl().contains("ipv4.google.com/sorry")) {
                         throw new IllegalArgumentException();
                     }
-                    System.out.println("HTTTP STATUS EXCEPTION");
                     e.printStackTrace();
                 } catch (Exception e) {
                     thereWasAnError = true;
@@ -468,12 +467,20 @@ class ProxyChanger {
                 if (cookies != null && cookies.size() > 0) {
                     //If there are cookies, add them
                     driver.manage().deleteAllCookies();
+                    //load the url once before requesting cookies
+                    try {
+                        driver.get(url);
+                    } catch (TimeoutException e) {
+                        driver.get(url);
+                    }
                     for (Cookie c : cookies) {
                         driver.manage().addCookie(c);
                     }
+
                 }
                 try {
                     driver.get(url);
+                    //driver.navigate().refresh();
                 } catch (TimeoutException e) {
                     if (cookies != null && cookies.size() > 0) {
                         //Try again to download
@@ -601,13 +608,7 @@ class ProxyChanger {
             driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
             if (cookies.size() > 0) {
                 for (Cookie cookie : cookies) {
-                    String s = cookie.getExpiry().toString();
-                    s = s.replaceAll("1970", "2019");
-                    Date d = new Date(s);
-
-                    Cookie cookie1 = new Cookie(cookie.getName(), cookie.getValue(), cookie.getDomain(), cookie
-                            .getPath(), d, cookie.isSecure());
-                    driver.manage().addCookie(cookie1);
+                    driver.manage().addCookie(cookie);
                 }
             }
 
@@ -875,7 +876,7 @@ class ProxyChanger {
     private String waitForLoad(WebDriver driver, boolean isSearch, String url) {
         String pageSource = "";
         try {
-            ExpectedCondition<Boolean> expectation = driver1 -> ((JavascriptExecutor) driver1).
+            ExpectedCondition<Boolean> expectation = driver1 -> ((JavascriptExecutor) driver).
                     executeScript("return document.readyState").equals("complete");
             Wait<WebDriver> wait = new WebDriverWait(driver, 240);
             wait.until(expectation);

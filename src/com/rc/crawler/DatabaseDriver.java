@@ -2,7 +2,9 @@ package com.rc.crawler;
 
 
 import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException;
+import org.joda.time.DateTime;
 import org.openqa.selenium.Cookie;
+import sun.rmi.runtime.Log;
 
 import java.io.FileNotFoundException;
 import java.sql.*;
@@ -20,8 +22,8 @@ class DatabaseDriver {
     DatabaseDriver(GUILabelManagement guiLabelManagement) {
         this.guiLabelManagement = guiLabelManagement;
         try {
-            myConnection = DriverManager.getConnection("jdbc:mysql://localhost:3306/scrawler", "root",
-                    "rafael");
+            myConnection = DriverManager.getConnection("jdbc:mysql://sql9.freemysqlhosting.net:3306/sql9212904", "sql9212904",
+                    "y53hKm9BQV");
         } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
         }
@@ -39,7 +41,7 @@ class DatabaseDriver {
         try {
             statement = myConnection.createStatement();
 
-            ResultSet res = statement.executeQuery("SELECT * FROM scrawler.proxies WHERE unlocked");
+            ResultSet res = statement.executeQuery("SELECT * FROM sql9212904.proxies WHERE unlocked");
             //Process result
             while (res.next()) {
                 SearchEngine.SupportedSearchEngine engine = null;
@@ -99,7 +101,7 @@ class DatabaseDriver {
     boolean canUseProxy(Proxy proxy) {
         //Create a statement
         try {
-            String sql = "SELECT unlocked, num_of_instances FROM scrawler.proxies WHERE ip=? AND port=?";
+            String sql = "SELECT unlocked, num_of_instances FROM sql9212904.proxies WHERE ip=? AND port=?";
             //Execute SQL query
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setString(1, proxy.getProxy());
@@ -130,10 +132,11 @@ class DatabaseDriver {
      * Inserts an unlocked proxy into the database, if it already exists it updates the value
      *
      * @param proxy Proxy that is unlocked
+     * @param stats
      */
-    void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine) {
+    void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine, StatsGUI stats) {
         try {
-            String sql = "INSERT INTO scrawler.proxies " +
+            String sql = "INSERT INTO sql9212904.proxies " +
                     "(ip, port, unlocked, cookies, search_engine) " +
                     "VALUES (?, ?, TRUE, ?, ?)";
 
@@ -148,11 +151,12 @@ class DatabaseDriver {
                 statement.setString(4, "GoogleScholar");
             }
             statement.executeUpdate();
+            stats.updateNumberOfUnlocked(stats.getNumberOfUnlockedProxies().get() + 1);
         } catch (MySQLIntegrityConstraintViolationException e) {
             //If this happens, record already exist so we update it instead
 
             try {
-                String sql = "UPDATE scrawler.proxies " +
+                String sql = "UPDATE sql9212904.proxies " +
                         "SET cookies = ?, search_engine = ?, unlocked = TRUE " +
                         "WHERE ip = ?  AND port = ?";
                 PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -166,6 +170,7 @@ class DatabaseDriver {
                 statement.setString(3, proxy.getProxy());
                 statement.setInt(4, proxy.getPort());
                 statement.executeUpdate();
+                stats.updateNumberOfUnlocked(stats.getNumberOfUnlockedProxies().get() + 1);
             } catch (SQLException e1) {
                 guiLabelManagement.setAlertPopUp(e1.getMessage());
             }
@@ -182,7 +187,7 @@ class DatabaseDriver {
 
     void addLockedProxy(Proxy proxy) {
         try {
-            String sql = "UPDATE scrawler.proxies " +
+            String sql = "UPDATE sql9212904.proxies " +
                     "SET cookies = ?, unlocked = FALSE, num_of_instances = 0 " +
                     "WHERE ip = ?  AND port = ?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -192,7 +197,7 @@ class DatabaseDriver {
             statement.executeUpdate();
 
             //Remove it if there is crawler using it.
-            sql = "DELETE FROM scrawler.scrawler_to_proxy " +
+            sql = "DELETE FROM sql9212904.scrawler_to_proxy " +
                     "WHERE ip = (?) AND port = (?) ";
 
             statement = myConnection.prepareStatement(sql);
@@ -212,7 +217,7 @@ class DatabaseDriver {
     void addProxyToCurrentInstance(String instance, Proxy proxy) {
         try {
             if (!isCurrentInstanceUsingProxy(instance, proxy)) {
-                String sql = "INSERT INTO scrawler.scrawler_to_proxy " +
+                String sql = "INSERT INTO sql9212904.scrawler_to_proxy " +
                         "(scrawler_id, ip, port) " +
                         "VALUES (?, ?, ?)";
 
@@ -225,7 +230,7 @@ class DatabaseDriver {
                 statement.executeUpdate();
 
                 //Increase the count of crawlers using this proxy
-                sql = "UPDATE scrawler.proxies " +
+                sql = "UPDATE sql9212904.proxies " +
                         "SET num_of_instances = num_of_instances + 1, unlocked = TRUE " +
                         "WHERE ip = ?  AND port = ?";
                 statement = myConnection.prepareStatement(sql);
@@ -248,7 +253,7 @@ class DatabaseDriver {
      */
     boolean isCurrentInstanceUsingProxy(String instance, Proxy proxy) {
         try {
-            String sql = "SELECT scrawler_id FROM scrawler.scrawler_to_proxy WHERE ip=? AND port=?";
+            String sql = "SELECT scrawler_id FROM sql9212904.scrawler_to_proxy WHERE ip=? AND port=?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setString(1, proxy.getProxy());
             statement.setInt(2, proxy.getPort());
@@ -275,7 +280,7 @@ class DatabaseDriver {
     void addCrawlerInstance(String instance) {
         //Map current instance to the proxy
         try {
-            String sql = "INSERT INTO scrawler.scrawlers " +
+            String sql = "INSERT INTO sql9212904.scrawlers " +
                     "(id) " +
                     "VALUES (?)";
             PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -295,7 +300,7 @@ class DatabaseDriver {
             //Get all the proxies that are currently using the crawler, and decrease the count
             //Get all the proxies
             String sql = "SELECT ip, port " +
-                    "FROM scrawler.scrawler_to_proxy " +
+                    "FROM sql9212904.scrawler_to_proxy " +
                     "WHERE scrawler_id = ? ";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setString(1, instance);
@@ -305,7 +310,7 @@ class DatabaseDriver {
                 String ip = res.getString("ip");
                 int port = res.getInt("port");
                 //Decrease counter
-                sql = "UPDATE scrawler.proxies " +
+                sql = "UPDATE sql9212904.proxies " +
                         "SET num_of_instances = num_of_instances - 1 " +
                         "WHERE ip = ?  AND port = ? AND num_of_instances > 0";
                 statement = myConnection.prepareStatement(sql);
@@ -317,7 +322,7 @@ class DatabaseDriver {
 
             //Delete instance from the crawler from the db
             sql = "DELETE " +
-                    "FROM scrawler.scrawlers " +
+                    "FROM sql9212904.scrawlers " +
                     "WHERE id = (?)";
             statement = myConnection.prepareStatement(sql);
             //Set params
@@ -331,9 +336,23 @@ class DatabaseDriver {
     /**
      * Adds the current download rate and a timestamp of when was this download rate updated
      */
-    void addDownloadRateToDB(){
-       // Todo:
-        //femw
+    void addDownloadRateToDB(Double currPercentage){
+        //Get the current time
+        Calendar calendar = Calendar.getInstance();
+        java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
+       try {
+
+           String sql = "UPDATE sql9212904.scrawlers " +
+                   "SET download_rate = ?, last_updated = ? " +
+                   "WHERE id = ?";
+           PreparedStatement statement = myConnection.prepareStatement(sql);
+           statement.setDouble(1, currPercentage);
+           statement.setTimestamp(2, timestamp);
+           statement.setString(3, Logger.getInstance().getInstanceID());
+           statement.executeUpdate();
+       } catch (SQLException | FileNotFoundException e) {
+           guiLabelManagement.setAlertPopUp(e.getMessage());
+       }
     }
 
 }
