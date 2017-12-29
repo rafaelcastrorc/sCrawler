@@ -2,13 +2,20 @@ package com.rc.crawler;
 
 
 import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException;
-import org.joda.time.DateTime;
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import org.openqa.selenium.Cookie;
-import sun.rmi.runtime.Log;
 
 import java.io.FileNotFoundException;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Created by rafaelcastro on 9/7/17.
@@ -19,15 +26,401 @@ class DatabaseDriver {
     private Connection myConnection;
     private GUILabelManagement guiLabelManagement;
 
-    DatabaseDriver(GUILabelManagement guiLabelManagement) {
+    DatabaseDriver(GUILabelManagement guiLabelManagement, boolean requiresToShowDialog) {
         this.guiLabelManagement = guiLabelManagement;
+        //If it requires to show dialog, the it is the first time connecting to the db from the current instance
+        if (requiresToShowDialog) {
+            displayMainMenuDB();
+            //Set up the tables if they do not exist
+            createTables();
+        } else {
+            readDBConfigData(false);
+        }
+    }
+
+
+    /**
+     * Displays the main menu for the user to choose to which database they want to connect
+     */
+    private void displayMainMenuDB() {
+        boolean thereWasAnError = false;
+        String message = "";
+        Logger logger = Logger.getInstance();
+        //Check for the user preferences
+        boolean doNotShowThisAgain = false;
         try {
-            myConnection = DriverManager.getConnection("jdbc:mysql://sql9.freemysqlhosting.net:3306/sql9212904", "sql9212904",
-                    "y53hKm9BQV");
-        } catch (SQLException e) {
-            guiLabelManagement.setAlertPopUp(e.getMessage());
+            doNotShowThisAgain = (boolean) logger.readUserDBData().get(0);
+        } catch (IllegalArgumentException ignored) {
+        }
+        //If it does not need to display the menu bc of user preferences, then just skip it.
+        if (doNotShowThisAgain) {
+            //Verify if you can connect to the db using the stored settings
+            if (!readDBConfigData(true)) {
+                thereWasAnError = true;
+                message = "Unable to connect to the database using your stored setting.";
+            } else {
+                //If connection works, then do not show menu and just return
+                return;
+            }
+        }
+        // Create the custom dialog.
+        Dialog dialog = new Dialog<>();
+        dialog.setTitle("Configure your database connection");
+        dialog.setHeaderText("Do you want to access the MySQL database stored in your local settings, \n" +
+                "or do you want to set up a new one.");
+
+        // Set the button types.
+        ButtonType useLocal = new ButtonType("Use stored settings");
+        ButtonType connectToNew = new ButtonType("Connect to a new database");
+
+        dialog.getDialogPane().getButtonTypes().addAll(useLocal, connectToNew);
+
+        // Create the username and password labels and fields.
+        VBox vBox = new VBox(20);
+        vBox.setAlignment(Pos.CENTER_LEFT);
+
+        //Set the GUI information
+        Label instructions = new Label("You can get a free database from https://www.freemysqlhosting.net, \n" +
+                "or any other MySQL database hosting provider such as Amazon");
+
+        //Set the GUI
+        if (!thereWasAnError) {
+            vBox.getChildren().addAll(instructions);
+        } else {
+            Label error = new Label(message);
+            error.setTextFill(Color.RED);
+            vBox.getChildren().addAll(error, instructions);
+
+        }
+        dialog.getDialogPane().setContent(vBox);
+        final Button useLocalButton = (Button) dialog.getDialogPane().lookupButton(useLocal);
+        final Button connectToNewButton = (Button) dialog.getDialogPane().lookupButton(connectToNew);
+
+        useLocalButton.addEventFilter(
+                ActionEvent.ACTION,
+                event -> {
+                    //If it fails to read the configuration data, then let the user manually input the info
+                    dialog.close();
+                    if (!readDBConfigData(true)) {
+                        showDialogForDBConfig(true);
+                    }
+
+                }
+        );
+        connectToNewButton.addEventFilter(
+                ActionEvent.ACTION,
+                event -> {
+                    dialog.close();
+                    showDialogForDBConfig(false);
+                }
+        );
+        dialog.showAndWait();
+    }
+
+
+    /**
+     * Reads the locally stored database login credentials. Returns false if it is unable to connect
+     */
+    private boolean readDBConfigData(boolean calledFromMainMenu) {
+        //Just read the login information already stored in the computer
+        Logger logger = Logger.getInstance();
+        ArrayList list;
+        try {
+            list = logger.readUserDBData();
+        } catch (IllegalArgumentException e) {
+            guiLabelManagement.setAlertPopUp("There is no information about your database credentials.\nPlease " +
+                    "manually set it up");
+            if (!calledFromMainMenu) {
+                showDialogForDBConfig(true);
+            }
+            return false;
+        }
+        String serverAddress = (String) list.get(1);
+        String port = String.valueOf(list.get(2));
+        String databaseName = (String) list.get(3);
+        String userName = (String) list.get(4);
+        String password = (String) list.get(5);
+        //If there is no connection, prompt user with dialog box again
+        if (!verifyIfConnectionWorks(databaseName, serverAddress, port, userName, password)) {
+            guiLabelManagement.setAlertPopUp("Unable to connect to the database using your stored setting." +
+                    "\nPlease manually set it up");
+            if (!calledFromMainMenu) {
+                showDialogForDBConfig(true);
+            }
+            return false;
+        }
+        return true;
+    }
+
+
+    /**
+     * Displays a GUI with the different database configuration options
+     *
+     * @param thereWasAnError If there was an error accessing the db using the current settings
+     */
+    private void showDialogForDBConfig(boolean thereWasAnError) {
+        final boolean[] connected = {false};
+        // Create the custom dialog.
+        Alert dialog = new Alert(Alert.AlertType.NONE);
+        dialog.setTitle("Database Configuration Details");
+        if (thereWasAnError) {
+            dialog.setHeaderText("ERROR: Unable to connect to the database using your stored setting!" +
+                    "\nPlease manually set it up.");
+        } else {
+            dialog.setHeaderText(null);
         }
 
+        // Set the button types.
+        ButtonType loginButtonType = new ButtonType("Test Connection", ButtonBar.ButtonData.OK_DONE);
+        ButtonType storeConnection = new ButtonType("Store Credentials & Continue", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, storeConnection);
+
+        // Create the username and password labels and fields.
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 100, 10, 10));
+
+        TextField serverAddress = new TextField();
+        serverAddress.setPromptText("sql.freesqlhosting.net");
+
+        TextField databaseName = new TextField();
+        databaseName.setPromptText("sql123");
+
+        TextField portNumber = new TextField();
+        portNumber.setPromptText("3012");
+
+        TextField username = new TextField();
+        username.setPromptText("Username");
+
+        PasswordField password = new PasswordField();
+        password.setPromptText("Password");
+
+        grid.add(new Label("Server Address:"), 0, 0);
+        grid.add(serverAddress, 1, 0);
+
+        grid.add(new Label("Database Name:"), 0, 1);
+        grid.add(databaseName, 1, 1);
+
+        grid.add(new Label("Port:"), 0, 2);
+        grid.add(portNumber, 1, 2);
+
+        grid.add(new Label("Username:"), 0, 3);
+        grid.add(username, 1, 3);
+
+        grid.add(new Label("Password:"), 0, 4);
+        grid.add(password, 1, 4);
+
+        Label errorLabel = new Label();
+        grid.add(errorLabel, 0, 5);
+
+        dialog.getDialogPane().setContent(grid);
+
+        final Button loginButtonDB = (Button) dialog.getDialogPane().lookupButton(loginButtonType);
+        final Button storeConnectionDB = (Button) dialog.getDialogPane().lookupButton(storeConnection);
+
+        loginButtonDB.setDefaultButton(true);
+        storeConnectionDB.setDisable(true);
+
+        loginButtonDB.addEventFilter(
+                ActionEvent.ACTION,
+                event -> {
+                    if (serverAddress.getText().isEmpty() || databaseName.getText().isEmpty() ||
+                            portNumber.getText().isEmpty() || serverAddress.getText().isEmpty()) {
+                        guiLabelManagement.setAlertPopUp("Please fill out all the fields");
+                    } else {
+                        connected[0] = verifyIfConnectionWorks(databaseName.getText(), serverAddress.getText(),
+                                portNumber.getText
+                                        (), username.getText(), password.getText());
+                        storeConnectionDB.setDisable(!connected[0]);
+                        if (!connected[0]) {
+                            errorLabel.setText("Failed to Connect!");
+                            errorLabel.setTextFill(Color.RED);
+                        } else {
+                            errorLabel.setText("Connected!");
+                            errorLabel.setTextFill(Color.GREEN);
+                        }
+                    }
+
+                    event.consume();
+                }
+        );
+        storeConnectionDB.addEventFilter(
+                ActionEvent.ACTION,
+                event -> {
+                    //Store the data
+                    Logger logger = Logger.getInstance();
+                    logger.saveUserDBdata(false, serverAddress.getText(), portNumber.getText
+                            (), databaseName.getText(), username.getText(), password.getText());
+                    dialog.close();
+
+                }
+        );
+        // Request focus on the username field by default.
+        Platform.runLater(username::requestFocus);
+
+        //Check the type of button that was pressed
+        dialog.showAndWait();
+
+
+    }
+
+
+    /**
+     * Creates the different tables, if they do not exist, in the current database
+     */
+    private void createTables() {
+        //Create proxies table
+        String createProxiesTable = "CREATE TABLE proxies(" +
+                "  ip               VARCHAR(20)            NOT NULL," +
+                "  port             INT                    NOT NULL," +
+                "  unlocked         TINYINT DEFAULT '0' NULL," +
+                "  cookies          TEXT                   NULL," +
+                "  search_engine    VARCHAR(20)            NULL," +
+                "  num_of_instances INT DEFAULT '0'        NULL," +
+                "  PRIMARY KEY (ip, port)" +
+                ")";
+        String createIndexOnProxiesTable = "CREATE INDEX proxies_ip_port_index" +
+                "  ON proxies (ip, port)";
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(createProxiesTable);
+            stmt.execute(createIndexOnProxiesTable);
+            //If there are no errors, then ask user which cookies he wants to use
+            showProxiesDialog();
+        } catch (SQLException ignored) {
+        }
+
+        //Create scrawlers table
+        String createScrawlerTable = "CREATE TABLE scrawlers(" +
+                "  id            VARCHAR(40)        NOT NULL PRIMARY KEY," +
+                "  download_rate DOUBLE PRECISION DEFAULT '0.00' NULL," +
+                "  last_updated  TIMESTAMP          NULL," +
+                "  CONSTRAINT scrawlers_id_uindex" +
+                "  UNIQUE (id)" +
+                ")";
+
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(createScrawlerTable);
+
+        } catch (SQLException ignored) {
+
+        }
+
+        //Create scrawler_to_proxy table
+        String createScrawlerToProxyTable = "CREATE TABLE scrawler_to_proxy" +
+                "(" +
+                "  scrawler_id VARCHAR(40) NOT NULL," +
+                "  ip          VARCHAR(20) NOT NULL," +
+                "  port        INT         NOT NULL," +
+                "  PRIMARY KEY (scrawler_id, ip, port)," +
+                "  CONSTRAINT id" +
+                "  FOREIGN KEY (scrawler_id) REFERENCES scrawlers (id)" +
+                "    ON DELETE CASCADE" +
+                ")";
+        String createIndexOnScrawlerToProxyTable = "CREATE INDEX scrawler_to_proxy_scrawler_id_index" +
+                "  ON scrawler_to_proxy (scrawler_id)";
+        String createIndexOnScrawlerToProxyTable2 = "CREATE INDEX scrawler_to_proxy_ip_port_index" +
+                "  ON scrawler_to_proxy (ip, port)";
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(createScrawlerToProxyTable);
+            stmt.execute(createIndexOnScrawlerToProxyTable);
+            stmt.execute(createIndexOnScrawlerToProxyTable2);
+
+        } catch (SQLException ignored) {
+        }
+
+    }
+
+    /**
+     * Creates a dialog when there are no proxies table in the databae, to ask the user which proxies to upload
+     */
+    private void showProxiesDialog() {
+        // Create the custom dialog.
+        Alert dialog = new Alert(Alert.AlertType.ERROR);
+        dialog.setTitle("Upload your unlocked proxies");
+        dialog.setHeaderText("Select the source of your unlocked proxies");
+        Label info = new Label("There are no unlocked proxies in your current database. Without unlocked proxies, " +
+                "the\ncrawler will take longer to find proxies to connect. \n\n" +
+                "-If you want to upload the proxies that you have unlocked locally, press 'Use local proxies'\n" +
+                "-If you want to use the proxies that we have unlocked, press 'Download from server'\n" +
+                "-If you do not want to use any unlocked proxies, just press 'Ok'" +
+                "\n\nNote that loading the proxies into the database might take a few minutes.");
+        // Set the button types.
+        ButtonType useLocalProxies = new ButtonType("Use local proxies");
+        ButtonType downloadProxiesFromServer = new ButtonType("Download from server");
+
+        dialog.getDialogPane().getButtonTypes().addAll(useLocalProxies, downloadProxiesFromServer);
+        // Create the username and password labels and fields.
+        VBox vBox = new VBox(20);
+        vBox.setAlignment(Pos.CENTER_LEFT);
+
+        //Set the GUI information
+        Label result = new Label("");
+        //Set the GUI
+        result.setTextFill(Color.RED);
+        vBox.getChildren().addAll(info, result);
+
+        dialog.getDialogPane().setContent(vBox);
+
+        final Button useLocalButton = (Button) dialog.getDialogPane().lookupButton(useLocalProxies);
+        final Button downloadProxiesButton = (Button) dialog.getDialogPane().lookupButton(downloadProxiesFromServer);
+
+        useLocalButton.addEventFilter(
+                ActionEvent.ACTION,
+                event ->
+
+                {
+                    //If it fails to read the configuration data, then let the user manually input the info
+
+                    try {
+                        result.setTextFill(Color.GREEN);
+                        DoWork task = new DoWork("uploadProxiesLoading", "local", null);
+                        task.setDialog(dialog);
+                        ExecutorService executorService = Executors.newSingleThreadExecutor(new MyThreadFactory());
+                        Future<String> e = executorService.submit((Callable<String>) task);
+                        event.consume();
+                    } catch (IllegalArgumentException e) {
+                        guiLabelManagement.setAlertPopUp("There was a problem reading your cookies.dta file");
+                        result.setTextFill(Color.RED);
+                        result.setText("There was a problem reading your cookies.dta file");
+                        event.consume();
+                    }
+
+                }
+        );
+        downloadProxiesButton.addEventFilter(
+                ActionEvent.ACTION,
+                event ->
+                {
+                    result.setTextFill(Color.GREEN);
+                    DoWork task = new DoWork("uploadProxiesLoading", "download", null);
+                    ExecutorService executorService = Executors.newSingleThreadExecutor(new MyThreadFactory());
+                    Future<String> e = executorService.submit((Callable<String>) task);
+                    event.consume();
+
+                }
+        );
+        dialog.showAndWait();
+    }
+
+
+    /**
+     * Verifies if the database setting connection works
+     */
+
+    private boolean verifyIfConnectionWorks(String dbName, String serverAddress, String port, String username, String
+            password) {
+        try {
+            myConnection = DriverManager.getConnection("jdbc:mysql://" + serverAddress + ":" + port + "/" + dbName,
+                    username, password);
+            return true;
+
+        } catch (SQLException e) {
+            return false;
+        }
     }
 
     /**
@@ -41,7 +434,7 @@ class DatabaseDriver {
         try {
             statement = myConnection.createStatement();
 
-            ResultSet res = statement.executeQuery("SELECT * FROM sql9212904.proxies WHERE unlocked");
+            ResultSet res = statement.executeQuery("SELECT * FROM proxies WHERE unlocked");
             //Process result
             while (res.next()) {
                 SearchEngine.SupportedSearchEngine engine = null;
@@ -101,7 +494,7 @@ class DatabaseDriver {
     boolean canUseProxy(Proxy proxy) {
         //Create a statement
         try {
-            String sql = "SELECT unlocked, num_of_instances FROM sql9212904.proxies WHERE ip=? AND port=?";
+            String sql = "SELECT unlocked, num_of_instances FROM proxies WHERE ip=? AND port=?";
             //Execute SQL query
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setString(1, proxy.getProxy());
@@ -134,7 +527,8 @@ class DatabaseDriver {
      * @param proxy Proxy that is unlocked
      * @param stats
      */
-    void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine, StatsGUI stats) {
+    void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine, StatsGUI
+            stats) {
         try {
             String sql = "INSERT INTO sql9212904.proxies " +
                     "(ip, port, unlocked, cookies, search_engine) " +
@@ -336,23 +730,23 @@ class DatabaseDriver {
     /**
      * Adds the current download rate and a timestamp of when was this download rate updated
      */
-    void addDownloadRateToDB(Double currPercentage){
+    void addDownloadRateToDB(Double currPercentage) {
         //Get the current time
         Calendar calendar = Calendar.getInstance();
         java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
-       try {
+        try {
 
-           String sql = "UPDATE sql9212904.scrawlers " +
-                   "SET download_rate = ?, last_updated = ? " +
-                   "WHERE id = ?";
-           PreparedStatement statement = myConnection.prepareStatement(sql);
-           statement.setDouble(1, currPercentage);
-           statement.setTimestamp(2, timestamp);
-           statement.setString(3, Logger.getInstance().getInstanceID());
-           statement.executeUpdate();
-       } catch (SQLException | FileNotFoundException e) {
-           guiLabelManagement.setAlertPopUp(e.getMessage());
-       }
+            String sql = "UPDATE sql9212904.scrawlers " +
+                    "SET download_rate = ?, last_updated = ? " +
+                    "WHERE id = ?";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setDouble(1, currPercentage);
+            statement.setTimestamp(2, timestamp);
+            statement.setString(3, Logger.getInstance().getInstanceID());
+            statement.executeUpdate();
+        } catch (SQLException | FileNotFoundException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
     }
 
 }

@@ -27,7 +27,6 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +58,7 @@ class ProxyChanger {
         this.crawler = crawler;
         this.engine = engine;
         this.stats = stats;
-        this.db = new DatabaseDriver(guiLabels);
+        this.db = new DatabaseDriver(guiLabels, false);
     }
 
     /**

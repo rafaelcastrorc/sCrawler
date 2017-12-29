@@ -2,9 +2,16 @@ package com.rc.crawler;
 
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
+import javafx.scene.paint.Color;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
@@ -26,13 +33,15 @@ class DoWork extends Task<Void> implements Callable {
     private String numberOfPDFsToDownload;
     private HashSet<String> articleNames;
     private DatabaseDriver db;
+    private Alert dialog;
 
 
     /**
      * Initializes new task. Takes as a parameter the type of task that will be performed. Task include:
      * download, search, initialize, close, multipleSearch, and waitFor4Connections
      * And the title of the article associated with the thread.
-     *  @param type         String with the type of task
+     *
+     * @param type         String with the type of task
      * @param article      Article associated with the thread
      * @param typeOfSearch Search for the article itself, or for the articles that cite the article
      */
@@ -71,6 +80,10 @@ class DoWork extends Task<Void> implements Callable {
                 controller.openFile();
                 break;
 
+            case "uploadProxiesLoading":
+                uploadProxiesLoading();
+                break;
+
             default:
                 initialize();
                 break;
@@ -83,7 +96,7 @@ class DoWork extends Task<Void> implements Callable {
      * Initializes the crawler and links the different GUI elements
      */
     private void initialize() {
-        java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.SEVERE);
+        java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
         //Prepare the GUI
         //For single article mode
         guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> controller.displayAlert
@@ -138,6 +151,7 @@ class DoWork extends Task<Void> implements Callable {
 
     /**
      * Wait for n proxy connections to be established before searching
+     *
      * @param i The number of connections
      */
     private void waitForConnections(int i) {
@@ -159,15 +173,64 @@ class DoWork extends Task<Void> implements Callable {
         Platform.runLater(() -> loading.close());
         controller.updateOutputMultiple("Connected!");
         if (i != 1) {
-        controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
+            controller.startMultipleDownloads(articleNames, numberOfPDFsToDownload, typeOfSearch);
         }
     }
+
+    /**
+     * Displays a loading screen window when uploading the proxies to the database
+     */
+    private void uploadProxiesLoading() {
+        String res = "";
+        loading = new LoadingWindow();
+        Platform.runLater(() -> loading.display());
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException ignored) {
+        }
+        try {
+            if (article.equals("local")) {
+                Logger.getInstance().readCookieFileFromLocal(new GUILabelManagement(), new StatsGUI());
+            } else {
+                Logger.getInstance().downloadCookiesFromGithub(new GUILabelManagement(), new StatsGUI());
+            }
+        } catch (SQLException | IOException e) {
+            Platform.runLater(() -> {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("There was a problem");
+                alert.setContentText(null);
+                if (article.equals("local")) {
+                    alert.setHeaderText("There was a problem reading your cookies.dta file");
+                } else {
+                    alert.setHeaderText("There was a problem downloading the cookie.dta file from the server");
+
+                }
+                alert.showAndWait();
+                loading.close();
+            });
+            throw new IllegalArgumentException();
+        }
+
+        Platform.runLater(() -> {
+            loading.close();
+            try {
+                dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL);
+                dialog.close();
+            } catch (Exception ignored) {
+            }
+        });
+
+
+
+
+        }
+
 
     /**
      * Handles the logic behind the multiple search mode
      */
     private void multipleSearch() {
-        //Add thread to a group
+        //Add thread to a groupk
         simultaneousDownloadsGUI.addThreadToGroup(Thread.currentThread().getId());
         simultaneousDownloadsGUI.updateStatus("Searching...");
         simultaneousDownloadsGUI.updateArticleName("Not set");
@@ -214,16 +277,17 @@ class DoWork extends Task<Void> implements Callable {
         simultaneousDownloadsGUI.updateProgressBar(1.0);
         //Set the progress bar, increment counter, countdown the latch
         controller.getAtomicCounter().increment();
-        Double rate = (controller.getNumOfSuccessful().value() / (double)  controller.getAtomicCounter().value()) * 100;
-        Double rate2 = (controller.getNumOfSuccessfulGral().value() / (double)  controller.getAtomicCounter().value()) *
+        Double rate = (controller.getNumOfSuccessful().value() / (double) controller.getAtomicCounter().value()) * 100;
+        Double rate2 = (controller.getNumOfSuccessfulGral().value() / (double) controller.getAtomicCounter().value()) *
                 100;
 
-        controller.updateOutputMultiple("Downloads completed - " +  controller.getAtomicCounter().value() + " " +
+        controller.updateOutputMultiple("Downloads completed - " + controller.getAtomicCounter().value() + " " +
                 " " +
                 "Download " +
                 "rate: ~" + String.format("%.2f", rate) + "% | " + String.format("%.2f", rate2) + "%");
 
-        Double currPercentage =  controller.getAtomicCounter().value() / ((double)  controller.getAtomicCounter().getMaxNumber());
+        Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
+                .getMaxNumber());
         //Add to db
         db.addDownloadRateToDB(rate2);
         //Add to the list of files that could not be downloaded
@@ -245,16 +309,17 @@ class DoWork extends Task<Void> implements Callable {
         simultaneousDownloadsGUI.updateStatus("File was not downloaded");
         simultaneousDownloadsGUI.updateProgressBar(1.0);
         controller.getAtomicCounter().increment();
-        Double rate = (controller.getNumOfSuccessful().value() / (double)  controller.getAtomicCounter().value()) * 100;
-        Double rate2 = (controller.getNumOfSuccessfulGral().value() / (double)  controller.getAtomicCounter().value()) *
+        Double rate = (controller.getNumOfSuccessful().value() / (double) controller.getAtomicCounter().value()) * 100;
+        Double rate2 = (controller.getNumOfSuccessfulGral().value() / (double) controller.getAtomicCounter().value()) *
                 100;
 
-        controller.updateOutputMultiple("Downloads completed - " +  controller.getAtomicCounter().value() + " " +
+        controller.updateOutputMultiple("Downloads completed - " + controller.getAtomicCounter().value() + " " +
                 " " +
                 "Download " +
                 "rate: ~" + String.format("%.2f", rate) + "% | " + String.format("%.2f", rate2) + "%");
 
-        Double currPercentage =  controller.getAtomicCounter().value() / ((double)  controller.getAtomicCounter().getMaxNumber());
+        Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
+                .getMaxNumber());
         db.addDownloadRateToDB(rate2);
 
         if (currPercentage >= 0.999) {
@@ -273,16 +338,17 @@ class DoWork extends Task<Void> implements Callable {
         simultaneousDownloadsGUI.updateProgressBar(1.0);
         simultaneousDownloadsGUI.updateStatus("Done");
         controller.getAtomicCounter().increment();
-        Double rate = (controller.getNumOfSuccessful().value() / (double)  controller.getAtomicCounter().value()) * 100;
-        Double rate2 = (controller.getNumOfSuccessfulGral().value() / (double)  controller.getAtomicCounter().value()) *
+        Double rate = (controller.getNumOfSuccessful().value() / (double) controller.getAtomicCounter().value()) * 100;
+        Double rate2 = (controller.getNumOfSuccessfulGral().value() / (double) controller.getAtomicCounter().value()) *
                 100;
 
-        controller.updateOutputMultiple("Downloads completed - " +  controller.getAtomicCounter().value() + " " +
+        controller.updateOutputMultiple("Downloads completed - " + controller.getAtomicCounter().value() + " " +
                 " " +
                 "Download " +
                 "rate: ~" + String.format("%.2f", rate) + "% | " + String.format("%.2f", rate2) + "%");
 
-        Double currPercentage =  controller.getAtomicCounter().value() / ((double)  controller.getAtomicCounter().getMaxNumber());
+        Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
+                .getMaxNumber());
         db.addDownloadRateToDB(rate2);
 
         if (currPercentage >= 0.999) {
@@ -386,4 +452,8 @@ class DoWork extends Task<Void> implements Callable {
         this.typeOfSearch = typeOfSearch;
     }
 
+
+    void setDialog(Alert dialog) {
+        this.dialog = dialog;
+    }
 }

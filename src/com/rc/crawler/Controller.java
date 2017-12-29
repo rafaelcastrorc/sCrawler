@@ -730,7 +730,7 @@ public class Controller implements Initializable {
                 if (result.get() != unlock) {
                     //If the user press Proxy is unlocked
                     if (result.get() == proxyIsUnlocked) {
-                        //Store the cookie of the brower that solved the captcha
+                        //Store the cookie of the browser that solved the captcha
                         Set<Cookie> cookies = driver[0].manage().getCookies();
                         try {
                             driver[0].close();
@@ -919,9 +919,9 @@ public class Controller implements Initializable {
         increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
-        //Initialize db
+        //Initialize database
         try {
-            db = new DatabaseDriver(guiLabels);
+            db = new DatabaseDriver(guiLabels, true);
             // Remove any records associated with the previous instance id, if there are any
             db.removeCrawlerInstance(logger.getPrevName());
             db.addCrawlerInstance(logger.getInstanceID());

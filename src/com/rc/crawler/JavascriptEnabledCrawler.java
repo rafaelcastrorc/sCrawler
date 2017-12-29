@@ -30,7 +30,7 @@ class JavascriptEnabledCrawler {
     JavascriptEnabledCrawler(StatsGUI stats, GUILabelManagement guiLabels) throws SQLException {
         Logger logger = Logger.getInstance();
         try {
-            mapProxyToSearchEngineToCookie = logger.readCookieFile(guiLabels);
+            mapProxyToSearchEngineToCookie = logger.readCookieFileFromDB(guiLabels);
             stats.updateNumberOfUnlocked(mapProxyToSearchEngineToCookie.size());
         } catch (FileNotFoundException ignored) {
         }
