@@ -211,6 +211,7 @@ class DoWork extends Task<Void> implements Callable {
             throw new IllegalArgumentException();
         }
 
+        //If it succeeded, it will get to here, so just display message to user
         Platform.runLater(() -> {
             loading.close();
             try {

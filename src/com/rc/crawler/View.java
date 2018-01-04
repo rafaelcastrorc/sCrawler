@@ -55,9 +55,10 @@ public class View extends Application {
             //Remove all the information from the db related to this instance
             DatabaseDriver db = null;
             try {
-                db = new DatabaseDriver(new GUILabelManagement(), false);
+                db = DatabaseDriver.getInstance(new GUILabelManagement());
                 db.removeCrawlerInstance(new Scanner(new File("./AppData/instanceID.txt")).nextLine());
-            } catch (FileNotFoundException e1) {
+                db.closeConnection();
+            } catch (FileNotFoundException | SQLException e1) {
                 e1.printStackTrace();
             }
             Platform.exit();

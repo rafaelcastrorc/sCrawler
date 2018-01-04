@@ -4,7 +4,6 @@ import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXRadioButton;
 import com.jfoenix.controls.JFXTextField;
 import javafx.application.Platform;
-
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.Event;
@@ -12,15 +11,13 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.control.Label;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
-import javafx.stage.*;
+import javafx.stage.FileChooser;
 import javafx.stage.Window;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-import org.openqa.selenium.By;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.WebDriver;
 
@@ -736,6 +733,12 @@ public class Controller implements Initializable {
                             driver[0].close();
                             driver[0].quit();
                             //Add it to queue of working proxies
+                            driver[0] = proxyChanger.useChromeDriver(proxy, null, cookies);
+                            cookies = driver[0].manage().getCookies();
+                            driver[0].close();
+                            driver[0].quit();
+//                            proxyChanger.useSelenium(proxy, SearchEngine.testConnectionToWebsite(engine), true,
+//                                    cookies, false);
                             crawler.addUnlockedProxy(proxy, cookies, engine, db);
                         } catch (Exception ignored) {
                         }
@@ -766,6 +769,9 @@ public class Controller implements Initializable {
      */
     void displayAlert(String message) {
         Platform.runLater(() -> {
+            if (db != null) {
+                db.addError(message);
+            }
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
             alert.setHeaderText(null);
@@ -920,14 +926,10 @@ public class Controller implements Initializable {
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
         //Initialize database
-        try {
-            db = new DatabaseDriver(guiLabels, true);
-            // Remove any records associated with the previous instance id, if there are any
-            db.removeCrawlerInstance(logger.getPrevName());
-            db.addCrawlerInstance(logger.getInstanceID());
-        } catch (FileNotFoundException e) {
-            guiLabels.setAlertPopUp(e.getMessage());
-        }
+        db = DatabaseDriver.getInstance(guiLabels);
+        // Remove any records associated with the previous instance id, if there are any
+        db.removeCrawlerInstance(logger.getPrevName());
+        db.addCrawlerInstance();
         //Select the correct search engine
         selectEngine();
         //Initialize stats

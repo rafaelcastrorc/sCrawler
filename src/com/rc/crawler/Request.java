@@ -1,9 +1,5 @@
 package com.rc.crawler;
 
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import org.openqa.selenium.WebDriver;
-
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
@@ -28,7 +24,7 @@ class Request implements Callable<Proxy> {
     @Override
     public Proxy call() throws Exception {
         if (type.equals("getProxies")) {
-            crawler.getMoreProxies();
+            crawler.getMoreProxies(engine);
             return null;
         } else if (type.equals("getConnection")) {
             guiLabels.setConnectionOutput("Thread " + Thread.currentThread().getId() + " is trying to connect");
@@ -38,7 +34,8 @@ class Request implements Callable<Proxy> {
                 try {
                     crawler.changeIP(SearchEngine.testConnectionToWebsite(engine), false, true, engine, Optional.empty());
                     valid = true;
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
 

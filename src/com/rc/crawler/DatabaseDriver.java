@@ -17,24 +17,43 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
 
+
 /**
  * Created by rafaelcastro on 9/7/17.
- * Handles all the queries to the database
+ * Handles all database related activities
  */
 class DatabaseDriver {
+    private static DatabaseDriver databaseDriver;
+    private static Connection myConnection;
+    private static GUILabelManagement guiLabelManagement;
+    private static boolean thereIsADialog = false;
+    private static String instance;
+    private static String dbName;
+    private static String port;
+    private static String password;
+    private static String username;
+    private static String serverAddress;
 
-    private Connection myConnection;
-    private GUILabelManagement guiLabelManagement;
+    private DatabaseDriver() {
 
-    DatabaseDriver(GUILabelManagement guiLabelManagement, boolean requiresToShowDialog) {
-        this.guiLabelManagement = guiLabelManagement;
-        //If it requires to show dialog, the it is the first time connecting to the db from the current instance
-        if (requiresToShowDialog) {
+    }
+
+    static DatabaseDriver getInstance(GUILabelManagement guiLabelManagement) {
+        if (databaseDriver == null) {
+            databaseDriver = new DatabaseDriver();
+            DatabaseDriver.guiLabelManagement = guiLabelManagement;
+            try {
+                instance = Logger.getInstance().getInstanceID();
+            } catch (FileNotFoundException e) {
+                guiLabelManagement.setAlertPopUp(e.getMessage());
+            }
             displayMainMenuDB();
             //Set up the tables if they do not exist
             createTables();
+            return databaseDriver;
         } else {
-            readDBConfigData(false);
+            //readDBConfigData(false);
+            return databaseDriver;
         }
     }
 
@@ -42,7 +61,7 @@ class DatabaseDriver {
     /**
      * Displays the main menu for the user to choose to which database they want to connect
      */
-    private void displayMainMenuDB() {
+    private static void displayMainMenuDB() {
         boolean thereWasAnError = false;
         String message = "";
         Logger logger = Logger.getInstance();
@@ -66,10 +85,12 @@ class DatabaseDriver {
         // Create the custom dialog.
         Dialog dialog = new Dialog<>();
         dialog.setTitle("Configure your database connection");
-        dialog.setHeaderText("Do you want to access the MySQL database stored in your local settings, \n" +
-                "or do you want to set up a new one.");
+        dialog.setHeaderText("In order for all the crawlers to be synchronized, all of them need to access\nthe " +
+                "same database. Do you want to access the MySQL database stored in\nyour local settings, or do you " +
+                "want to set up a new one.");
 
-        // Set the button types.
+        // Set the butt
+        // \on types.
         ButtonType useLocal = new ButtonType("Use stored settings");
         ButtonType connectToNew = new ButtonType("Connect to a new database");
 
@@ -121,7 +142,7 @@ class DatabaseDriver {
     /**
      * Reads the locally stored database login credentials. Returns false if it is unable to connect
      */
-    private boolean readDBConfigData(boolean calledFromMainMenu) {
+    private static boolean readDBConfigData(boolean calledFromMainMenu) {
         //Just read the login information already stored in the computer
         Logger logger = Logger.getInstance();
         ArrayList list;
@@ -145,7 +166,9 @@ class DatabaseDriver {
             guiLabelManagement.setAlertPopUp("Unable to connect to the database using your stored setting." +
                     "\nPlease manually set it up");
             if (!calledFromMainMenu) {
-                showDialogForDBConfig(true);
+                if (!thereIsADialog) {
+                    Platform.runLater(() -> showDialogForDBConfig(true));
+                }
             }
             return false;
         }
@@ -158,7 +181,8 @@ class DatabaseDriver {
      *
      * @param thereWasAnError If there was an error accessing the db using the current settings
      */
-    private void showDialogForDBConfig(boolean thereWasAnError) {
+    private static void showDialogForDBConfig(boolean thereWasAnError) {
+        thereIsADialog = true;
         final boolean[] connected = {false};
         // Create the custom dialog.
         Alert dialog = new Alert(Alert.AlertType.NONE);
@@ -250,8 +274,9 @@ class DatabaseDriver {
                 event -> {
                     //Store the data
                     Logger logger = Logger.getInstance();
-                    logger.saveUserDBdata(false, serverAddress.getText(), portNumber.getText
+                    logger.saveUserDBData(false, serverAddress.getText(), portNumber.getText
                             (), databaseName.getText(), username.getText(), password.getText());
+                    thereIsADialog = false;
                     dialog.close();
 
                 }
@@ -269,7 +294,7 @@ class DatabaseDriver {
     /**
      * Creates the different tables, if they do not exist, in the current database
      */
-    private void createTables() {
+    private static void createTables() {
         //Create proxies table
         String createProxiesTable = "CREATE TABLE proxies(" +
                 "  ip               VARCHAR(20)            NOT NULL," +
@@ -294,6 +319,7 @@ class DatabaseDriver {
         //Create scrawlers table
         String createScrawlerTable = "CREATE TABLE scrawlers(" +
                 "  id            VARCHAR(40)        NOT NULL PRIMARY KEY," +
+                "  location      TEXT               NOT NULL," +
                 "  download_rate DOUBLE PRECISION DEFAULT '0.00' NULL," +
                 "  last_updated  TIMESTAMP          NULL," +
                 "  CONSTRAINT scrawlers_id_uindex" +
@@ -332,12 +358,30 @@ class DatabaseDriver {
         } catch (SQLException ignored) {
         }
 
+
+        //Create errors table
+        String errorsTable = "CREATE TABLE errors" +
+                "(" +
+                "  scrawler_id VARCHAR(40) NULL," +
+                "  location   TEXT     NOT NULL," +
+                "  time  TIMESTAMP NOT NULL," +
+                "  error TEXT NULL," +
+                "  FOREIGN KEY (scrawler_id) REFERENCES scrawlers (id) " +
+                "       ON DELETE SET NULL" +
+                ")";
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(errorsTable);
+        } catch (SQLException ignored) {
+        }
+
+
     }
 
     /**
      * Creates a dialog when there are no proxies table in the databae, to ask the user which proxies to upload
      */
-    private void showProxiesDialog() {
+    private static void showProxiesDialog() {
         // Create the custom dialog.
         Alert dialog = new Alert(Alert.AlertType.ERROR);
         dialog.setTitle("Upload your unlocked proxies");
@@ -373,8 +417,8 @@ class DatabaseDriver {
                 event ->
 
                 {
-                    //If it fails to read the configuration data, then let the user manually input the info
 
+                    //Ask the user which unlocked proxies they want to use
                     try {
                         result.setTextFill(Color.GREEN);
                         DoWork task = new DoWork("uploadProxiesLoading", "local", null);
@@ -395,8 +439,8 @@ class DatabaseDriver {
                 ActionEvent.ACTION,
                 event ->
                 {
-                    result.setTextFill(Color.GREEN);
                     DoWork task = new DoWork("uploadProxiesLoading", "download", null);
+                    task.setDialog(dialog);
                     ExecutorService executorService = Executors.newSingleThreadExecutor(new MyThreadFactory());
                     Future<String> e = executorService.submit((Callable<String>) task);
                     event.consume();
@@ -411,11 +455,20 @@ class DatabaseDriver {
      * Verifies if the database setting connection works
      */
 
-    private boolean verifyIfConnectionWorks(String dbName, String serverAddress, String port, String username, String
-            password) {
+    private static boolean verifyIfConnectionWorks(String dbName, String serverAddress, String port, String username,
+                                                   String
+                                                           password) {
         try {
             myConnection = DriverManager.getConnection("jdbc:mysql://" + serverAddress + ":" + port + "/" + dbName,
                     username, password);
+            //Store everything
+            DatabaseDriver.dbName = dbName;
+            DatabaseDriver.serverAddress = serverAddress;
+            DatabaseDriver.port = port;
+            DatabaseDriver.username = username;
+            DatabaseDriver.password = password;
+
+
             return true;
 
         } catch (SQLException e) {
@@ -461,10 +514,16 @@ class DatabaseDriver {
                     String domain = cookieInfo[2];
                     String path = cookieInfo[3];
                     java.util.Date expiry = null;
-                    if (cookieInfo[4] != null) {
+                    if (cookieInfo[4] != null && !cookieInfo[4].equals("null")) {
                         expiry = new java.util.Date(cookieInfo[4]);
                     }
                     Boolean isSecure = Boolean.valueOf(cookieInfo[4]);
+                    //If the expiry is in this format, then its wrong.
+                    if (expiry != null && expiry.toString().contains("1970")) {
+                        expiry = null;
+                        isSecure = true;
+                    }
+                    if (expiry != null) System.out.println(expiry);
                     Cookie ck = new Cookie(name, value, domain, path, expiry, isSecure);
                     cookies.add(ck);
                 }
@@ -502,21 +561,26 @@ class DatabaseDriver {
 
             ResultSet res = statement.executeQuery();
             //If there are no records about this proxy in our db, then no crawler can be using it at the moment
-            if (res.getFetchSize() == 0) {
+            if (!res.isBeforeFirst()) {
                 return true;
             }
 
-            //Check if the current proxy is already using it
-            if (isCurrentInstanceUsingProxy(Logger.getInstance().getInstanceID(), proxy)) return true;
+            //Check if the current proxy is already using it.
+            if (isCurrentInstanceUsingProxy(instance, proxy)) return true;
 
-            //Process result
+            //Check if the proxy is unlocked
             while (res.next()) {
-                System.out.println(res.getInt("num_of_instances"));
-                if (res.getBoolean("unlocked") && res.getInt("num_of_instances") < 3) return true;
+                if (res.getBoolean("unlocked") && res.getInt("num_of_instances") < 3) {
+                    return true;
+                }
+
             }
 
-        } catch (SQLException | FileNotFoundException e) {
+
+        } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
+        } catch (NullPointerException e) {
+            e.printStackTrace();
         }
         return false;
     }
@@ -530,7 +594,7 @@ class DatabaseDriver {
     void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine, StatsGUI
             stats) {
         try {
-            String sql = "INSERT INTO sql9212904.proxies " +
+            String sql = "INSERT INTO proxies " +
                     "(ip, port, unlocked, cookies, search_engine) " +
                     "VALUES (?, ?, TRUE, ?, ?)";
 
@@ -550,7 +614,7 @@ class DatabaseDriver {
             //If this happens, record already exist so we update it instead
 
             try {
-                String sql = "UPDATE sql9212904.proxies " +
+                String sql = "UPDATE proxies " +
                         "SET cookies = ?, search_engine = ?, unlocked = TRUE " +
                         "WHERE ip = ?  AND port = ?";
                 PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -581,7 +645,7 @@ class DatabaseDriver {
 
     void addLockedProxy(Proxy proxy) {
         try {
-            String sql = "UPDATE sql9212904.proxies " +
+            String sql = "UPDATE proxies " +
                     "SET cookies = ?, unlocked = FALSE, num_of_instances = 0 " +
                     "WHERE ip = ?  AND port = ?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -591,7 +655,7 @@ class DatabaseDriver {
             statement.executeUpdate();
 
             //Remove it if there is crawler using it.
-            sql = "DELETE FROM sql9212904.scrawler_to_proxy " +
+            sql = "DELETE FROM scrawler_to_proxy " +
                     "WHERE ip = (?) AND port = (?) ";
 
             statement = myConnection.prepareStatement(sql);
@@ -608,10 +672,11 @@ class DatabaseDriver {
     /**
      * Notifies the db that the current instance is using a proxy
      */
-    void addProxyToCurrentInstance(String instance, Proxy proxy) {
+    void addProxyToCurrentInstance(Proxy proxy) {
         try {
+            //If the current instance is not using this proxy, then update the database
             if (!isCurrentInstanceUsingProxy(instance, proxy)) {
-                String sql = "INSERT INTO sql9212904.scrawler_to_proxy " +
+                String sql = "INSERT INTO scrawler_to_proxy " +
                         "(scrawler_id, ip, port) " +
                         "VALUES (?, ?, ?)";
 
@@ -624,7 +689,7 @@ class DatabaseDriver {
                 statement.executeUpdate();
 
                 //Increase the count of crawlers using this proxy
-                sql = "UPDATE sql9212904.proxies " +
+                sql = "UPDATE proxies " +
                         "SET num_of_instances = num_of_instances + 1, unlocked = TRUE " +
                         "WHERE ip = ?  AND port = ?";
                 statement = myConnection.prepareStatement(sql);
@@ -647,7 +712,7 @@ class DatabaseDriver {
      */
     boolean isCurrentInstanceUsingProxy(String instance, Proxy proxy) {
         try {
-            String sql = "SELECT scrawler_id FROM sql9212904.scrawler_to_proxy WHERE ip=? AND port=?";
+            String sql = "SELECT scrawler_id FROM scrawler_to_proxy WHERE ip=? AND port=?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setString(1, proxy.getProxy());
             statement.setInt(2, proxy.getPort());
@@ -671,15 +736,16 @@ class DatabaseDriver {
     /**
      * Adds an instance of the current crawler to the database
      */
-    void addCrawlerInstance(String instance) {
+    void addCrawlerInstance() {
         //Map current instance to the proxy
         try {
-            String sql = "INSERT INTO sql9212904.scrawlers " +
-                    "(id) " +
-                    "VALUES (?)";
+            String sql = "INSERT INTO scrawlers " +
+                    "(id, location) " +
+                    "VALUES (?, ?)";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             //Set params
             statement.setString(1, instance);
+            statement.setString(2, "" + getClass().getProtectionDomain().getCodeSource().getLocation());
             statement.executeUpdate();
         } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
@@ -694,7 +760,7 @@ class DatabaseDriver {
             //Get all the proxies that are currently using the crawler, and decrease the count
             //Get all the proxies
             String sql = "SELECT ip, port " +
-                    "FROM sql9212904.scrawler_to_proxy " +
+                    "FROM scrawler_to_proxy " +
                     "WHERE scrawler_id = ? ";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setString(1, instance);
@@ -704,7 +770,7 @@ class DatabaseDriver {
                 String ip = res.getString("ip");
                 int port = res.getInt("port");
                 //Decrease counter
-                sql = "UPDATE sql9212904.proxies " +
+                sql = "UPDATE proxies " +
                         "SET num_of_instances = num_of_instances - 1 " +
                         "WHERE ip = ?  AND port = ? AND num_of_instances > 0";
                 statement = myConnection.prepareStatement(sql);
@@ -716,7 +782,7 @@ class DatabaseDriver {
 
             //Delete instance from the crawler from the db
             sql = "DELETE " +
-                    "FROM sql9212904.scrawlers " +
+                    "FROM scrawlers " +
                     "WHERE id = (?)";
             statement = myConnection.prepareStatement(sql);
             //Set params
@@ -736,17 +802,52 @@ class DatabaseDriver {
         java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
         try {
 
-            String sql = "UPDATE sql9212904.scrawlers " +
+            String sql = "UPDATE scrawlers " +
                     "SET download_rate = ?, last_updated = ? " +
                     "WHERE id = ?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setDouble(1, currPercentage);
             statement.setTimestamp(2, timestamp);
-            statement.setString(3, Logger.getInstance().getInstanceID());
+            statement.setString(3, instance);
             statement.executeUpdate();
-        } catch (SQLException | FileNotFoundException e) {
+        } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
         }
+    }
+
+
+    /**
+     * Adds an error to the error table
+     */
+    void addError(String error) {
+        //Get the current time
+        Calendar calendar = Calendar.getInstance();
+        java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
+        try {
+            String sql = "INSERT INTO errors " +
+                    "(scrawler_id, location, error, time) " +
+                    "VALUES(?,?,?,?) ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setString(1, instance);
+            statement.setString(2, "" + getClass().getProtectionDomain().getCodeSource().getLocation());
+            statement.setString(3, error);
+            statement.setTimestamp(4, timestamp);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+    /**
+     * In case the connection is closed
+     */
+    void reconnect() {
+        verifyIfConnectionWorks(dbName, serverAddress, port, username, password);
+    }
+
+
+    void closeConnection() throws SQLException {
+        myConnection.close();
     }
 
 }

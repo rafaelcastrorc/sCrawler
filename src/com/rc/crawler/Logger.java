@@ -2,17 +2,15 @@ package com.rc.crawler;
 
 
 import org.joda.time.DateTime;
+import org.openqa.selenium.Cookie;
 
 import java.io.*;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.prefs.Preferences;
-
-import org.openqa.selenium.Cookie;
 
 
 /**
@@ -24,10 +22,10 @@ class Logger {
     private static BufferedWriter reportWriter;
     private static BufferedWriter listOfFinishedPapers;
     private static BufferedWriter filesNotDownloaded;
-    private BufferedWriter listOfFilesToDownload;
-    private BufferedWriter cookieFile;
+    private static BufferedWriter listOfFilesToDownload;
+    private static BufferedWriter cookieFile;
     private static String prevName = "";
-    private Preferences preferences = Preferences.userNodeForPackage(DatabaseDriver.class);
+    private static Preferences preferences = Preferences.userNodeForPackage(DatabaseDriver.class);
 
 
     /**
@@ -361,10 +359,15 @@ class Logger {
                                          DatabaseDriver db, StatsGUI stats)
             throws IOException, SQLException {
         StringBuilder sb = new StringBuilder();
+        StringBuilder sb2 = new StringBuilder();
+
         sb.append("Proxy: ").append(proxy.getProxy()).append(":").append(proxy.getPort()).append("\n");
         sb.append("Search Engine: ").append(engine).append("\n");
         for (Cookie cookie : cookies) {
             sb.append(cookie.getName()).append(";").append(cookie.getValue()).append(";").append(cookie.getDomain())
+                    .append(";").append(cookie.getPath()).append(";").append(cookie
+                    .getExpiry()).append(";").append(cookie.isSecure()).append("\n");
+            sb2.append(cookie.getName()).append(";").append(cookie.getValue()).append(";").append(cookie.getDomain())
                     .append(";").append(cookie.getPath()).append(";").append(cookie
                     .getExpiry()).append(";").append(cookie.isSecure()).append("\n");
         }
@@ -374,7 +377,7 @@ class Logger {
             cookieFile.flush();
         }
         //Write to db
-        db.addUnlockedProxy(proxy, sb.toString(), engine, stats);
+        db.addUnlockedProxy(proxy, sb2.toString(), engine, stats);
     }
 
     /**
@@ -383,7 +386,8 @@ class Logger {
     HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> readCookieFileFromDB(GUILabelManagement
                                                                                                       guiLabels)
             throws FileNotFoundException, SQLException {
-        return new DatabaseDriver(guiLabels, false).getAllUnlockedProxies();
+        DatabaseDriver driver = DatabaseDriver.getInstance(guiLabels);
+        return driver.getAllUnlockedProxies();
     }
 
     /**
@@ -395,9 +399,8 @@ class Logger {
         Scanner scanner = new Scanner(new File("./AppData/Cookies.dta"));
         Proxy currProxy = null;
         SearchEngine.SupportedSearchEngine engine = null;
-        DatabaseDriver db = new DatabaseDriver(guiLabels, false);
+        DatabaseDriver db =  DatabaseDriver.getInstance(guiLabels);
         Set<Cookie> cookies = new HashSet<>();
-        int counter = 0;
         try {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
@@ -421,7 +424,6 @@ class Logger {
                                     .append(";").append(cookie.getPath()).append(";").append(cookie
                                     .getExpiry()).append(";").append(cookie.isSecure()).append("\n");
                         }
-                        counter++;
                         db.addUnlockedProxy(currProxy, sb.toString(), engine, stats);
                         cookies = new HashSet<>();
                     }
@@ -448,7 +450,7 @@ class Logger {
                     String domain = cookieInfo[2];
                     String path = cookieInfo[3];
                     Date expiry = null;
-                    if (cookieInfo[4] != null) {
+                    if (cookieInfo[4] != null && !cookieInfo[4].equals("null")) {
                         expiry = new Date(cookieInfo[4]);
                     }
                     Boolean isSecure = Boolean.valueOf(cookieInfo[4]);
@@ -495,7 +497,7 @@ class Logger {
     /**
      * Stores the user db information
      */
-    void saveUserDBdata(boolean doNotShowThisAgain, String serverAddress, String port,
+    void saveUserDBData(boolean doNotShowThisAgain, String serverAddress, String port,
                         String databaseName, String username, String password) {
         preferences.putBoolean("doNotShowThisAgain", doNotShowThisAgain);
         preferences.put("serverAddress", serverAddress);

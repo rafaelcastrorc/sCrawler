@@ -8,10 +8,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.openqa.selenium.Cookie;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.TimeoutException;
-import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
@@ -58,7 +55,7 @@ class ProxyChanger {
         this.crawler = crawler;
         this.engine = engine;
         this.stats = stats;
-        this.db = new DatabaseDriver(guiLabels, false);
+        this.db = DatabaseDriver.getInstance(guiLabels);
     }
 
     /**
@@ -106,7 +103,7 @@ class ProxyChanger {
                 verifyIfThereIsConnection();
             }
             crawler.setThreadIsGettingMoreProxies(true);
-            crawler.getMoreProxies();
+            crawler.getMoreProxies(engine);
             crawler.setThreadIsGettingMoreProxies(false);
         }
 
@@ -141,17 +138,12 @@ class ProxyChanger {
      */
     private Document establishNewConnection(boolean comesFromThread, String url) {
         String instanceID = "";
-        try {
-            instanceID = Logger.getInstance().getInstanceID();
-        } catch (FileNotFoundException e) {
-            guiLabels.setAlertPopUp(e.getMessage());
-        }
         Document doc = null;
         Proxy proxyToBeUsed = null;
         if (comesFromThread) {
             boolean connected = false;
             boolean thereWasAnError = false;
-            Set<Cookie> cookies = null;
+            Set<Cookie> cookies;
             while (!connected) {
                 proxyToBeUsed = null;
                 if (!crawler.isThereConnection()) {
@@ -169,15 +161,21 @@ class ProxyChanger {
                         proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
                         cookies = crawler.getCookie(proxyToBeUsed, engine);
                         crawler.addRequestToMapOfRequests(SearchEngine.getBaseURL(engine), proxyToBeUsed, 0);
-                    }
-                    //If there are no unlocked proxies, or the queue returned null, try finding a new connection
-                    if (proxyToBeUsed == null) {
+                    } else {
+                        //If there are no unlocked proxies, or the queue returned null, or it failed one of the
+                        // above conditions, then try finding a new connection
                         proxyToBeUsed = crawler.addConnection(threadID);
                     }
-                    //Verify it is being used by another crawler
+                    //Check if there is not another thread already using the proxy
+                    try {
+                        InUseProxies.getInstance().isProxyInUse(proxyToBeUsed, false);
+                    } catch (IllegalArgumentException e) {
+                        proxyToBeUsed = null;
+                    }
                 }
 
                 try {
+                    InUseProxies.getInstance().isProxyInUse(proxyToBeUsed, false);
                     if (db.isCurrentInstanceUsingProxy(instanceID, proxyToBeUsed)) {
                         throw new IllegalArgumentException();
                     }
@@ -208,12 +206,10 @@ class ProxyChanger {
                     thereWasAnError = true;
                 }
             }
-        }
-        Logger logger = Logger.getInstance();
-        try {
-            db.addProxyToCurrentInstance(logger.getInstanceID(), proxyToBeUsed);
-        } catch (FileNotFoundException e) {
-            guiLabels.setAlertPopUp(e.getMessage());
+            InUseProxies inUseProxies = InUseProxies.getInstance();
+            //Check if proxy is not been used by another thread. If not, add it
+            inUseProxies.isProxyInUse(proxyToBeUsed, true);
+            db.addProxyToCurrentInstance(proxyToBeUsed);
         }
         return doc;
     }
@@ -456,30 +452,29 @@ class ProxyChanger {
             if (usesProxy) {
                 capabilities.setCapability(CapabilityType.PROXY, nProxy);
             }
+            capabilities.setCapability("phantomjs.page.settings.userAgent", "Mozilla/5.0 (Windows NT 6.1) " +
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36");
             //Initiate the driver
             PhantomJSDriver driver = new PhantomJSDriver(capabilities);
-
             String pageSource = "";
             try {
                 driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.MINUTES);
                 driver.manage().timeouts().implicitlyWait(5, TimeUnit.MINUTES);
                 if (cookies != null && cookies.size() > 0) {
-                    //If there are cookies, add them
-                    driver.manage().deleteAllCookies();
                     //load the url once before requesting cookies
-                    try {
-                        driver.get(url);
-                    } catch (TimeoutException e) {
-                        driver.get(url);
-                    }
+                    driver.get(url);
+                    driver.manage().deleteAllCookies();
                     for (Cookie c : cookies) {
-                        driver.manage().addCookie(c);
+                        try {
+                            driver.manage().addCookie(c);
+                        } catch (InvalidCookieDomainException ignored) {
+                        }
                     }
-
+                    driver.navigate().refresh();
                 }
+
                 try {
                     driver.get(url);
-                    //driver.navigate().refresh();
                 } catch (TimeoutException e) {
                     if (cookies != null && cookies.size() > 0) {
                         //Try again to download
@@ -487,6 +482,23 @@ class ProxyChanger {
                     }
                 }
                 pageSource = waitForLoad(driver, true, url);
+                //In case it does not load, then reload the page
+                if (cookies != null && cookies.size() > 0 && pageSource.contains("we can't verify that you're not a " +
+                        "robot when JavaScript is turned off")) {
+                    driver.navigate().refresh();
+                    String temp = driver.getPageSource();
+                    for (Cookie c : cookies) {
+                        try {
+                            driver.manage().addCookie(c);
+                        } catch (InvalidCookieDomainException ignored) {
+                        }
+                    }
+                    driver.get(url);
+                    pageSource = driver.getPageSource();
+                    if (temp.length() > pageSource.length()) {
+                        pageSource = temp;
+                    }
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -531,6 +543,7 @@ class ProxyChanger {
                 //Add to the queue of blocked proxies
                 if (crawler.isSeleniumActive()) {
                     //Add locked proxy to server
+                    InUseProxies.getInstance().removeProxy(proxyToUse);
                     db.addLockedProxy(proxyToUse);
                     crawler.getQueueOfBlockedProxies().add(proxyToUse);
                     //Notify GUI
@@ -606,6 +619,7 @@ class ProxyChanger {
             driver = new ChromeDriver(caps);
             driver.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
             if (cookies.size() > 0) {
+                driver.get(SearchEngine.getTestURL(engine));
                 for (Cookie cookie : cookies) {
                     driver.manage().addCookie(cookie);
                 }
@@ -617,7 +631,6 @@ class ProxyChanger {
                 driver.get(url);
             }
             waitForLoad(driver, false, url);
-
 
         } catch (Exception | Error e) {
             guiLabels.setAlertPopUp(e.getMessage());

@@ -55,6 +55,7 @@
         <element id="file-copy" path="$PROJECT_DIR$/lib/xalan-2.7.2.jar" />
         <element id="file-copy" path="$PROJECT_DIR$/lib/xml-apis-1.4.01.jar" />
         <element id="file-copy" path="$PROJECT_DIR$/lib/xmpbox-2.0.6.jar" />
+        <element id="library" level="project" name="mysql-connector-java-5.1.45-bin" />
       </element>
     </root>
   </artifact>
