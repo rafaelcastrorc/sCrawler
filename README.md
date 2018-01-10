@@ -1,15 +1,21 @@
 # sCrawler
 Smart crawler for academic papers.
-Can find and download PDFs of research papers that cite a given paper, or attempt to find the paper itself and download it.
+Fully scalable solution to find and download PDFs of research papers that cite a given paper, or attempt to find the paper itself and download it.
 Works on Windows and OSX.
  
 **Main features:**
 
-*There is no limit on the number of papers you can download; however, we do recommend not using more than 2 instance of the program to avoid getting proxies blocked.
+*There is no limit on the number of papers you can download.
 
 *Allows up to 8 simultaneous downloads.
 
+*Keeps all the crawlers synchronized by using a database.
+
+*Fully scalable!
+
 *Access and parse JavaScript enabled websites.
+
+*Features a full fledged proxy scraper.
 
 *Allows the user to unlock blocked proxies.
 
@@ -40,7 +46,11 @@ https://github.com/rafaelcastrorc/sCrawler/releases
 
 The program uses multiple mechanisms to avoid getting caught, from connecting to websites using a headless browser, which helps to avoid raising red flags, to providing the right cookies, and introducing random pauses between searches. It also keeps track of the number of request send from each proxy to each website, and once one proxy has sent more than 40 request to a given website, it is saved for later use.
  
+**How scalable is this program?**
+
+If you need to download 100K+ papers, you can use multiple instances, and thanks to a lot of changes in the new version, you can connect all the instances into a database and keep them all fully synchronized. Furthermore, you can directly send commands to each individual sCrawler instance to perform specific actions, such as updating, cleaning the database, or closing the current instance.
  
+
 **What happens if a website blocks a proxy?**
 
 Usually they just give the message “Please show you are not a robot”. The program can identify all blocked proxies, and will display an Alert whenever there is one. You just press it and solve the captcha, and the proxy will be unlocked after that.
