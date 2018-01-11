@@ -35,12 +35,8 @@ class PDFDownloader {
     private int pdfCounter;
     private Proxy ipAndPort;
     private boolean speedUp;
-    private SearchEngine.SupportedSearchEngine engine;
-    Long currThreadID;
 
-    PDFDownloader(SearchEngine.SupportedSearchEngine engine) {
-        this.engine = engine;
-        currThreadID = Thread.currentThread().getId();
+    PDFDownloader() {
     }
 
     /**
@@ -74,8 +70,8 @@ class PDFDownloader {
         Future<String> future = executorService.submit(downloadPDFTask);
         String result;
         try {
-            //Limit of 3 minute to download a file
-            result = future.get(3, TimeUnit.MINUTES);
+            //Limit of 4 minute to download a file
+            result = future.get(4, TimeUnit.MINUTES);
         } catch (Exception e) {
             future.cancel(true);
             result = "Timeout";
@@ -112,27 +108,27 @@ class PDFDownloader {
                     java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
                     cookies = connectUsingSelenium();
                 }
-                    int status = connectUsingNetClass();
-                    boolean redirect = false;
-                    if (status != HttpURLConnection.HTTP_OK) {
-                        if (status == HttpURLConnection.HTTP_MOVED_TEMP
-                                || status == HttpURLConnection.HTTP_MOVED_PERM
-                                || status == HttpURLConnection.HTTP_SEE_OTHER)
-                            redirect = true;
-                    }
-                    if (status == 403) {
-                        throw new IOException("Error 403");
-                    }
-                    if (redirect) {
-                        redirect(connection, proxy);
-                    } else {
+                int status = connectUsingNetClass();
+                boolean redirect = false;
+                if (status != HttpURLConnection.HTTP_OK) {
+                    if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                            || status == HttpURLConnection.HTTP_MOVED_PERM
+                            || status == HttpURLConnection.HTTP_SEE_OTHER)
+                        redirect = true;
+                }
+                if (status == 403) {
+                    throw new IOException("Error 403");
+                }
+                if (redirect) {
+                    redirect(connection, proxy);
+                } else {
 
-                        ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                        FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + "" +
-                                ".pdf");
-                        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+                    ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                    FileOutputStream fos = new FileOutputStream("./DownloadedPDFs/" + path + "/" + pdfCounter + "" +
+                            ".pdf");
+                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
-                    }
+                }
 
             } catch (Exception e) {
                 e.printStackTrace(System.out);
@@ -146,55 +142,93 @@ class PDFDownloader {
          * Connects to a URL using selenium
          */
         Set<Cookie> connectUsingSelenium() {
-            Set<Cookie> cookies;
+            Set<Cookie> cookies = null;
             WebDriver driver = null;
-            try {
-                org.openqa.selenium.Proxy nProxy = null;
-                if (speedUp) {
-                    nProxy = new org.openqa.selenium.Proxy();
-                    final String proxyString = ipAndPort.getProxy() + ":" + String.valueOf(ipAndPort.getPort());
-                    nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
-                }
-                ArrayList<String> cliArgsCap = new ArrayList<>();
-                DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
-                cliArgsCap.add("--web-security=false");
-                cliArgsCap.add("--ssl-protocol=any");
-                cliArgsCap.add("--ignore-ssl-errors=true");
-                cliArgsCap.add("--webdriver-loglevel=NONE");
+            int attempt = 0;
+            while (attempt < 2) {
 
-                if (speedUp) {
-                    cliArgsCap.add("--proxy=" + ipAndPort.getProxy() + ":" + ipAndPort.getPort());
-                }
-                capabilities.setCapability(
-                        PhantomJSDriverService.PHANTOMJS_CLI_ARGS, cliArgsCap);
-                if (speedUp) {
-                    capabilities.setCapability(CapabilityType.PROXY, nProxy);
-                }
-
-
-                //Initiate the driver
-                driver = new PhantomJSDriver(capabilities);
-
-                driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.MINUTES);
-                driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
-                driver.get(url);
-                waitForLoad(driver);
-                cookies = driver.manage().getCookies();
-                pageSource = driver.getPageSource();
-
-
-            } catch (Exception e) {
-                e.printStackTrace(System.out);
-                throw new IllegalArgumentException();
-            } finally {
                 try {
-                    //Close the driver
-                    if (driver != null) {
-                        driver.close();
-                        driver.quit();
-                        driver = null;
+                    org.openqa.selenium.Proxy nProxy = null;
+                    if (!speedUp && attempt == 0) {
+                        nProxy = new org.openqa.selenium.Proxy();
+                        final String proxyString = ipAndPort.getProxy() + ":" + String.valueOf(ipAndPort.getPort());
+                        nProxy.setHttpProxy(proxyString).setSslProxy(proxyString);
                     }
-                } catch (Exception ignored) {
+                    ArrayList<String> cliArgsCap = new ArrayList<>();
+                    DesiredCapabilities capabilities = DesiredCapabilities.phantomjs();
+                    cliArgsCap.add("--web-security=false");
+                    cliArgsCap.add("--ssl-protocol=any");
+                    cliArgsCap.add("--ignore-ssl-errors=true");
+                    cliArgsCap.add("--webdriver-loglevel=NONE");
+
+                    if (!speedUp && attempt == 0) {
+                        cliArgsCap.add("--proxy=" + ipAndPort.getProxy() + ":" + ipAndPort.getPort());
+                    }
+                    capabilities.setCapability(
+                            PhantomJSDriverService.PHANTOMJS_CLI_ARGS, cliArgsCap);
+                    if (!speedUp && attempt == 0) {
+                        capabilities.setCapability(CapabilityType.PROXY, nProxy);
+                    }
+                    capabilities.setCapability("phantomjs.page.settings.userAgent", "Mozilla/5.0 (Windows NT 6.1) " +
+                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36");
+
+
+                    //Initiate the driver
+                    driver = new PhantomJSDriver(capabilities);
+
+                    driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.MINUTES);
+                    driver.manage().timeouts().implicitlyWait(5, TimeUnit.MINUTES);
+                    driver.get(url);
+                    waitForLoad(driver);
+                    cookies = driver.manage().getCookies();
+                    pageSource = driver.getPageSource();
+
+                    if (cookies.size() > 0) {
+                        //If there was an attempt made before and it failed, then remove the proxy that failed
+                        if (attempt > 0) {
+                            InUseProxies.getInstance().removeProxy(ipAndPort);
+                            crawler.addRequestToMapOfRequests(url, ipAndPort, 50);
+                        }
+                        break;
+                    }
+                    //Check for errors in the page source
+                    if (pageSource.contains("This site can’t be reached") ||
+                            pageSource.contains("ERR_PROXY_CONNECTION_FAILED") ||
+                            pageSource.contains("your computer or network may be sending " +
+                                    "automated queries. To protect our users, we can't process your request right " +
+                                    "now") ||
+
+                            pageSource.equals("<html><head></head><body></body></html>") ||
+                            pageSource.equals("") || pageSource.contains("ContentKeeper") ||
+                            pageSource.split(" ").length < 200) {
+                        attempt++;
+
+                    } else {
+                        //If there are no errors in the page source, then stop
+                        break;
+                    }
+
+
+                } catch (Exception e) {
+                    if (attempt == 0) {
+                        InUseProxies.getInstance().removeProxy(ipAndPort);
+                        crawler.addRequestToMapOfRequests(url, ipAndPort, 50);
+                    }
+                    e.printStackTrace(System.out);
+                    if (attempt > 0) {
+                        throw new IllegalArgumentException();
+                    }
+                    attempt++;
+                } finally {
+                    try {
+                        //Close the driver
+                        if (driver != null) {
+                            driver.close();
+                            driver.quit();
+                            driver = null;
+                        }
+                    } catch (Exception ignored) {
+                    }
                 }
             }
             return cookies;
@@ -303,7 +337,7 @@ class PDFDownloader {
 
     private void waitForLoad(WebDriver driver) {
         try {
-            new WebDriverWait(driver, 120).until((ExpectedCondition<Boolean>) wd ->
+            new WebDriverWait(driver, 240).until((ExpectedCondition<Boolean>) wd ->
                     ((JavascriptExecutor) wd).executeScript("return document.readyState").equals("complete"));
         } catch (Exception ignored) {
         }
@@ -350,6 +384,5 @@ class PDFDownloader {
         path = nameOfFolder;
         return nameOfFolder;
     }
-
 
 }

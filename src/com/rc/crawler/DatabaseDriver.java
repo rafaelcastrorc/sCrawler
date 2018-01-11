@@ -4,14 +4,15 @@ package com.rc.crawler;
 import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import org.joda.time.DateTime;
 import org.openqa.selenium.Cookie;
 
+import javax.xml.crypto.Data;
 import java.io.FileNotFoundException;
 import java.sql.*;
 import java.util.*;
@@ -33,6 +34,7 @@ class DatabaseDriver {
     private static String password;
     private static String username;
     private static String serverAddress;
+    private static String errorMessage;
 
     private DatabaseDriver() {
 
@@ -83,7 +85,7 @@ class DatabaseDriver {
             }
         }
         // Create the custom dialog.
-        Dialog dialog = new Dialog<>();
+        Dialog<Object> dialog = new Dialog<>();
         dialog.setTitle("Configure your database connection");
         dialog.setHeaderText("In order for all the crawlers to be synchronized, all of them need to access\nthe " +
                 "same database. Do you want to access the MySQL database stored in\nyour local settings, or do you " +
@@ -200,45 +202,55 @@ class DatabaseDriver {
         dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, storeConnection);
 
         // Create the username and password labels and fields.
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 100, 10, 10));
+        VBox vBox = new VBox(21);
+        vBox.setAlignment(Pos.CENTER_LEFT);
 
+        HBox hBox1 = new HBox(18);
+        hBox1.setAlignment(Pos.CENTER_LEFT);
+        Label label1 = new Label("Server Address:");
         TextField serverAddress = new TextField();
         serverAddress.setPromptText("sql.freesqlhosting.net");
+        hBox1.getChildren().addAll(label1, serverAddress);
 
+        HBox hBox2 = new HBox(17);
+        hBox2.setAlignment(Pos.CENTER_LEFT);
+        Label label2 = new Label("Database Name:");
         TextField databaseName = new TextField();
         databaseName.setPromptText("sql123");
+        hBox2.getChildren().addAll(label2, databaseName);
 
+
+        HBox hBox3 = new HBox(89);
+        hBox3.setAlignment(Pos.CENTER_LEFT);
+        Label label3 = new Label("Port:");
         TextField portNumber = new TextField();
         portNumber.setPromptText("3012");
+        hBox3.getChildren().addAll(label3, portNumber);
 
+        HBox hBox4 = new HBox(52);
+        hBox4.setAlignment(Pos.CENTER_LEFT);
+        Label label4 = new Label("Username:");
         TextField username = new TextField();
         username.setPromptText("Username");
+        hBox4.getChildren().addAll(label4, username);
 
+        HBox hBox5 = new HBox(55);
+        hBox5.setAlignment(Pos.CENTER_LEFT);
+        Label label5 = new Label("Password:");
         PasswordField password = new PasswordField();
         password.setPromptText("Password");
-
-        grid.add(new Label("Server Address:"), 0, 0);
-        grid.add(serverAddress, 1, 0);
-
-        grid.add(new Label("Database Name:"), 0, 1);
-        grid.add(databaseName, 1, 1);
-
-        grid.add(new Label("Port:"), 0, 2);
-        grid.add(portNumber, 1, 2);
-
-        grid.add(new Label("Username:"), 0, 3);
-        grid.add(username, 1, 3);
-
-        grid.add(new Label("Password:"), 0, 4);
-        grid.add(password, 1, 4);
+        hBox5.getChildren().addAll(label5, password);
 
         Label errorLabel = new Label();
-        grid.add(errorLabel, 0, 5);
+        errorLabel.setWrapText(true);
+        HBox hBox6 = new HBox();
+        hBox6.setAlignment(Pos.CENTER_LEFT);
+        hBox6.getChildren().addAll(errorLabel);
 
-        dialog.getDialogPane().setContent(grid);
+
+        vBox.getChildren().addAll(hBox1, hBox2, hBox3, hBox4, hBox5, hBox6);
+
+        dialog.getDialogPane().setContent(vBox);
 
         final Button loginButtonDB = (Button) dialog.getDialogPane().lookupButton(loginButtonType);
         final Button storeConnectionDB = (Button) dialog.getDialogPane().lookupButton(storeConnection);
@@ -258,7 +270,7 @@ class DatabaseDriver {
                                         (), username.getText(), password.getText());
                         storeConnectionDB.setDisable(!connected[0]);
                         if (!connected[0]) {
-                            errorLabel.setText("Failed to Connect!");
+                            errorLabel.setText("Failed to Connect! - SQLSTATE code: " + errorMessage);
                             errorLabel.setTextFill(Color.RED);
                         } else {
                             errorLabel.setText("Connected!");
@@ -322,6 +334,7 @@ class DatabaseDriver {
                 "  location      TEXT               NOT NULL," +
                 "  download_rate DOUBLE PRECISION DEFAULT '0.00' NULL," +
                 "  last_updated  TIMESTAMP          NULL," +
+                "  operation     VARCHAR(30)        NULL," +
                 "  CONSTRAINT scrawlers_id_uindex" +
                 "  UNIQUE (id)" +
                 ")";
@@ -329,11 +342,8 @@ class DatabaseDriver {
         try {
             Statement stmt = myConnection.createStatement();
             stmt.execute(createScrawlerTable);
-
         } catch (SQLException ignored) {
-
         }
-
         //Create scrawler_to_proxy table
         String createScrawlerToProxyTable = "CREATE TABLE scrawler_to_proxy" +
                 "(" +
@@ -358,7 +368,6 @@ class DatabaseDriver {
         } catch (SQLException ignored) {
         }
 
-
         //Create errors table
         String errorsTable = "CREATE TABLE errors" +
                 "(" +
@@ -375,7 +384,32 @@ class DatabaseDriver {
         } catch (SQLException ignored) {
         }
 
+        String createListOfProxiesTable = "CREATE TABLE list_of_proxies(" +
+                "  ip               VARCHAR(20)            NOT NULL," +
+                "  port             INT                    NOT NULL," +
+                "  time  TIMESTAMP NOT NULL," +
+                "  PRIMARY KEY (ip, port)" +
+                ")";
+        String createIndexOnListOfProxiesTable = "CREATE INDEX list_of_proxies_ip_port_index" +
+                "  ON list_of_proxies (ip, port)";
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(createListOfProxiesTable);
+            stmt.execute(createIndexOnListOfProxiesTable);
+        } catch (SQLException ignored) {
+        }
 
+        String createListOfWebsites = "CREATE TABLE list_of_websites(" +
+                "  website               VARCHAR(200)            NOT NULL," +
+                "  visited             TIMESTAMP                     NULL," +
+                "  PRIMARY KEY (website)" +
+                ")";
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(createListOfWebsites);
+            insertAllWebsites();
+        } catch (SQLException ignored) {
+        }
     }
 
     /**
@@ -472,6 +506,8 @@ class DatabaseDriver {
             return true;
 
         } catch (SQLException e) {
+            e.printStackTrace();
+            errorMessage = e.getSQLState();
             return false;
         }
     }
@@ -566,11 +602,11 @@ class DatabaseDriver {
             }
 
             //Check if the current proxy is already using it.
-            if (isCurrentInstanceUsingProxy(instance, proxy)) return true;
+            if (isCurrentInstanceUsingProxy(proxy)) return true;
 
             //Check if the proxy is unlocked
             while (res.next()) {
-                if (res.getBoolean("unlocked") && res.getInt("num_of_instances") < 3) {
+                if (res.getBoolean("unlocked") && res.getInt("num_of_instances") < 4) {
                     return true;
                 }
 
@@ -593,6 +629,11 @@ class DatabaseDriver {
      */
     void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine, StatsGUI
             stats) {
+        //Add it back to the list of proxies
+        try {
+            addProxyToListOfProxies(proxy);
+        } catch (IllegalArgumentException ignored) {
+        }
         try {
             String sql = "INSERT INTO proxies " +
                     "(ip, port, unlocked, cookies, search_engine) " +
@@ -664,6 +705,8 @@ class DatabaseDriver {
             statement.setInt(2, proxy.getPort());
 
             statement.executeUpdate();
+            //Delete it from the proxy list as well
+            deleteProxyFromListOfProxies(proxy);
         } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
         }
@@ -675,7 +718,7 @@ class DatabaseDriver {
     void addProxyToCurrentInstance(Proxy proxy) {
         try {
             //If the current instance is not using this proxy, then update the database
-            if (!isCurrentInstanceUsingProxy(instance, proxy)) {
+            if (!isCurrentInstanceUsingProxy(proxy)) {
                 String sql = "INSERT INTO scrawler_to_proxy " +
                         "(scrawler_id, ip, port) " +
                         "VALUES (?, ?, ?)";
@@ -710,7 +753,7 @@ class DatabaseDriver {
      *
      * @return boolean
      */
-    boolean isCurrentInstanceUsingProxy(String instance, Proxy proxy) {
+    boolean isCurrentInstanceUsingProxy(Proxy proxy) {
         try {
             String sql = "SELECT scrawler_id FROM scrawler_to_proxy WHERE ip=? AND port=?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -719,7 +762,7 @@ class DatabaseDriver {
 
             ResultSet res = statement.executeQuery();
             //If there are no records about this proxy in our db, then no crawler can be using it at the moment
-            if (res.getFetchSize() == 0) {
+            if (!res.isBeforeFirst()) {
                 return false;
             }
             //Process result, if the id appears, then the current crawler is already using it
@@ -748,6 +791,7 @@ class DatabaseDriver {
             statement.setString(2, "" + getClass().getProtectionDomain().getCodeSource().getLocation());
             statement.executeUpdate();
         } catch (SQLException e) {
+            e.printStackTrace();
             guiLabelManagement.setAlertPopUp(e.getMessage());
         }
     }
@@ -839,6 +883,109 @@ class DatabaseDriver {
     }
 
     /**
+     * Performs an operation in an instance
+     */
+    void performOperation(String instance, String operation) {
+        try {
+            String sql = "UPDATE scrawlers " +
+                    "SET operation = ? " +
+                    "WHERE id = ? ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setString(1, operation);
+            statement.setString(2, instance);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+    /**
+     * Returns the operation to perform. Empty if none
+     */
+    String getOperationToPerform() {
+        try {
+            String sql = "SELECT operation " +
+                    "     FROM scrawlers" +
+                    "     WHERE id = ?";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setString(1, instance);
+
+            ResultSet res = statement.executeQuery();
+            //If there are no records about this proxy in our db, then it is already closed
+            if (!res.isBeforeFirst()) {
+                return "";
+            }
+            //Process result, if the id appears, then the current crawler is already using it
+            while (res.next()) {
+                String operation = res.getString("operation");
+                if (operation.equals(WebServer.SupportedOperations.close.toString())) {
+                    return WebServer.SupportedOperations.close.name();
+                } else if (operation.equals(WebServer.SupportedOperations.clean.toString())) {
+                    return WebServer.SupportedOperations.clean.name();
+                } else if (operation.equals(WebServer.SupportedOperations.update.toString())) {
+                    return WebServer.SupportedOperations.update.name();
+                }
+            }
+        } catch (NullPointerException e) {
+            return "";
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return "";
+    }
+
+    /**
+     * Returns the cookies for a given proxy
+     *
+     * @return Set
+     */
+    Set<Cookie> getCookies(Proxy proxy, SearchEngine.SupportedSearchEngine engine) {
+        Set<Cookie> result = new HashSet<>();
+        try {
+            String sql = "SELECT cookies FROM proxies WHERE ip = ? AND port = ? AND search_engine = ?";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setString(1, proxy.getProxy());
+            statement.setInt(2, proxy.getPort());
+            statement.setString(3, engine.name());
+            ResultSet res = statement.executeQuery();
+
+            if (!res.isBeforeFirst()) {
+                return result;
+            }
+
+            while (res.next()) {
+                String cookieString = res.getString("cookies");
+                Scanner scanner = new Scanner(cookieString);
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] cookieInfo = line.split(";");
+                    String name = cookieInfo[0];
+                    String value = cookieInfo[1];
+                    String domain = cookieInfo[2];
+                    String path = cookieInfo[3];
+                    java.util.Date expiry = null;
+                    if (cookieInfo[4] != null && !cookieInfo[4].equals("null")) {
+                        expiry = new java.util.Date(cookieInfo[4]);
+                    }
+                    Boolean isSecure = Boolean.valueOf(cookieInfo[4]);
+                    //If the expiry is in this format, then its wrong.
+                    if (expiry != null && expiry.toString().contains("1970")) {
+                        expiry = null;
+                        isSecure = true;
+                    }
+                    if (expiry != null) System.out.println(expiry);
+                    Cookie ck = new Cookie(name, value, domain, path, expiry, isSecure);
+                    result.add(ck);
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return new HashSet<>();
+    }
+
+    /**
      * In case the connection is closed
      */
     void reconnect() {
@@ -848,6 +995,165 @@ class DatabaseDriver {
 
     void closeConnection() throws SQLException {
         myConnection.close();
+    }
+
+    /**
+     * Returns all instances with their respective last update time
+     */
+    HashSet<WebServer.ScrawlerInstance> getAllInstances() {
+        HashSet<WebServer.ScrawlerInstance> result = new HashSet<>();
+        try {
+            String sql = "SELECT id, last_updated FROM scrawlers ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            ResultSet res = statement.executeQuery();
+            //If there are no records about this proxy in our db, then no crawler can be using it at the moment
+            if (!res.isBeforeFirst()) {
+                return result;
+            }
+            //Process result, if the id appears, then the current crawler is already using it
+            while (res.next()) {
+                String instanceID = res.getString("id");
+                DateTime time;
+                if (res.getTimestamp("last_updated") != null) {
+                    time = new DateTime(res.getTimestamp("last_updated"));
+                } else {
+                    time = null;
+                }
+                WebServer.ScrawlerInstance curr = new WebServer.ScrawlerInstance(instanceID, time);
+                result.add(curr);
+            }
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return result;
+    }
+
+    HashMap<String, DateTime> getAllWebsites() {
+        HashMap<String, DateTime> result = new HashMap<>();
+        try {
+            String sql = "SELECT website, visited FROM list_of_websites ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            ResultSet res = statement.executeQuery();
+            //If there are no records about this proxy in our db, then no crawler can be using it at the moment
+            if (!res.isBeforeFirst()) {
+                return result;
+            }
+            //Process result, if the id appears, then the current crawler is already using it
+            while (res.next()) {
+                String website = res.getString("website");
+                DateTime time;
+                if (res.getTimestamp("visited") != null) {
+                    time = new DateTime(res.getTimestamp("visited"));
+                } else {
+                    time = null;
+                }
+                result.put(website, time);
+            }
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return result;
+    }
+
+    static void insertAllWebsites() {
+        ProxiesDownloader proxiesDownloader = new ProxiesDownloader();
+        ArrayList<String> websites = proxiesDownloader.getWebsites();
+        for (String website : websites) {
+            try {
+                String sql = "INSERT INTO list_of_websites " +
+                        "(website) " +
+                        "VALUES (?)";
+                PreparedStatement statement = myConnection.prepareStatement(sql);
+                statement.setString(1, website);
+                statement.executeUpdate();
+            } catch (SQLException e) {
+                guiLabelManagement.setAlertPopUp(e.getMessage());
+            }
+        }
+    }
+
+    void updateWebsiteTime(String website) {
+        try {
+            Calendar calendar = Calendar.getInstance();
+            java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
+
+            String sql = "UPDATE list_of_websites SET visited = ? WHERE website = ? ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setTimestamp(1, timestamp);
+            statement.setString(2, website);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+    void addProxyToListOfProxies(Proxy proxy) throws IllegalArgumentException {
+        try {
+            String sql = "INSERT INTO list_of_proxies " +
+                    "(ip, port, time) " +
+                    "VALUES (?, ?, ?)";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setString(1, proxy.getProxy());
+            statement.setInt(2, proxy.getPort());
+            Calendar calendar = Calendar.getInstance();
+            java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
+            statement.setTimestamp(3, timestamp);
+            statement.executeUpdate();
+        } catch (MySQLIntegrityConstraintViolationException e) {
+            throw new IllegalArgumentException();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+
+    /**
+     * Deletes a locked proxy from the list of proxies
+     *
+     * @param proxy
+     */
+    void deleteProxyFromListOfProxies(Proxy proxy) {
+        try {
+            String sql = "DELETE FROM list_of_proxies WHERE ip = ? AND port = ?";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setString(1, proxy.getProxy());
+            statement.setInt(2, proxy.getPort());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+
+    /**
+     * Gets all the proxies scrapped from the proxy compiling websites
+     *
+     * @return Set of proxies
+     */
+    HashSet<Proxy> getAllProxiesFromListOfProxies() {
+        HashSet<Proxy> result = new HashSet<>();
+        try {
+            String sql = "SELECT * FROM list_of_proxies ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            ResultSet res = statement.executeQuery();
+            //If there are no records about this proxy in our db, then no crawler can be using it at the moment
+            if (!res.isBeforeFirst()) {
+                return result;
+            }
+            //Process result, if the id appears, then the current crawler is already using it
+            while (res.next()) {
+                String ip = res.getString("ip");
+                int port = res.getInt("port");
+                DateTime time = new DateTime(res.getTimestamp("time"));
+                Proxy p = new Proxy(ip, port);
+                p.setTime(time);
+                result.add(p);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace(System.out);
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return result;
     }
 
 }

@@ -95,24 +95,30 @@ class ProxyChanger {
 
         //Step 2. Check if there are less than 100 proxies remaining, we add more
         //But first we check if we have connection. Also we make sure that there is only one thread getting more proxies
-        if (crawler.getSetOfProxyGathered().size() < 100 && !crawler.isThreadGettingMoreProxies()) {
+        if (crawler.getSetOfProxyGathered().size() < 100 && !InUseProxies.getInstance().isThreadGettingMoreProxies()) {
             //Verify again if there is internet connection
             if (!crawler.isThereConnection()) {
                 guiLabels.setOutput("No internet connection");
                 guiLabels.setOutputMultiple("No internet connection");
                 verifyIfThereIsConnection();
             }
-            crawler.setThreadIsGettingMoreProxies(true);
-            crawler.getMoreProxies(engine);
-            crawler.setThreadIsGettingMoreProxies(false);
+            //Verify again
+            synchronized (new Object()) {
+                if (crawler.getSetOfProxyGathered().size() < 100) {
+                    if (!InUseProxies.getInstance().isThreadGettingMoreProxies()) {
+                        InUseProxies.getInstance().setIsThreadGettingMoreProxies(true);
+                        crawler.getMoreProxies(engine);
+                        InUseProxies.getInstance().setIsThreadGettingMoreProxies(false);
+                    }
+                }
+            }
         }
 
 
         //If the program searched before with this proxy and it worked, then use previous proxy. But first, verify
         // the amount of request send to the given page is less than 40 for the current proxy
         if (hasSearchBefore && crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get
-                (currThreadID)) <= 40 &&
-                db.canUseProxy(crawler.getMapThreadIdToProxy().get(currThreadID))) {
+                (currThreadID)) <= 40) {
             Document doc = useProxyAgain(url, currThreadID);
             if (doc != null && !(doc.text().contains("Sorry, we can't verify that you're not a robot") && !doc.text()
                     .contains("your computer or network may be sending automated queries"))) {
@@ -120,96 +126,105 @@ class ProxyChanger {
             }
         }
 
-        //Connect to the new working proxy if the number of request is >50 or the proxy that the thread is using no
-        //longer works
-        if (crawler.getQueueOfConnections().size() > 0 && !comesFromThread) {
+        //Connect to the new working proxy from the queue of working proxies if the number of request is >50 or the
+        // proxy that the thread is using no longer works
+        if (!comesFromThread) {
             return connectToProxyFromQueue(currThreadID, url);
+        } else {
+
+            return establishNewConnection(url);
+
         }
 
-        return establishNewConnection(comesFromThread, url);
 
     }
 
     /**
      * Finds a new working proxy
      *
-     * @param comesFromThread To be true, it has to come from an obj from the Request class
      * @param url             URL we are trying to connect to
      */
-    private Document establishNewConnection(boolean comesFromThread, String url) {
-        String instanceID = "";
+    private Document establishNewConnection(String url) {
         Document doc = null;
-        Proxy proxyToBeUsed = null;
-        if (comesFromThread) {
-            boolean connected = false;
-            boolean thereWasAnError = false;
-            Set<Cookie> cookies;
-            while (!connected) {
-                proxyToBeUsed = null;
-                if (!crawler.isThereConnection()) {
-                    guiLabels.setOutput("No internet connection");
-                    guiLabels.setOutputMultiple("No internet connection");
-                    verifyIfThereIsConnection();
-                }
-                //Check if it the proxy is not null, it is being used by less than 4 crawlers, it has less than 40
-                // requests and there is not another thread that has already unlocked
-                while (proxyToBeUsed == null || !db.canUseProxy(proxyToBeUsed) || crawler.getNumberOfRequestFromMap(url,
-                        proxyToBeUsed) > 40 || db.isCurrentInstanceUsingProxy(instanceID, proxyToBeUsed)) {
+        Proxy proxyToBeUsed;
 
-                    //Try to use one of the unlocked proxies first
-                    if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
-                        proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
-                        cookies = crawler.getCookie(proxyToBeUsed, engine);
-                        crawler.addRequestToMapOfRequests(SearchEngine.getBaseURL(engine), proxyToBeUsed, 0);
-                    } else {
-                        //If there are no unlocked proxies, or the queue returned null, or it failed one of the
-                        // above conditions, then try finding a new connection
-                        proxyToBeUsed = crawler.addConnection(threadID);
-                    }
-                    //Check if there is not another thread already using the proxy
-                    try {
-                        InUseProxies.getInstance().isProxyInUse(proxyToBeUsed, false);
-                    } catch (IllegalArgumentException e) {
-                        proxyToBeUsed = null;
-                    }
-                }
-
+        boolean connected = false;
+        boolean thereWasAnError = false;
+        Set<Cookie> cookies;
+        while (!connected) {
+            proxyToBeUsed = null;
+            if (!crawler.isThereConnection()) {
+                guiLabels.setOutput("No internet connection");
+                guiLabels.setOutputMultiple("No internet connection");
+                verifyIfThereIsConnection();
+            }
+            //Sleep while there is a thread getting more proxies
+            while (InUseProxies.getInstance().isThreadGettingMoreProxies()) {
                 try {
-                    InUseProxies.getInstance().isProxyInUse(proxyToBeUsed, false);
-                    if (db.isCurrentInstanceUsingProxy(instanceID, proxyToBeUsed)) {
-                        throw new IllegalArgumentException();
-                    }
-                    if (!thereWasAnError) {
-                        guiLabels.setConnectionOutput("Connecting to Proxy...");
-                    }
-                    //If Selenium is enabled, get the Document using a webdriver
-                    if (crawler.isSeleniumActive()) {
-                        //Check if it requires cookies
-                        cookies = crawler.getCookie(proxyToBeUsed, engine);
-                        doc = useSelenium(proxyToBeUsed, url, true, cookies, false);
-                        //If no error happens add it
-                        connected = true;
-                        crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
-                    } else {
-                        doc = getDocUsingJavaNetClass(proxyToBeUsed, url);
-                        //If no error happens add it
-                        connected = true;
-                        crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
-                    }
-                } catch (HttpStatusException e) {
-                    //If this error happens, this proxy cannot be used
-                    if (e.getUrl().contains("ipv4.google.com/sorry")) {
-                        throw new IllegalArgumentException();
-                    }
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    thereWasAnError = true;
+                    Thread.sleep(10*1000);
+                } catch (InterruptedException ignored) {
                 }
             }
-            InUseProxies inUseProxies = InUseProxies.getInstance();
-            //Check if proxy is not been used by another thread. If not, add it
-            inUseProxies.isProxyInUse(proxyToBeUsed, true);
-            db.addProxyToCurrentInstance(proxyToBeUsed);
+            //Check if it the proxy is not null, it is being used by less than 4 crawlers, it has less than 40
+            // requests and there is not another thread that has already unlocked
+            while (proxyToBeUsed == null || !db.canUseProxy(proxyToBeUsed) || crawler.getNumberOfRequestFromMap(url,
+                    proxyToBeUsed) > 40 || db.isCurrentInstanceUsingProxy(proxyToBeUsed)) {
+
+                //Try to use one of the unlocked proxies first
+                if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
+                    proxyToBeUsed = crawler.getQueueOfUnlockedProxies().poll();
+                    cookies = crawler.getCookie(proxyToBeUsed, engine);
+                    crawler.addRequestToMapOfRequests(SearchEngine.getBaseURL(engine), proxyToBeUsed, 0);
+                } else {
+                    //If there are no unlocked proxies, or the queue returned null, or it failed one of the
+                    // above conditions, then try finding a new connection
+                    proxyToBeUsed = crawler.addConnection();
+                }
+                //Check if there is not another thread already using the proxy
+                try {
+                    InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, false);
+                } catch (IllegalArgumentException e) {
+                    proxyToBeUsed = null;
+                }
+            }
+
+            try {
+                InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, false);
+                if (db.isCurrentInstanceUsingProxy(proxyToBeUsed)) {
+                    throw new IllegalArgumentException();
+                }
+                if (!thereWasAnError) {
+                    guiLabels.setConnectionOutput("Connecting to Proxy...");
+                }
+                //If Selenium is enabled, get the Document using a webdriver
+                if (crawler.isSeleniumActive()) {
+                    //Check if it requires cookies
+                    cookies = crawler.getCookie(proxyToBeUsed, engine);
+                    doc = useSelenium(proxyToBeUsed, url, true, cookies, false);
+                    //Verify again that no other thread is using it
+                    InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, true);
+                    //If no error happens add it
+                    db.addProxyToCurrentInstance(proxyToBeUsed);
+                    connected = true;
+                    crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
+                } else {
+                    doc = getDocUsingJavaNetClass(proxyToBeUsed, url);
+                    //If no error happens add it
+                    InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, true);
+                    //If no error happens add it
+                    db.addProxyToCurrentInstance(proxyToBeUsed);
+                    connected = true;
+                    crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
+                }
+            } catch (HttpStatusException e) {
+                //If this error happens, this proxy cannot be used
+                if (e.getUrl().contains("ipv4.google.com/sorry")) {
+                    throw new IllegalArgumentException();
+                }
+                e.printStackTrace();
+            } catch (Exception e) {
+                thereWasAnError = true;
+            }
         }
         return doc;
     }
@@ -227,9 +242,9 @@ class ProxyChanger {
         if (crawler.getNumberOfRequestFromMap(url, crawler.getMapThreadIdToProxy().get(currThreadID)) > 40) {
             guiLabels.setConnectionOutput("Proxy has more than 40 requests");
         }
-        int limit = 3;
+        int limit = 2;
         if (url.contains("scholar.google") || url.contains("academic.microsoft")) {
-            limit = 30;
+            limit = 3;
         }
         boolean connected = false;
         Document doc = null;
@@ -240,21 +255,23 @@ class ProxyChanger {
                 //Add it again to queue if it did not produce an actual error (non website related)
                 crawler.getQueueOfConnections().add(crawler.getMapThreadIdToProxy().get(currThreadID));
             }
-            if (thereWasAnErrorWithProxy) {
-                //If there was an actual error, reset the counter.
-                attempt = 0;
-            }
             thereWasAnErrorWithProxy = false;
             //Get an ip from the working list
             Proxy proxyToUse = crawler.getQueueOfConnections().poll();
             //If the proxy is null, or it has more than 40 request for the current website, then trying finding a new
             //one
             boolean first = true;
-            while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40 ||
-                    !db.canUseProxy(proxyToUse)) {
 
-                //Since we are using a new proxy, we need to find a replacement
-                if (first) {
+
+            while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40 ||
+                    !db.canUseProxy(proxyToUse) ||
+                    (InUseProxies.getInstance().isProxyInUseForSearching(proxyToUse) && crawler.getMapThreadIdToProxy().get
+                            (currThreadID) != proxyToUse)) {
+
+                //Since we are using a new proxy, we need to find a replacement as long as there are less than 20
+                //proxies in the queue or we have gone through over 70% of the proxies in the queue and none works
+                if (first && InUseProxies.getInstance().getCounterOfRequestsToGetNewProxies().value() < 8  && crawler
+                        .getQueueOfConnections().size() < 12) {
                     Request request = new Request("getConnection", crawler, guiLabels, engine);
                     crawler.getExecutorService().submit(request);
                     guiLabels.setNumberOfWorkingIPs("remove,none");
@@ -272,10 +289,16 @@ class ProxyChanger {
 
             }
 
+            //Map the current thread to the proxy
             crawler.getMapThreadIdToProxy().put(currThreadID, proxyToUse);
+            //Mark the current proxy as used so that no other thread uses it
+            InUseProxies.getInstance().addProxyUsedToSearch(proxyToUse);
+
             //Since we are using a new proxy, we need to find a replacement
             //If there are already 12 proxies in the queue, then don't add more
-            if (crawler.getQueueOfConnections().size() <= 12 && !isError404) {
+            System.out.println(InUseProxies.getInstance().getCounterOfRequestsToGetNewProxies().value());
+            if (InUseProxies.getInstance().getCounterOfRequestsToGetNewProxies().value() < 8 && crawler
+                    .getQueueOfConnections().size() < 12 && !isError404) {
                 Request request = new Request("getConnection", crawler, guiLabels, engine);
                 crawler.getExecutorService().submit(request);
                 guiLabels.setNumberOfWorkingIPs("remove,none");
@@ -299,7 +322,7 @@ class ProxyChanger {
                 }
                 connected = true;
             } catch (HttpStatusException e) {
-                //e.printStackTrace(System.out);
+                e.printStackTrace();
                 guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
                         "queue.");
                 if (attempt > limit) {
@@ -308,10 +331,11 @@ class ProxyChanger {
                 attempt++;
                 guiLabels.setConnectionOutput(e.getMessage());
             } catch (Exception e) {
-                if (isPageEmpty && comesFromDownload) {
+                e.printStackTrace();
+                //Remove the proxy
+                if ((isPageEmpty && comesFromDownload && attempt > limit )|| attempt > limit) {
                     return null;
                 }
-                e.printStackTrace(System.out);
                 guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
                         "queue. Removing it");
                 thereWasAnErrorWithProxy = true;
@@ -321,7 +345,6 @@ class ProxyChanger {
                 crawler.addRequestToMapOfRequests(url, crawler.getMapThreadIdToProxy().get(currThreadID), -1);
             } catch (IllegalArgumentException e) {
                 e.printStackTrace(System.out);
-                System.out.println(e.getMessage());
             }
         }
         return doc;
@@ -366,7 +389,6 @@ class ProxyChanger {
 
         } catch (Exception e) {
             System.out.println("There was a problem using a proxy again");
-            e.printStackTrace(System.out);
             thereWasAnErrorWithProxy = true;
             guiLabels.setConnectionOutput("There was a problem connecting to your previously used proxy" +
                     ".\nChanging to a different one");
@@ -531,6 +553,13 @@ class ProxyChanger {
                     }
                 }
 
+                //If proxy is blocked by provider, then we cant do anything so lock the proxy and remove it completly
+                InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
+                InUseProxies.getInstance().removeGSProxy(proxyToUse);
+                //We also remove the proxy since it won't work for any site
+                InUseProxies.getInstance().removeProxy(proxyToUse);
+                db.addLockedProxy(proxyToUse);
+
                 crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
 
                 throw new IllegalArgumentException();
@@ -542,9 +571,12 @@ class ProxyChanger {
                 System.out.println("There is a blocked proxy");
                 //Add to the queue of blocked proxies
                 if (crawler.isSeleniumActive()) {
+
                     //Add locked proxy to server
-                    InUseProxies.getInstance().removeProxy(proxyToUse);
+                    InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
+                    InUseProxies.getInstance().removeGSProxy(proxyToUse);
                     db.addLockedProxy(proxyToUse);
+
                     crawler.getQueueOfBlockedProxies().add(proxyToUse);
                     //Notify GUI
                     guiLabels.setIsThereAnAlert(true);
@@ -571,7 +603,7 @@ class ProxyChanger {
         }
         //If there are no cookies, then add it to the list of unlocked proxies since is not already there
         if ((cookies == null || cookies.size() == 0) && proxyToUse != null) {
-            crawler.addUnlockedProxy(proxyToUse, new HashSet<>(), engine, db);
+            crawler.addUnlockedProxy(proxyToUse, new HashSet<>(), engine, db, false);
         }
 
         return doc;
@@ -588,8 +620,7 @@ class ProxyChanger {
             driver.close();
             driver.quit();
             driver = null;
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Exception ignored) {
         }
 
     }
@@ -948,7 +979,7 @@ class ProxyChanger {
      * @return name of the unzipped file
      * @throws IOException Error writing to file
      */
-    private String unzip(String zipFilePath, String destDirectory) throws IOException {
+    static String unzip(String zipFilePath, String destDirectory) throws IOException {
         String mainFile = "";
         boolean first = true;
         File destDir = new File(destDirectory);
@@ -988,7 +1019,7 @@ class ProxyChanger {
      *
      * @throws IOException Unable to write file
      */
-    private void extractFile(ZipInputStream zipIn, String filePath) throws IOException {
+    static void extractFile(ZipInputStream zipIn, String filePath) throws IOException {
         BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(filePath));
         byte[] bytesIn = new byte[4096];
         int read = 0;
@@ -1005,7 +1036,7 @@ class ProxyChanger {
      * @param output OutputStream
      * @throws IOException Error copying file
      */
-    private static void copy(InputStream input, OutputStream output) throws IOException {
+    static void copy(InputStream input, OutputStream output) throws IOException {
         byte[] buf = new byte[1024];
         int n = input.read(buf);
         while (n >= 0) {

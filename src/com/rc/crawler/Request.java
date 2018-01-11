@@ -27,6 +27,7 @@ class Request implements Callable<Proxy> {
             crawler.getMoreProxies(engine);
             return null;
         } else if (type.equals("getConnection")) {
+            InUseProxies.getInstance().newRequestToGetProxy();
             guiLabels.setConnectionOutput("Thread " + Thread.currentThread().getId() + " is trying to connect");
             // Try to Establish connection
             boolean valid = false;
@@ -44,6 +45,7 @@ class Request implements Callable<Proxy> {
             crawler.getQueueOfConnections().add(temp);
             guiLabels.setNumberOfWorkingIPs("add," + temp.getProxy() + " Port: " + temp.getPort());
 
+            InUseProxies.getInstance().requestHasBeenCompleted();
             return crawler.getMapThreadIdToProxy().get(Thread.currentThread().getId());
         }
         return null;

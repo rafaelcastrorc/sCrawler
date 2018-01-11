@@ -1,6 +1,7 @@
 package com.rc.crawler;
 
 import org.openqa.selenium.Cookie;
+import org.openqa.selenium.WebDriver;
 
 import java.io.FileNotFoundException;
 import java.sql.SQLException;
@@ -95,6 +96,7 @@ class JavascriptEnabledCrawler {
      */
     Set<Cookie> getCookie(Proxy proxy, SearchEngine.SupportedSearchEngine engine) {
         if (mapProxyToSearchEngineToCookie.containsKey(proxy)) {
+            //Todo: change this
             Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = mapProxyToSearchEngineToCookie.get(proxy);
             if (map.containsKey(engine)) {
                 return map.get(engine);

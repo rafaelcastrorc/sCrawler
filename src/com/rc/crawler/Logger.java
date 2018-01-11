@@ -17,13 +17,13 @@ import java.util.prefs.Preferences;
  * Logger class to write to the different output files. Uses singleton pattern.
  */
 class Logger {
-    private static BufferedWriter listOfProxiesWriter;
     private static Logger instance;
     private static BufferedWriter reportWriter;
     private static BufferedWriter listOfFinishedPapers;
     private static BufferedWriter filesNotDownloaded;
     private static BufferedWriter listOfFilesToDownload;
     private static BufferedWriter cookieFile;
+    private static BufferedWriter versionWriter;
     private static String prevName = "";
     private static Preferences preferences = Preferences.userNodeForPackage(DatabaseDriver.class);
 
@@ -37,12 +37,13 @@ class Logger {
         if (instance == null) {
             // Log an instance id for the current crawler, which will be used by the db
             try {
-                File file = new File("./AppData/instanceID.txt");
+                File file = new File("./AppData/instanceID.dta");
                 //Check if there was a previous instance name, and eliminate any records that might still be in the
                 try {
                     Scanner scanner = new Scanner(file);
                     prevName = scanner.nextLine();
                 } catch (FileNotFoundException ignored) {
+                    file.mkdirs();
                 }
 
                 BufferedWriter instanceWriter = new BufferedWriter(new FileWriter(file));
@@ -75,56 +76,39 @@ class Logger {
      * Returns the current instance ID
      */
     String getInstanceID() throws FileNotFoundException {
-        Scanner scanner = new Scanner(new File("./AppData/instanceID.txt"));
+        Scanner scanner = new Scanner(new File("./AppData/instanceID.dta"));
         return scanner.nextLine();
     }
 
     /**
-     * Gets the file that contains a list of proxies that have been gathered.
-     *
-     * @return File
+     * Writes the latest sCrawler version that this directory has
      */
-    File getListOfProxies() {
-        return new File("./AppData/ListOfProxies.txt");
-    }
-
-    /**
-     * Sets the file to write to the list of proxies.
-     *
-     * @param append if the file already exists and is valid, then append is true.
-     * @throws IOException unable to write to file
-     */
-    void setListOfProxies(boolean append) throws IOException {
-        if (append) {
-            listOfProxiesWriter = new BufferedWriter(new FileWriter("./AppData/ListOfProxies.txt", true));
-        } else {
-            File dir = new File("AppData");
-            //noinspection ResultOfMethodCallIgnored
-            dir.mkdir();
-            try {
-                File file = new File("./AppData/ListOfProxies.txt");
-                listOfProxiesWriter = new BufferedWriter(new FileWriter(file));
-            } catch (IOException e) {
-                throw new IOException("Unable to create list of proxies");
-            }
-        }
-    }
-
-    /**
-     * Writes to the list of working proxies.
-     *
-     * @param s String to write
-     * @throws IOException Unable to write to file
-     */
-    void writeToListOfProxies(String s) throws IOException {
+    void writeLatestVersion(String version) {
         try {
-            listOfProxiesWriter.write(s);
-            listOfProxiesWriter.flush();
+            File file = new File("./AppData/Version.dta");
+            versionWriter = new BufferedWriter(new FileWriter(file));
+            versionWriter.write(version);
+            versionWriter.flush();
         } catch (IOException e) {
-            throw new IOException("Cannot write to file");
+            e.printStackTrace();
         }
     }
 
+    /**
+     * Returns the latest sCrawler version that this directory has
+     */
+    String getVersion() {
+        try {
+            File file = new File("./AppData/Version.dta");
+            Scanner scanner = new Scanner(file);
+            if (scanner.hasNextLine()) {
+                return scanner.nextLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
 
     /**
      * Sets the file to be used to write the report.
@@ -472,6 +456,8 @@ class Logger {
             }
         } catch (NullPointerException e) {
             throw new IllegalArgumentException("The cookies file is not formatted correctly, please revise it");
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return result;
     }

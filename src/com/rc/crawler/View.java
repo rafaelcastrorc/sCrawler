@@ -5,6 +5,7 @@ import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Dialog;
 import javafx.stage.Stage;
 
 import java.io.File;
@@ -34,37 +35,17 @@ public class View extends Application {
         primaryStage.setScene(loadingScene);
         primaryStage.setResizable(false);
         primaryStage.show();
+        close(primaryStage);
 
+    }
+
+    /**
+     * Closes the app properly
+     */
+    private void close(Stage primaryStage) {
         //Close the app correctly
         primaryStage.setOnCloseRequest(e -> {
-            //Kil the phantomjs process
-            Runtime rt = Runtime.getRuntime();
-            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
-                try {
-                    rt.exec("taskkill /F /IM phantomjs.exe");
-                } catch (IOException e1) {
-                    e1.printStackTrace();
-                }
-            } else {
-                try {
-                    rt.exec("pkill -f phantomjs");
-                } catch (IOException e1) {
-                    e1.printStackTrace();
-                }
-            }
-            //Remove all the information from the db related to this instance
-            DatabaseDriver db = null;
-            try {
-                db = DatabaseDriver.getInstance(new GUILabelManagement());
-                db.removeCrawlerInstance(new Scanner(new File("./AppData/instanceID.txt")).nextLine());
-                db.closeConnection();
-            } catch (FileNotFoundException | SQLException e1) {
-                e1.printStackTrace();
-            }
-            Platform.exit();
-            System.exit(0);
+            WebServer.getInstance(new GUILabelManagement()).close();
         });
-
-
     }
 }

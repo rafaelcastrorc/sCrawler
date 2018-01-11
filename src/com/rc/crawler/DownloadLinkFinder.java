@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -151,8 +152,7 @@ class DownloadLinkFinder {
         //If the url is part of google scholar, and the search result is empty, or  6 google searches are made and
         // no valid result is found, stop.
         if ((counterOfLinks > numOfNonGoogleURL && !SearchEngine.isThereASearchResult(engine, citingPapers, currUrl)) ||
-                numberOfSearches
-                        == 6) {
+                numberOfSearches == 6) {
             guiLabels.setConnectionOutput("No more papers found.");
             if (!isMultipleSearch) {
                 guiLabels.setOutput("No more papers found.");
@@ -212,7 +212,7 @@ class DownloadLinkFinder {
         Document citingPapers;
 
         //Check if the proxy has at least 40 request to a given website to replace it
-        if (crawler.getNumberOfRequestFromMap(currUrl, crawler.getMapThreadIdToProxy().get(currThreadID)) >= 50) {
+        if (crawler.getNumberOfRequestFromMap(currUrl, crawler.getMapThreadIdToProxy().get(currThreadID)) >= 40) {
             guiLabels.setConnectionOutput("Wait... Changing proxy from thread " + currThreadID + " because of" +
                     " amount of requests...");
             if (!isMultipleSearch) {
@@ -248,7 +248,7 @@ class DownloadLinkFinder {
      * Final step for downloading a PDF.
      * Retrieves all the PDF links that a website has and tries to download as many as requested.
      *
-     * @param currUrl      CUrrent url
+     * @param currUrl      Current url
      * @param citingPapers The Document of the website that contains the download links.
      * @param currThreadID The current thread id.
      */
@@ -277,6 +277,7 @@ class DownloadLinkFinder {
                 continue;
             }
             if (text.contains("PDF") || text.contains("Download")) {
+                Proxy proxyToUSe = null;
                 int attempt = 0;
                 //Try to download the doc using a proxy. If it returns error 403, 429, or the proxy is unable to
                 //connect, use the proxy that is currently at the top of the queue, without removing it.
@@ -285,16 +286,22 @@ class DownloadLinkFinder {
                     crawler.getAtomicCounter().increment();
                     File file = null;
                     try {
-                        Proxy proxyToUSe = crawler.getMapThreadIdToProxy().get(currThreadID);
-                        if (attempt > 0) {
-                            proxyToUSe = crawler.getQueueOfConnections().peek();
-                        }
+//                        Proxy proxyToUSe = crawler.getMapThreadIdToProxy().get(currThreadID);
+//                        if (attempt > 0) {
+//                            proxyToUSe = crawler.getQueueOfConnections().peek();
+                       if (attempt == 0) {
+                           proxyToUSe = getProxyToUse( absLink, currThreadID, null);
+                       } else {
+                           proxyToUSe = getProxyToUse( absLink, currThreadID, proxyToUSe);
+                       }
                         if (!isMultipleSearch) {
                             guiLabels.setOutput("Downloading...");
                         }
                         //Download the file
                         pdfDownloader.setCrawler(crawler);
                         pdfDownloader.downloadPDF(absLink, pdfCounter, guiLabels, proxyToUSe, crawler.getSpeedUp());
+                        //Release the proxy used to download the file
+                        InUseProxies.getInstance().releaseProxyUsedToDownload(proxyToUSe);
 
                         file = new File("./DownloadedPDFs/" + pdfDownloader.getPath() + "/" + pdfCounter
                                 + ".pdf");
@@ -325,6 +332,7 @@ class DownloadLinkFinder {
                         break;
 
                     } catch (Exception e2) {
+                        InUseProxies.getInstance().releaseProxyUsedToDownload(proxyToUSe);
                         guiLabels.setConnectionOutput("This file could not be downloaded, skipping...");
                         if (isMultipleSearch) {
                             simultaneousDownloadsGUI.updateStatus("Invalid file, skipping...");
@@ -367,6 +375,48 @@ class DownloadLinkFinder {
 
                 }
             }
+        }
+    }
+
+    /**
+     * Returns the proxy to use for download.
+     * @return Proxy
+     */
+    private Proxy getProxyToUse(String absLink, Long currThreadID, Proxy proxyUsedBefore) {
+        //If there was a proxy used before but it failed to download, block the proxy from the current url
+        if (proxyUsedBefore != null) {
+            crawler.addRequestToMapOfRequests(absLink,  proxyUsedBefore, 50);
+        }
+        Set<Proxy> workingProxies = InUseProxies.getInstance().getCurrentlyUsedProxies();
+        Proxy proxyToUse = crawler.getMapThreadIdToProxy().get(currThreadID);
+        boolean found = false;
+        //Get a proxy that has less than 40 requests to the current website, based on the working proxies, and that
+        // is not been used by another thread
+        for (Proxy p : workingProxies) {
+            if (crawler.getNumberOfRequestFromMap(absLink, p) < 40 && InUseProxies.getInstance()
+                    .isProxyInUseForDownloading(p)){
+                proxyToUse = p;
+                found = true;
+                break;
+            }
+        }
+        if(!found) {
+            resetProxies(absLink);
+        }
+        //Add request to current website using the current proxy
+        crawler.addRequestToMapOfRequests(absLink,  proxyToUse, -1);
+        InUseProxies.getInstance().addProxyUsedToDownload(proxyToUse);
+        return proxyToUse;
+
+
+    }
+
+    /**
+     * Resets all the proxies with more than 40 requests
+     */
+    private void resetProxies(String absLink) {
+        for (Proxy p : InUseProxies.getInstance().getCurrentlyUsedProxies()) {
+            crawler.addRequestToMapOfRequests(absLink, p, 0);
         }
     }
 

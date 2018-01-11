@@ -1,5 +1,7 @@
 package com.rc.crawler;
 
+import org.joda.time.DateTime;
+
 /**
  * Created by rafaelcastro on 6/12/17.
  * Proxy object. Has an IP and a port number
@@ -8,6 +10,7 @@ class Proxy {
 
     private final String proxy;
     private final int port;
+    private DateTime time;
 
     /**
      * Constructor. Takes an ip and a port number.
@@ -55,4 +58,14 @@ class Proxy {
         return result;
     }
 
+    /**
+     * Time this proxy was gathered.
+     */
+    public void setTime(DateTime time) {
+        this.time = time;
+    }
+
+    public DateTime getTime() {
+        return time;
+    }
 }

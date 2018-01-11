@@ -112,6 +112,7 @@ public class Controller implements Initializable {
     private Text numOfUnlocked;
     @FXML
     private Text lockedByProvider;
+
     private StatsGUI stats;
     DatabaseDriver db;
 
@@ -299,7 +300,7 @@ public class Controller implements Initializable {
             paperDownloaded = originalArticle + " (Selected in SW: " + currTitle + ")";
         }
         try {
-            PDFDownloader pdfDownloader = new PDFDownloader(engine);
+            PDFDownloader pdfDownloader = new PDFDownloader();
             //Generate a unique folder name
             String path = pdfDownloader.createUniqueFolder(currTitle);
             if (isMultipleSearch) {
@@ -664,7 +665,6 @@ public class Controller implements Initializable {
                 Platform.runLater(() -> searchLabelSFA.setText(array[1]));
             }
         }
-
     }
 
     /**
@@ -739,7 +739,7 @@ public class Controller implements Initializable {
                             driver[0].quit();
 //                            proxyChanger.useSelenium(proxy, SearchEngine.testConnectionToWebsite(engine), true,
 //                                    cookies, false);
-                            crawler.addUnlockedProxy(proxy, cookies, engine, db);
+                            crawler.addUnlockedProxy(proxy, cookies, engine, db, true);
                         } catch (Exception ignored) {
                         }
 
@@ -905,9 +905,9 @@ public class Controller implements Initializable {
         // program.
         this.singleThreadExecutor = Executors.newSingleThreadExecutor(new MyThreadFactory());
         File dir = new File("DownloadedPDFs");
-        //noinspection ResultOfMethodCallIgnored
         dir.mkdir();
-
+        dir = new File("AppData");
+        dir.mkdir();
         Logger logger = Logger.getInstance();
 
         //Create a report, or write to an existing one.
@@ -934,6 +934,7 @@ public class Controller implements Initializable {
         selectEngine();
         //Initialize stats
         stats = new StatsGUI();
+        WebServer.getInstance(guiLabels).setController(this);
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         crawler = new Crawler(guiLabels, stats);
         DoWork task = new DoWork("initialize", null, null);

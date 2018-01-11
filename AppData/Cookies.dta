@@ -2011,3 +2011,137 @@ Proxy: 213.233.57.135:80
 Search Engine: GoogleScholar
 GSP;A=Vu1UFA:CPTS=1515048678:LM=1515048678:S=g6Xjget_moB-V7s4;.scholar.google.com;/;null;true
 NID;120=ihmYbETVP0wfUc1PJqooCy_eNPdZd9xZ4Cm02SPWIXOWqPtR9kUQBl0SUBIuP3FPB4qIzjcYHnygq9jT7wIiArj0bn4f839zmaq3GywzpJWOgmyR_HmeqYRw5LWXRGNz;.google.com;/;null;true
+Proxy: 144.217.68.145:3128
+Search Engine: GoogleScholar
+GSP;LM=1515290839:S=8wqREwDSnU6w6dg5;.scholar.google.com;/;null;true
+NID;121=nVhE25bhKSPAAytoCYppkyhnAAgnWapBQ9ZKOOfd3WPQ5_5qIVH2Tfqfg5ipl9J5E2JoY7LBlpHwSBDreTBUU9BKJR0tZQ0KpQh1-cwIMzDc5X8WuKXpFof4-pwA5dfg;.google.com;/;null;true
+GOOGLE_ABUSE_EXEMPTION;ID=35cf0f49554f1969:TM=1515290588:C=r:IP=144.217.68.145-:S=APGng0unIqt1DLf0PC3RePtDhtXVw1-GZw;.google.com;/;null;true
+Proxy: 92.222.83.160:80
+Search Engine: GoogleScholar
+GSP;LM=1515290988:S=aL6mWUtQ-fYog3IG;.scholar.google.com;/;null;true
+NID;121=YOb4lkNA20x8B2q67Dd_9e4MjA_dfwqMufiC68pmPo3mvnvu9yUfBlM7syAAaPkLcFooPkIMV2w7tltEYzqYqBFd__YOpxy-vEmOVUdcGbF4N4QmRRDgR74ttl1yUkDI;.google.com;/;null;true
+GOOGLE_ABUSE_EXEMPTION;ID=6450e498af69c13d:TM=1515290912:C=r:IP=92.222.83.160-:S=APGng0uDEj4PcYiHG-lOhS8tcFALjahJOw;.google.com;/;null;true
+Proxy: 168.9.64.212:8080
+Search Engine: GoogleScholar
+GSP;LM=1515291992:S=kDBmH7g8ZpMK6KwF;.scholar.google.com;/;null;true
+NID;121=COAPcBZiPo9BNzNxO3a2-3cBLqUcQmeYAQp5H-8ag4WEEYCRB7rNOJtmGCVLaGV7pLiQWFy5a3yIfV_S_VMhLNuq8ICdo9VFYNTpTKMUVJyzFby8f-OfT2-n2q0Z0jW0;.google.com;/;null;true
+Proxy: 148.72.168.175:1080
+Search Engine: GoogleScholar
+GSP;LM=1515292026:S=VmvVbdLkJTZcIe1p;.scholar.google.com;/;null;true
+NID;121=LGYB0c-b4MXzJqVFzwwCzqXk1K1T56PTWY3AY1EywvKl8S3KeQg3GvhIpq29ItIJLHQojuowPc0B1Ljdo5yMYqVj_wMjdTPN6xSavV9HS49ktUdd51zHDnIcfDow5sE1;.google.com;/;null;true
+Proxy: 168.9.64.205:8080
+Search Engine: GoogleScholar
+GSP;LM=1515295227:S=MitnEf3ElZH6aKnc;.scholar.google.com;/;null;true
+NID;121=I8vNewRm0xLfkNN1_y7S2XcPh6k3GllQSOvfzZbMPtVS0tPdM5xBp7S0OPYkShTMk7yiW5rDz9R-Qx4Fvwj3Sm-i2GKSMORB40UWFlao1tcjuIfSZcOMawb5Grw4N3kv;.google.com;/;null;true
+Proxy: 168.9.64.214:8080
+Search Engine: GoogleScholar
+GSP;LM=1515295326:S=zgIlkt9185CcxUpD;.scholar.google.com;/;null;true
+NID;121=Lo9N7B64y88Ndg5bHL29o0LflCSIQv48izB60O5qN1NG3YR2LalJaKKya4MjgkaC3_OQOMZaY6q8NHj4w54xuBA9YdUj-u2DXgpAJimUM-R20HAE6TqrXSFgNNksuW1P;.google.com;/;null;true
+Proxy: 202.56.203.40:80
+Search Engine: GoogleScholar
+GSP;A=FqH2Rg:CPTS=1515295480:LM=1515295480:S=N2LDMlYqfgtZU7hO;.scholar.google.com;/;null;true
+NID;121=DcgaQ7oO9BX3x5X98ruUjHx5mz6Ecs9UxV3EHlZ2ZziIwyTmpePR8evUPF8ftFZqitvI4kUP8mjbVOsL_RQ_yiE2OJrPumEBMoxVoFZn-FSWMDi_CklqF7k_gF9IpseL;.google.com;/;null;true
+Proxy: 5.160.83.74:8080
+Search Engine: GoogleScholar
+GSP;A=9adDjA:CPTS=1515296552:LM=1515296552:S=uERC3ul76WRs58YF;.scholar.google.com;/;null;true
+NID;121=ZDBfRfBcRFplOtxn0ox7Y9kyejZ43L65rZ47lBMccg_8kmKYpBSQHXF2pzYUag-WFRMfooXBizMItCSMdepovNrLY8JF2wmBckDrAkDZGBngIrJg5wz6tjD-AOu8Ipf6;.google.com;/;null;true
+Proxy: 212.22.86.114:3130
+Search Engine: GoogleScholar
+GSP;A=jXsNfw:CPTS=1515296805:LM=1515296805:S=Q8Iu5uI_kLtpycyM;.scholar.google.com;/;null;true
+NID;121=FCZm1iW-nknmaoZS-BczZdpeVssw1TpvASs84VoiQYju78hEAYgCH7w5Z_UoO_RW9i-Wizid1qvnSjadaA0BmYKmuztDREVjfJLv11Z4vxxPd0cSSkD71qkJUIflMSd-;.google.com;/;null;true
+Proxy: 85.90.208.4:3128
+Search Engine: GoogleScholar
+GSP;A=yG2ckw:CPTS=1515297248:LM=1515297248:S=HJBgSzZXO6HF2NmG;.scholar.google.com;/;null;true
+NID;121=O28R65a3YhIr5svr5qqD2ljvT8mgo4P7ehPJQGEb4R9BGccja5wXfH8pHy8_rbNL6yk5vmxQ9jagVITPOJEov0dE2bSAOWu0ebQur4yLNKybg3YbHE40Brt4eBMr2mNN;.google.com;/;Sun Jan 18 12:18:28 EST 1970;false
+Proxy: 197.210.252.39:8080
+Search Engine: GoogleScholar
+GSP;A=9DqTzA:CPTS=1515312477:LM=1515312477:S=gZbKtarutV_BrmGz;.scholar.google.com;/;null;true
+NID;121=LvXUIMNw4TfmH5uFcaQILKdjNBzYHEuGkwEDCUBCWn0fORVJeYr-xWoDIs6FU2661C71bPqdT8shGRUMAmuxsT_XvXNEisUqrNOEG7nUTQ3EoICZzYb4rf1QdGHgKXXm;.google.com;/;null;true
+Proxy: 163.172.134.73:3128
+Search Engine: GoogleScholar
+GSP;A=EO6K7Q:CPTS=1515315139:LM=1515315139:S=qohpop5eBYA9ULN9;.scholar.google.com;/;null;true
+NID;121=AcQH8ur7ZD4KHhY_cI3XS2gQAAllcLV-2awGPTGXal2sH4HLRWavjCzdCxHde2rXOCaH_kffiRruYQ89vT-M4fxjdTQ3odche4s1J64Xbtdv2JTHqZNNgMy2QZdTKQo7;.google.com;/;null;true
+GOOGLE_ABUSE_EXEMPTION;ID=2ef96a5562c963d8:TM=1515314999:C=r:IP=163.172.134.73-:S=APGng0tNmNmFGAnD4H3eBt6jpDSl2BfNeQ;.google.com;/;null;true
+Proxy: 91.191.63.162:53281
+Search Engine: GoogleScholar
+GSP;A=xJZlfg:CPTS=1515315303:LM=1515315303:S=9JVyV4aIPAZjVSLX;.scholar.google.com;/;null;true
+NID;121=VlhlJ6J1d1yUL0XpU5PQEYLSukYZtQGYGaAdWSahN09yolHDOl-tbZXUCxb1lRwXPf3jnq8fTcJ6kt7l4FeAq7KzlWHmpu4qu-scvu7S-4FFBTicdXc8tNRoggF6GV14;.google.com;/;null;true
+Proxy: 31.146.182.122:443
+Search Engine: GoogleScholar
+GSP;A=V2kiEg:CPTS=1515315759:LM=1515315758:S=jxIX-VlR9DTidE5b;.scholar.google.com;/;null;true
+NID;121=M7VLHPxiCnRTglEKTORnRsCnYx9i55gOIY3FU7ojg3bQW9p-J4yfkIPswXUOB5paH7EtzyfkpMH-N07Cf0sLkIYaMtPfgGNL1XNSre3ytMToWcKgVbb9-aWV_hLlMSlr;.google.com;/;null;true
+Proxy: 37.59.111.46:8080
+Search Engine: GoogleScholar
+GSP;LM=1515355970:S=J5U21wX6h3e6k07I;.scholar.google.com;/;null;true
+NID;121=ov6tRV6FFLwvQdjGRWERUElHvaSgDRqJ6J7D2Ab0W1Qh5m9B0ntL4DDt8PP5B66yKqkFNonxZGIHrrBKKcQ9ALIcW5znWxroGwcDbR0m6_HIs3OfiidPW1KT929pL22m;.google.com;/;null;true
+GOOGLE_ABUSE_EXEMPTION;ID=0868c759bccc02b0:TM=1515355813:C=r:IP=37.59.111.46-:S=APGng0vlGruGD2rlit-UwOQOFMQKs3zefQ;.google.com;/;null;true
+Proxy: 45.55.27.246:80
+Search Engine: GoogleScholar
+GSP;A=9PjnAQ:CPTS=1515375035:LM=1515375035:S=mz9rEtFVDTcJnmV_;.scholar.google.com;/;null;true
+NID;121=IIoNWSaiEPqvN2KNbqMo1YZD5QgIdgmvwiby_5MovbEEKKdOWJQChgE9NBxm9yUuYQvzm11U50IBtEph3bIx8Msymu5GbUIoT3jPgsgzgtyTYfiPYxsluKZKuOFZjTwQ;.google.com;/;null;true
+Proxy: 168.9.64.210:8080
+Search Engine: GoogleScholar
+GSP;LM=1515375314:S=Al00gZuuFVwgnYUP;.scholar.google.com;/;null;true
+NID;121=ggzD14YOwS48VdMm4zEN2y4HEm-DrW_1NScnrtAZJcOMvFoaugPm4qvtNzqc6UhMh9M24mAUG_XvsBpYh284n6ev8m8aMXjvWNw0yua7a6mfD_HVjM5XQ5W4Da_CfA9L;.google.com;/;null;true
+Proxy: 168.9.64.206:8080
+Search Engine: GoogleScholar
+GSP;LM=1515375559:S=l_egEz67hLUKBZfB;.scholar.google.com;/;null;true
+NID;121=eis2toAPPB5PrmztQasBrbUhWaqWobub39WnWx9iupKch_r5fc-qsBU8k6TGOnpnknISO1cH4HUQ_oQ3KhhulRFEBpv8MWOadkUhgTOo2QwmaNIcX80IGyF_zSXMLTQ7;.google.com;/;null;true
+Proxy: 31.25.141.46:53281
+Search Engine: GoogleScholar
+GSP;A=ejlmew:CPTS=1515376711:LM=1515376711:S=GBy9xswXUKGiAHPO;.scholar.google.com;/;null;true
+NID;121=fnuMA0KfVgwIMclUSUPxlKVM7NMG20Cl-Xq8G9BePxubvNtWhhhG0_tQFXIZ7s_W2gDwPetqXOjOZp0R4TCylO_05pCejmvDmZZxZnmZeRxRCsxkGiVq4_Dx3f10cLy5;.google.com;/;null;true
+Proxy: 168.9.64.201:8080
+Search Engine: GoogleScholar
+GSP;LM=1515380145:S=y7heFiuYWkfuDza0;.scholar.google.com;/;null;true
+NID;121=oeEIzZ6C7817T3KXZfYboLw7Aki8zaaKO0UGi-Wg7I5jL5NgI5FdCwRpAy1znfBVPlVcdSJgl47PtisekKOzr3VXx8Hh3xcKSTMMhKPFnfC8O8n9eZGtr2IpO8Mb5hw4;.google.com;/;null;true
+Proxy: 131.215.207.181:3128
+Search Engine: GoogleScholar
+GSP;LM=1515380440:S=vZrRmKd-G5ta0Cv8;.scholar.google.com;/;null;true
+NID;121=dE7g2-s_fIUy1Hfh7mvPyCAN29Ow2qFtXMPn3VSeZc_sRwF2YfPcSEbJ-VumUz5-Kvet5QXL5a_O5AnZaOjkN5MKCwFh0hWUdg9W14qjCmtGkqRf37j9fAnmWGgd6q7O;.google.com;/;null;true
+Proxy: 168.9.64.219:8080
+Search Engine: GoogleScholar
+GSP;LM=1515380535:S=cZShoNohZzRd5lKy;.scholar.google.com;/;null;true
+NID;121=uKV_enVpEeucrfWrJzzB_Zk24Y_2H7k1p4lCOvIQcpF4S9_D9svvT5o-dpswpCpPTNOJrZpVE-tgNg_XPuuoIUwt0JNC49z5Y1IJqWfUu5V_Nio60EZlJiSssD-X38fN;.google.com;/;null;true
+Proxy: 144.217.241.5:80
+Search Engine: GoogleScholar
+GSP;LM=1515380645:S=JYGp7mL-7Wu8xwAi;.scholar.google.com;/;null;true
+NID;121=KUbkZlUe1Tvw1k25GYM92C9BAOjJWgMpRJwnz_v721BUEqhp8ShfSHScDpqDuuoHbKasIL2NO_XJXhvvPYqmLo5fp-F0KOqadhBDDNjgl5fIaOcgx5x5gkfDzopBPmpX;.google.com;/;null;true
+GOOGLE_ABUSE_EXEMPTION;ID=4ca20f03dfc8858d:TM=1515380573:C=r:IP=144.217.241.5-:S=APGng0th0aKzkpXYxHXjCXvxrTFvOO45Vw;.google.com;/;null;true
+Proxy: 186.10.5.139:8080
+Search Engine: GoogleScholar
+GSP;A=KGIKuA:CPTS=1515382827:LM=1515382827:S=YqmGRampXNIrXStB;.scholar.google.com;/;null;true
+NID;121=pXHfPrcdvzM6n2dBu6br7ago6X8uSi2JqICH5QHX9TOeJcOGLP3HTFDT1XSoTHUH8krKGljCVU9zEQaeWQRzaJgPcUYIoRE5xc7FuOuPs_K7WfaDCIgjEsazJ5ppDalJ;.google.com;/;null;true
+Proxy: 168.9.64.213:8080
+Search Engine: GoogleScholar
+GSP;LM=1515382978:S=lD5CEl_k41guq3z0;.scholar.google.com;/;null;true
+NID;121=Ipo1lKetIHZD3_AFPt_Uvrr1abRcGFnf6M078DcdLLgBjPcoX47RL0ctmAE-bcuJhzt3ajFUfmvWi7u3gLG0eNnZv1qZrsckvQMGt-7MQx7F0f9EigwxqeI-SgtMTV7o;.google.com;/;null;true
+Proxy: 168.9.64.215:8080
+Search Engine: GoogleScholar
+GSP;LM=1515383369:S=hCpEL-IJGu-PNOsU;.scholar.google.com;/;null;true
+NID;121=Ha_MyBRJuK0eH9GPdSCyWjDrEhLx5N2QKDIHwU8w70CgW5hqwoMVYbtWFU-0jvhqIW_pZ3BP4aoqDwaatO3Jd87YxFRjf5RF_5-Y60H6ynp9-lyKCYgbTcV0ZtjYLymK;.google.com;/;null;true
+Proxy: 46.101.74.237:8080
+Search Engine: GoogleScholar
+GSP;A=6wnMtg:CPTS=1515383796:LM=1515383796:S=hAmeFLg73JwpuYIg;.scholar.google.com;/;null;true
+NID;121=IL7raUfE2giGbcoYRF1X7bwpvdtFglVLkC-sl87wmMwL7mMslwTVqTToDeLGN_6Hty64XkVWEWmM27tlavcbVt6KYGCR0BBdaAQU1vlc2p5NpqzhDZ2PWfjMhmXZWaUo;.google.com;/;null;true
+Proxy: 201.183.227.197:8080
+Search Engine: GoogleScholar
+GSP;LM=1515384105:S=105wl6p3x0Q-A9Dq;.scholar.google.com;/;null;true
+NID;121=Z8yyNpkbjdPNUDH7WHtvVK6XnBP98m6q_5nWEtL_Mn7Fj_tpbVCfGwvLNrmUC7bCgw5QeeijKPxegjWH8nESu2EH3LhCy7zwsDPg3yc42aPhqg-tWxlYpV5NEQGDVfU0;.google.com;/;null;true
+Proxy: 13.58.78.111:8080
+Search Engine: GoogleScholar
+GSP;LM=1515388144:S=-olEN5y6ayMmVsCi;.scholar.google.com;/;null;true
+NID;121=OrKm1UYPEupoOfyzUySGtKgrj71UxAVG_rm86v1H2PQCTehMpNLCLxWx-AgCHFx2oLd4x-ebAH6nMCJTjmlf-CQBYvi4LWu58VYP1O608ZsscR6mP18Vd3NEe0D3D4Ni;.google.com;/;null;true
+Proxy: 186.10.5.139:8080
+Search Engine: GoogleScholar
+GSP;A=KGIKuA:CPTS=1515396369:LM=1515396368:S=KPPn1bNmg97JaBKg;.scholar.google.com;/;null;true
+NID;121=eOF3JwLVe6amIXq-Qj3NTqkYGqi0VA5Lx60h-BgGTxwKHu1IeqvwA7XCg2rWniBO21JMuQ_sj4RK50OmqOCZEp_SPN9GehE6kTSXrUebcw7AKApFamvW_ETeJ3MBDVJB;.google.com;/;null;true
+Proxy: 46.101.74.237:8080
+Search Engine: GoogleScholar
+GSP;A=6wnMtg:CPTS=1515397365:LM=1515397365:S=EequL5KdWNcZgRa_;.scholar.google.com;/;null;true
+NID;121=n4FrUXA0udaeh5ytuQlsmtAryL_B5lonDc3NykIzodoqQKjGceMbfOm8pb-Sp51T_elBgSonq6FH7ITfxqpAGalTUmjbcYvkOeM-bvkX50yqEJoWf4aowljszKoebX8h;.google.com;/;null;true
+Proxy: 23.94.144.237:8080
+Search Engine: GoogleScholar
+GSP;LM=1515401067:S=kW4jbW4BJl-Js90J;.scholar.google.com;/;null;true
+NID;121=f95MQidUwlfRyCAA4pSpBUWgGJiywF-fNSvSx67-vsXAjOD-twbty1c60IBHJUmGkaJ3weqfMP81ewY3uRAMBpSb6UNdcB1Ic9yv1keieSdeD9Tp089N7bc3PwcHXWEK;.google.com;/;null;true
+GOOGLE_ABUSE_EXEMPTION;ID=a0ccd01a5b50376a:TM=1515400956:C=r:IP=23.94.144.237-:S=APGng0sMvD7L8Ik3fJk-eTUWlg4STU_UJg;.google.com;/;null;true

@@ -4,12 +4,11 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
-import javafx.scene.paint.Color;
+import org.apache.commons.io.FilenameUtils;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashSet;
@@ -65,7 +64,7 @@ class DoWork extends Task<Void> implements Callable {
         switch (type) {
             case "waitForNConnections":
                 this.loading = new LoadingWindow();
-                waitForConnections(8);
+                waitForConnections(10);
                 break;
 
             case "multipleSearch":
@@ -125,11 +124,46 @@ class DoWork extends Task<Void> implements Callable {
             controller.getAlertButton2().setVisible(newValue);
         });
         initializeStats();
+        //Check for updates
+        verifyItsTheLatestLocalVersion();
+        //Todo: check for updates
         //Load the crawler
         controller.getCrawler().loadCrawler(controller.getSearchEngine());
         article = String.valueOf(1);
         waitForConnections(1);
         connectionEstablished();
+    }
+
+    private void verifyItsTheLatestLocalVersion() {
+        String currInstanceName = new java.io.File(WebServer.class.getProtectionDomain().getCodeSource()
+                .getLocation()
+                .getPath()).getName();
+        if (!currInstanceName.contains(".jar")) {
+            currInstanceName = currInstanceName + ".jar";
+        }
+       if (!Logger.getInstance().getVersion().equals(currInstanceName) && !Logger.getInstance().getVersion().isEmpty() ) {
+           guiLabels.setAlertPopUp("This is not the latest version of the sCrawler that you have downloaded. Please " +
+                   "open the file "+ Logger.getInstance().getVersion() +". This instance will close in 25 seconds." );
+           try {
+               Thread.sleep(15*1000);
+               WebServer.getInstance(guiLabels).closeButtonAction();
+           } catch (InterruptedException ignored) {
+           }
+       } else{
+           //Delete any other sCrawler version that the user might have downloaded
+           File[] dir = new File("./").listFiles();
+           for (File file :dir) {
+               String ext = FilenameUtils.getExtension(file.getAbsolutePath());
+               String fileName = file.getName();
+               if (!fileName.contains(ext)) {
+                   fileName = fileName + "." +ext;
+               }
+               if (!fileName.equals(currInstanceName) && ext.equals("jar")) {
+                   File nFile = new File(fileName);
+                   nFile.delete();
+               }
+           }
+       }
     }
 
     /**
