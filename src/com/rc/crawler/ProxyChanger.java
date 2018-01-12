@@ -505,14 +505,16 @@ class ProxyChanger {
                 }
                 pageSource = waitForLoad(driver, true, url);
                 //In case it does not load, then reload the page
-                if (cookies != null && cookies.size() > 0 && pageSource.contains("we can't verify that you're not a " +
+                if (pageSource.contains("we can't verify that you're not a " +
                         "robot when JavaScript is turned off")) {
                     driver.navigate().refresh();
                     String temp = driver.getPageSource();
-                    for (Cookie c : cookies) {
-                        try {
-                            driver.manage().addCookie(c);
-                        } catch (InvalidCookieDomainException ignored) {
+                    if (cookies != null ) {
+                        for (Cookie c : cookies) {
+                            try {
+                                driver.manage().addCookie(c);
+                            } catch (InvalidCookieDomainException ignored) {
+                            }
                         }
                     }
                     driver.get(url);
@@ -551,17 +553,23 @@ class ProxyChanger {
                     if (cookies != null && cookies.size() > 0) {
                         stats.updateNumberOfUnlocked(stats.getNumberOfUnlockedProxies().get() - 1);
                     }
+                    //Remove it because this cannot be fixed
+                    InUseProxies.getInstance().removeGSProxy(proxyToUse);
+                    //We also remove the proxy since it won't work for any site
+                    InUseProxies.getInstance().removeProxy(proxyToUse);
+                    db.addLockedProxy(proxyToUse);
+                    crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
                 }
 
                 //If proxy is blocked by provider, then we cant do anything so lock the proxy and remove it completly
+                  InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
+                throw new IllegalArgumentException();
+            }
+            if (pageSource.contains("we can't verify that you're not a " +
+                    "robot when JavaScript is turned off")) {
+                //This is a failure in loading so just throw an exception
                 InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
-                InUseProxies.getInstance().removeGSProxy(proxyToUse);
-                //We also remove the proxy since it won't work for any site
-                InUseProxies.getInstance().removeProxy(proxyToUse);
-                db.addLockedProxy(proxyToUse);
-
-                crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
-
+                System.out.println("Failed to load");
                 throw new IllegalArgumentException();
             }
             //These errors can be fixed

@@ -18,13 +18,14 @@ class SearchEngine {
      * Test if proxy can connect to a given url of the search engine the program is currently using
      */
     static String testConnectionToWebsite(SupportedSearchEngine engine) {
-        if (engine == SupportedSearchEngine.GoogleScholar) {
-            return "https://scholar.google.com/scholar?q=this+is+the+one&btnG=&hl=en&as_sdt=0%2C39";
-        } else if (engine == SupportedSearchEngine.MicrosoftAcademic) {
+        if (engine == SupportedSearchEngine.MicrosoftAcademic) {
             return "https://academic.microsoft" +
                     ".com/#/search?iq=@this%20is%20the%20one@&q=this%20is%20the%20one&filters=&from=0&sort=0";
         }
-        throw new IllegalArgumentException("Invalid Search Engine");
+        else {
+            return "https://scholar.google.com/scholar?q=this+is+the+one&btnG=&hl=en&as_sdt=0%2C39";
+        }
+        //throw new IllegalArgumentException("Invalid Search Engine");
     }
 
     /**

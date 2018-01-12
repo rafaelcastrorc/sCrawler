@@ -438,7 +438,7 @@ public class Controller implements Initializable {
             configureFileChooser(fileChooser);
             File file = fileChooser.showOpenDialog(window);
             if (file == null) {
-                informationPanel("Please upload a file.");
+                displayInfo("Please upload a file.");
             } else if (!file.exists() || !file.canRead()) {
                 displayAlert("There was an error opening the file");
             } else if (file.length() < 1) {
@@ -870,12 +870,14 @@ public class Controller implements Initializable {
     /**
      * Creates a pop up message that says Loading...
      */
-    private void informationPanel(String s) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Information");
-        alert.setHeaderText(null);
-        alert.setContentText(s);
-        alert.showAndWait();
+    void displayInfo(String s) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Information");
+            alert.setHeaderText(null);
+            alert.setContentText(s);
+            alert.showAndWait();
+        });
     }
 
     /**

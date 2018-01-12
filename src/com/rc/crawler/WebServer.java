@@ -8,17 +8,10 @@ import org.apache.commons.io.FilenameUtils;
 import org.joda.time.DateTime;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.openqa.selenium.Cookie;
-import org.openqa.selenium.WebDriver;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.file.Files;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Scanner;
@@ -67,9 +60,10 @@ class WebServer {
             closeButtonAction();
         } else if (operationToPerform.equals(SupportedOperations.clean.name())) {
             clean();
-        } else if (operationToPerform.equals(SupportedOperations.update.name())) {
-            update();
+        } else if (operationToPerform.contains("Update")) {
+            update(operationToPerform);
         }
+        //If none of them, then we just ignore it
 
     }
 
@@ -134,7 +128,7 @@ class WebServer {
         }
         //Close all the crawlers that have more than one hour
         for (String instance : instancesThatShouldBeClosed) {
-            DatabaseDriver.getInstance(guiLabelManagement).performOperation(instance, SupportedOperations.close.name());
+            DatabaseDriver.getInstance(guiLabelManagement).performOperation(instance, SupportedOperations.close);
         }
         //Wait for 2 minutes
         try {
@@ -165,7 +159,7 @@ class WebServer {
         try {
             DatabaseDriver.getInstance(guiLabelManagement).performOperation(new Scanner(new File("" +
                     "./AppData/instanceID" +
-                    ".txt")).nextLine(), "");
+                    ".txt")).nextLine(), SupportedOperations.none);
         } catch (FileNotFoundException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
         }
@@ -174,13 +168,23 @@ class WebServer {
     }
 
     /**
-     * Updates the application. Automatically downloads the new version into the local machine.
+     * Updates the application. Automatically downloads the new version into the local machine and closes the current
+     * one.
      */
-    void update() {
+    void update(String typeOfUpdate) {
+        int timeToWait = 0;
+        //Get the type of update
+        if (typeOfUpdate.equals(TypeOfUpdate.criticalUpdate.name())){
+            //If its a critical update, restart in 1 second
+           timeToWait= 1000;
+        } else if (typeOfUpdate.equals(TypeOfUpdate.standardUpdate.name())) {
+            //If its a normal update, restart in 30 m
+            timeToWait=  30 * 60 * 1000;
+        } else if (typeOfUpdate.equals(TypeOfUpdate.minorUpdate.name())) {
+            //If its a minor update, restart in 6 hours
+            timeToWait=  6 * 60 * 60 * 1000;
 
-        guiLabelManagement.setAlertPopUp("A new version of the crawler was just downloaded into the directory " +
-                "where this crawler is located. Please close and DELETE this version and open the new version. Note " +
-                "that this instance will be closed in 30 minutes");
+        }
         String urlStr = "https://github.com/rafaelcastrorc/sCrawler/releases";
         String baseURL = "https://github.com";
         try {
@@ -252,13 +256,22 @@ class WebServer {
                 newVersionName = newVersionName + ".jar";
             }
             FileUtils.deleteDirectory(new File("./sCrawler"));
+            guiLabelManagement.setInfoPopUp("A new version of the crawler was just downloaded into the directory " +
+                    "where this crawler is located.\n" +
+                    "-You can manually close and DELETE this instance and open the new version.\n" +
+                    "-OR this instance will be closed in "+timeToWait/1000 + " minutes and the new version will be " +
+                    "opened automatically");
+            //Log the update into the database just for confirmation
+            DatabaseDriver.getInstance(guiLabelManagement).addError("Updating this instance: "+typeOfUpdate);
 
             //Wait for 30 minutes, if no response open the new crawler and close the old one
             ExecutorService connectionVerifier = Executors.newSingleThreadExecutor(new MyThreadFactory());
             String finalNewVersionName = newVersionName;
+            int finalTimeToWait = timeToWait;
             connectionVerifier.submit(() -> {
                 try {
-                    Thread.sleep(30 * 60 * 1000);
+                    //Sleep depending on the time of update
+                    Thread.sleep(finalTimeToWait);
                     // Run a java app in a separate system process
                     Runtime.getRuntime().exec("java -jar "+ finalNewVersionName);
                     //Add the new version to the app dtaa
@@ -271,7 +284,7 @@ class WebServer {
                 }
             });
             DatabaseDriver.getInstance(guiLabelManagement).performOperation(new Scanner(new File("" +
-                    "./AppData/instanceID.dta")).nextLine(), "");
+                    "./AppData/instanceID.dta")).nextLine(), SupportedOperations.none);
 
 
         } catch (IOException e) {
@@ -281,12 +294,6 @@ class WebServer {
 
     }
 
-    /**
-     * Verifies that the current scrawler is the latest version, if not, it updates it
-     */
-    void checkForUpdate() {
-
-    }
 
     void restart() {
 
@@ -301,7 +308,14 @@ class WebServer {
      * Supported operations by the web server
      */
     enum SupportedOperations {
-        close, clean, update, restart, download, downloadMissing,
+        close, clean, none, restart, download, downloadMissing,
+    }
+
+    /**
+     * Different types of updates that the program handles
+     */
+    enum TypeOfUpdate {
+        criticalUpdate, standardUpdate, minorUpdate
     }
 
     /**

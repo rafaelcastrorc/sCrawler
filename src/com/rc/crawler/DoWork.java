@@ -8,10 +8,10 @@ import org.apache.commons.io.FilenameUtils;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 
@@ -100,6 +100,8 @@ class DoWork extends Task<Void> implements Callable {
         //For single article mode
         guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> controller.displayAlert
                 (newValue));
+        guiLabels.getInfoPopUp().addListener((observable, oldValue, newValue) -> controller.displayInfo
+                (newValue));
         guiLabels.getOutput().addListener((observable, oldValue, newValue) -> controller.updateOutput
                 (newValue));
         guiLabels.getLoadBar().addListener((observable, oldValue, newValue) ->
@@ -126,7 +128,7 @@ class DoWork extends Task<Void> implements Callable {
         initializeStats();
         //Check for updates
         verifyItsTheLatestLocalVersion();
-        //Todo: check for updates
+        checkForUpdates();
         //Load the crawler
         controller.getCrawler().loadCrawler(controller.getSearchEngine());
         article = String.valueOf(1);
@@ -134,6 +136,9 @@ class DoWork extends Task<Void> implements Callable {
         connectionEstablished();
     }
 
+    /**
+     * Makes sure that the user is using the latest version available in his machine
+     */
     private void verifyItsTheLatestLocalVersion() {
         String currInstanceName = new java.io.File(WebServer.class.getProtectionDomain().getCodeSource()
                 .getLocation()
@@ -143,7 +148,7 @@ class DoWork extends Task<Void> implements Callable {
         }
        if (!Logger.getInstance().getVersion().equals(currInstanceName) && !Logger.getInstance().getVersion().isEmpty() ) {
            guiLabels.setAlertPopUp("This is not the latest version of the sCrawler that you have downloaded. Please " +
-                   "open the file "+ Logger.getInstance().getVersion() +". This instance will close in 25 seconds." );
+                   "open the file "+ Logger.getInstance().getVersion() +". This instance will close in 15 seconds." );
            try {
                Thread.sleep(15*1000);
                WebServer.getInstance(guiLabels).closeButtonAction();
@@ -152,19 +157,57 @@ class DoWork extends Task<Void> implements Callable {
        } else{
            //Delete any other sCrawler version that the user might have downloaded
            File[] dir = new File("./").listFiles();
-           for (File file :dir) {
-               String ext = FilenameUtils.getExtension(file.getAbsolutePath());
-               String fileName = file.getName();
-               if (!fileName.contains(ext)) {
-                   fileName = fileName + "." +ext;
-               }
-               if (!fileName.equals(currInstanceName) && ext.equals("jar")) {
-                   File nFile = new File(fileName);
-                   nFile.delete();
+           if (dir != null) {
+               for (File file :dir) {
+                   String ext = FilenameUtils.getExtension(file.getAbsolutePath());
+                   String fileName = file.getName();
+                   if (!fileName.contains(ext)) {
+                       fileName = fileName + "." +ext;
+                   }
+                   if (!fileName.equals(currInstanceName) && ext.equals("jar")) {
+                       File nFile = new File(fileName);
+                       nFile.delete();
+                   }
                }
            }
        }
     }
+
+    /**
+     * Checks if there is an updated version
+     */
+    private void checkForUpdates() {
+        //Get the latest version
+        Map.Entry<String, String> latestVersion = DatabaseDriver.getInstance(guiLabels).getLatestVersion();
+        String version = latestVersion.getKey();
+        String description = latestVersion.getValue();
+        //Get the current version. We know that the current name of the jar file is the latest version since we
+        // verified that beforehand
+        String currInstanceName = new java.io.File(WebServer.class.getProtectionDomain().getCodeSource()
+                .getLocation().getPath()).getName();
+        if (!currInstanceName.contains(".jar")) {
+            currInstanceName = currInstanceName + ".jar";
+        }
+        //If the instance name is not the same as the version, then update it
+        if (!currInstanceName.equals(version)) {
+
+            guiLabels.setInfoPopUp(("There is a new sCrawler version available. The program will automatically " +
+                            "download it and start it. Please wait!\n" +
+                    "The changes in "+ version + " include:\n"
+                    +description));
+            try {
+                Thread.sleep(30*1000);
+            } catch (InterruptedException ignored) {
+            }
+            this.loading = new LoadingWindow();
+            Platform.runLater(() -> loading.display());
+            //Perform a critical update to update automatically
+            WebServer.getInstance(guiLabels).update(WebServer.TypeOfUpdate.criticalUpdate.name());
+        }
+    }
+
+
+
 
     /**
      * Updates the GUI once the first connection has been established

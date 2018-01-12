@@ -43,7 +43,6 @@ class Logger {
                     Scanner scanner = new Scanner(file);
                     prevName = scanner.nextLine();
                 } catch (FileNotFoundException ignored) {
-                    file.mkdirs();
                 }
 
                 BufferedWriter instanceWriter = new BufferedWriter(new FileWriter(file));
@@ -61,7 +60,7 @@ class Logger {
     }
 
     /**
-     * Gets the previous name associated to this instace, if there was any
+     * Gets the previous name associated to this instance, if there was any
      *
      * @return String
      */
@@ -89,8 +88,7 @@ class Logger {
             versionWriter = new BufferedWriter(new FileWriter(file));
             versionWriter.write(version);
             versionWriter.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ignored) {
         }
     }
 
@@ -104,8 +102,7 @@ class Logger {
             if (scanner.hasNextLine()) {
                 return scanner.nextLine();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ignored) {
         }
         return "";
     }

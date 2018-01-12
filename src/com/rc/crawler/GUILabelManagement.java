@@ -13,6 +13,7 @@ class GUILabelManagement {
 
     private StringProperty numberOfWorkingIPs = new SimpleStringProperty();
     private StringProperty alertPopUp = new SimpleStringProperty();
+    private StringProperty infoPopUp = new SimpleStringProperty();
     private StringProperty searchResultLabel = new SimpleStringProperty();
     private DoubleProperty loadBar = new SimpleDoubleProperty();
     private DoubleProperty loadBarMultiple = new SimpleDoubleProperty();
@@ -41,6 +42,9 @@ class GUILabelManagement {
         return alertPopUp;
     }
 
+    StringProperty getInfoPopUp() {
+        return infoPopUp;
+    }
     StringProperty getSearchResultLabel() {
         return searchResultLabel;
     }
@@ -89,6 +93,16 @@ class GUILabelManagement {
      */
     void setAlertPopUp(String alertPopUp) {
         this.alertPopUp.set(alertPopUp);
+    }
+
+
+    /**
+     * Sets an info pop up alert
+     *
+     * @param info String with message to show
+     */
+    void setInfoPopUp(String info) {
+        this.infoPopUp.set(info);
     }
 
     /**

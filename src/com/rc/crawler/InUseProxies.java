@@ -113,7 +113,7 @@ class InUseProxies {
     /**
      * Adds a proxy that is currently being used by a thread to download
      */
-    void addProxyUsedToDownload(Proxy p) {
+    void addProxyUsedToDownload(Proxy p) throws IllegalArgumentException{
         if (proxiesUsedForDownloading.contains(p)) {
             throw new IllegalArgumentException("Proxy is already in use");
         } else {
