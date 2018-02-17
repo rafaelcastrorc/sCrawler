@@ -45,7 +45,7 @@ public class View extends Application {
     private void close(Stage primaryStage) {
         //Close the app correctly
         primaryStage.setOnCloseRequest(e -> {
-            WebServer.getInstance(new GUILabelManagement()).close();
+            WebServer.getInstance(new GUILabelManagement()).close(false);
         });
     }
 }

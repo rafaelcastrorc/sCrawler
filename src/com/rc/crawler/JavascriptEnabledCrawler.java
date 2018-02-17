@@ -88,20 +88,4 @@ class JavascriptEnabledCrawler {
         }
     }
 
-    /**
-     * Retrieves a cookie for a given proxy, based on the search engine being used.
-     * @param proxy Proxy
-     * @param engine SupportedSearchEngine
-     * @return Set<Cookie></Cookie>
-     */
-    Set<Cookie> getCookie(Proxy proxy, SearchEngine.SupportedSearchEngine engine) {
-        if (mapProxyToSearchEngineToCookie.containsKey(proxy)) {
-            //Todo: change this
-            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = mapProxyToSearchEngineToCookie.get(proxy);
-            if (map.containsKey(engine)) {
-                return map.get(engine);
-            }
-        }
-        return new HashSet<>();
-    }
 }

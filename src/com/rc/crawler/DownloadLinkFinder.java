@@ -222,7 +222,7 @@ class DownloadLinkFinder {
         } else {
             //If not, just connect to the previous proxy
             ProxyChanger proxyChanger = new ProxyChanger(guiLabels, crawler, engine, stats);
-            proxyChanger.setComesFromDownload(true);
+            proxyChanger.setComesFromDownload();
             citingPapers = proxyChanger.getProxy(currUrl, true, false);
         }
 
@@ -383,39 +383,55 @@ class DownloadLinkFinder {
      * @return Proxy
      */
     private Proxy getProxyToUse(String absLink, Long currThreadID, Proxy proxyUsedBefore) {
-        boolean thereWasAnError = true;
-        Proxy proxyToUse = null;
-        //If there was a proxy used before but it failed to download, block the proxy from the current url
-        if (proxyUsedBefore != null) {
-            crawler.addRequestToMapOfRequests(absLink, proxyUsedBefore, 50);
+        //Just return whatever proxy the crawler is using if proxyUsedBefore is not null
+        if (proxyUsedBefore == null) {
+            return crawler.getMapThreadIdToProxy().get(currThreadID);
         }
-        while (thereWasAnError) {
-
-            Set<Proxy> workingProxies = InUseProxies.getInstance().getCurrentlyUsedProxies();
-            proxyToUse = crawler.getMapThreadIdToProxy().get(currThreadID);
-            boolean found = false;
-            //Get a proxy that has less than 40 requests to the current website, based on the working proxies, and that
-            // is not been used by another thread
-            for (Proxy p : workingProxies) {
-                if (crawler.getNumberOfRequestFromMap(absLink, p) < 40 && !InUseProxies.getInstance()
-                        .isProxyInUseForDownloading(p)) {
-                    proxyToUse = p;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                resetProxies(absLink);
-            }
-            //Add request to current website using the current proxy
-            crawler.addRequestToMapOfRequests(absLink, proxyToUse, -1);
+        //if there is a proxy used before, then it means that there was an error using the previous proxy so just grab
+        //one random proxy from the queue of connections
+        Proxy proxyToUse = null;
+        while (proxyToUse ==null) {
+            proxyToUse = crawler.getQueueOfConnections().peek();
             try {
-                InUseProxies.getInstance().addProxyUsedToDownload(proxyToUse);
-                thereWasAnError = false;
-            } catch (IllegalArgumentException ignored) {
+                Thread.sleep(5*1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
         return proxyToUse;
+//        boolean thereWasAnError = true;
+//        Proxy proxyToUse = null;
+//        //If there was a proxy used before but it failed to download, block the proxy from the current url
+//        if (proxyUsedBefore != null) {
+//            crawler.addRequestToMapOfRequests(absLink, proxyUsedBefore, 50);
+//        }
+//        while (thereWasAnError) {
+//
+//            Set<Proxy> workingProxies = InUseProxies.getInstance().getCurrentlyUsedProxies();
+//            proxyToUse = crawler.getMapThreadIdToProxy().get(currThreadID);
+//            boolean found = false;
+//            //Get a proxy that has less than 40 requests to the current website, based on the working proxies, and that
+//            // is not been used by another thread
+//            for (Proxy p : workingProxies) {
+//                if (crawler.getNumberOfRequestFromMap(absLink, p) < 40 && !InUseProxies.getInstance()
+//                        .isProxyInUseForDownloading(p)) {
+//                    proxyToUse = p;
+//                    found = true;
+//                    break;
+//                }
+//            }
+//            if (!found) {
+//                resetProxies(absLink);
+//            }
+//            //Add request to current website using the current proxy
+//            crawler.addRequestToMapOfRequests(absLink, proxyToUse, -1);
+//            try {
+//                InUseProxies.getInstance().addProxyUsedToDownload(proxyToUse);
+//                thereWasAnError = false;
+//            } catch (IllegalArgumentException ignored) {
+//            }
+//        }
+//        return proxyToUse;
 
 
     }

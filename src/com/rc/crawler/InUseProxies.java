@@ -155,6 +155,8 @@ class InUseProxies {
     AtomicCounter getCounterOfRequestsToGetNewProxies() {
         return counterOfRequests;
     }
+
+
 }
 
 

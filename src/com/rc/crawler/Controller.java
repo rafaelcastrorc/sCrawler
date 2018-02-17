@@ -52,6 +52,12 @@ public class Controller implements Initializable {
     //Counts only the ones that were downloaded
     private AtomicCounter numOfSuccessfulGral = new AtomicCounter();
     private SearchEngine.SupportedSearchEngine engine;
+    private StatsGUI stats;
+    private DatabaseDriver db;
+    private String typeOfSearch;
+    private String numberOfPDFsToDownload;
+
+    //All buttons available in the GUI
     @FXML
     private ScrollPane scrollPanel;
     @FXML
@@ -112,9 +118,6 @@ public class Controller implements Initializable {
     private Text numOfUnlocked;
     @FXML
     private Text lockedByProvider;
-
-    private StatsGUI stats;
-    DatabaseDriver db;
 
 
     @SuppressWarnings("WeakerAccess")
@@ -460,18 +463,7 @@ public class Controller implements Initializable {
                     downloadButtonMultiple.setDisable(false);
                     downloadButtonMultipleSFA.setDisable(false);
 
-                    if (articleNames.size() < 8) {
-                        simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
-                        simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(articleNames.size());
-                        crawler.setGUI(simultaneousDownloadsGUI);
-                        this.numOfConnectionsNeeded = articleNames.size();
-                    } else {
-                        simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
-                        simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(8);
-                        crawler.setGUI(simultaneousDownloadsGUI);
-                        this.numOfConnectionsNeeded = 8;
-                    }
-                    simultaneousDownloadsGUI.addGUI(scrollPanel);
+                    setUpMultipleGUI();
                 } catch (FileNotFoundException e) {
                     displayAlert(e.getMessage());
                 }
@@ -501,7 +493,6 @@ public class Controller implements Initializable {
     void multipleDownloadOnClick(ActionEvent event) {
         Object source = event.getSource();
         String buttonUsed = "";
-        String typeOfSearch;
         if (source instanceof Button) {
             Button clickedBtn = (Button) source;
             buttonUsed = clickedBtn.getId();
@@ -509,12 +500,11 @@ public class Controller implements Initializable {
         String text;
 
         if (buttonUsed.equals("downloadButtonMultiple")) {
-            typeOfSearch = "searchForCitedBy";
+            this.typeOfSearch = "searchForCitedBy";
             text = numberOfPDFsMultiple.getText();
         } else {
-            typeOfSearch = "searchForTheArticle";
+            this.typeOfSearch = "searchForTheArticle";
             text = numberOfPDFsMultipleSFA.getText();
-
         }
         //Show number of files that have been already downloaded, then ask if he wants to continue
         progressBar.progressProperty().setValue(0);
@@ -522,9 +512,10 @@ public class Controller implements Initializable {
         Pattern numbersOnly = Pattern.compile("^[0-9]+$");
         Matcher matcher = numbersOnly.matcher(text);
         if (matcher.find()) {
+            this.numberOfPDFsToDownload = matcher.group();
             DoWork task = new DoWork("waitForNConnections", String.valueOf(numOfConnectionsNeeded), null);
             task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
-            SetupFile setup = new SetupFile(typeOfSearch, submittedFile, this, matcher.group(), task);
+            SetupFile setup = new SetupFile(typeOfSearch, submittedFile, numberOfPDFsToDownload, task);
             //Set up the list of files to download appropriately
             FutureTask<Void> futureTask = new FutureTask<>(setup);
             Platform.runLater(futureTask);
@@ -737,8 +728,6 @@ public class Controller implements Initializable {
                             cookies = driver[0].manage().getCookies();
                             driver[0].close();
                             driver[0].quit();
-//                            proxyChanger.useSelenium(proxy, SearchEngine.testConnectionToWebsite(engine), true,
-//                                    cookies, false);
                             crawler.addUnlockedProxy(proxy, cookies, engine, db, true);
                         } catch (Exception ignored) {
                         }
@@ -850,18 +839,14 @@ public class Controller implements Initializable {
 
     /**
      * Updates the number of proxies locked by the proxy provider
-     *
-     * @param newValue number of blocked proxies
      */
-    void updateNumberOfLockedByProvider(int newValue) {
+    void updateNumberOfLockedByProvider(int number) {
         Platform.runLater(() -> lockedByProvider.setText(String.valueOf
-                (newValue)));
+                (number)));
     }
 
     /**
      * Updates the number of blocked proxies in the Statistics section
-     *
-     * @param newValue start time
      */
     void updateStartTime(String newValue) {
         Platform.runLater(() -> startTimeGUI.setText(newValue));
@@ -927,6 +912,9 @@ public class Controller implements Initializable {
         increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
+        //Check if there is a restart file, if so start restart process
+        Restart.setGUILabels(guiLabels);
+        Restart.configureRestart();
         //Initialize database
         db = DatabaseDriver.getInstance(guiLabels);
         // Remove any records associated with the previous instance id, if there are any
@@ -950,6 +938,10 @@ public class Controller implements Initializable {
      * Asks the user to select a search engine
      */
     private void selectEngine() {
+        if (Restart.isApplicationRestarting()) {
+            engine = Restart.getSearchEngine();
+            return;
+        }
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Select academic search engine");
         alert.setHeaderText("Which academic search engine do you want to use?");
@@ -996,11 +988,25 @@ public class Controller implements Initializable {
                         } else {
                             increaseSpeedButton.setSelected(false);
                             increaseSpeedButton1.setSelected(false);
-
                         }
                     }
             );
         }
+    }
+
+    void setUpMultipleGUI() {
+        if (articleNames.size() < 8) {
+            simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
+            simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(articleNames.size());
+            crawler.setGUI(simultaneousDownloadsGUI);
+            this.numOfConnectionsNeeded = articleNames.size();
+        } else {
+            simultaneousDownloadsGUI = new SimultaneousDownloadsGUI();
+            simultaneousDownloadsGUI.setNumOfSimultaneousDownloads(8);
+            crawler.setGUI(simultaneousDownloadsGUI);
+            this.numOfConnectionsNeeded = 8;
+        }
+        Platform.runLater(() -> simultaneousDownloadsGUI.addGUI(scrollPanel));
     }
 
     Map<Long, String> getMapThreadToTitle() {
@@ -1043,4 +1049,35 @@ public class Controller implements Initializable {
         return engine;
     }
 
+    String getTypeOfSearch() {
+        return typeOfSearch;
+    }
+
+    String getNumberOfPDFsToDownload() {
+        return numberOfPDFsToDownload;
+    }
+
+    File getSubmittedFile() {
+        return submittedFile;
+    }
+
+    public HashSet<String> getArticleNames() {
+        return articleNames;
+    }
+
+    void setArticleNames(HashSet<String> articleNames) {
+        this.articleNames = articleNames;
+    }
+
+    void setTypeOfSearch(String typeOfSearch) {
+        this.typeOfSearch = typeOfSearch;
+    }
+
+    void setNumberOfPDFsToDownload(String numberOfPDFsToDownload) {
+        this.numberOfPDFsToDownload = numberOfPDFsToDownload;
+    }
+
+    public void setFile(File file) {
+        this.submittedFile = file;
+    }
 }

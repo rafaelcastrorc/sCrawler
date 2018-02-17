@@ -9,12 +9,15 @@ import org.joda.time.DateTime;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -29,6 +32,7 @@ class WebServer {
     private static WebServer webServer;
     private static Controller controller;
     private static GUILabelManagement guiLabelManagement;
+    private static final String SUN_JAVA_COMMAND = "sun.java.command";
 
 
     private WebServer() {
@@ -57,27 +61,53 @@ class WebServer {
         String operationToPerform;
         operationToPerform = DatabaseDriver.getInstance(guiLabelManagement).getOperationToPerform();
         if (operationToPerform.equals(SupportedOperations.close.name())) {
-            closeButtonAction();
+            closeButtonAction(false);
         } else if (operationToPerform.equals(SupportedOperations.clean.name())) {
             clean();
         } else if (operationToPerform.contains("Update")) {
             update(operationToPerform);
+        } else if (operationToPerform.equals(SupportedOperations.restart.name())) {
+            restart();
+        } else {
+            dbClean();
         }
-        //If none of them, then we just ignore it
+
+    }
+
+    /**
+     * Cleans the entire database, including locked proxies. Should be performed every 24 hours.
+     */
+    private void dbClean() {
+        //Check if there has been more than 24 hours since last update, or if time is not null
+        DateTime time = DatabaseDriver.getInstance(guiLabelManagement).getLastMaintenanceTime();
+        DateTime now = new DateTime();
+        //Check if it more than 24 hours
+        if (time == null || now.getMillis() - time.getMillis() >= 12 * 60 * 60 * 1000) {
+            //Clean the proxies table
+            DatabaseDriver.getInstance(guiLabelManagement).cleanProxiesTable();
+            clean();
+            DatabaseDriver.getInstance(guiLabelManagement).updateMaintenanceTime();;
+        }
+        //Remove operation
+        DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+                (guiLabelManagement).getInstanceName(), SupportedOperations.none);
 
     }
 
     @FXML
-    void closeButtonAction() {
+    void closeButtonAction(boolean restart) {
         Platform.runLater(() -> {
             // get a handle to the stage
             Stage stage = (Stage) controller.getAlertButton().getScene().getWindow();
-            close();
+            close(restart);
             stage.close();
         });
     }
 
-    void close() {
+    /**
+     * Safely closes the application
+     */
+    void close(boolean restart) {
         //Kil the phantomjs process
         Runtime rt = Runtime.getRuntime();
         if (System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -94,15 +124,34 @@ class WebServer {
             }
         }
         //Remove all the information from the db related to this instance
-        DatabaseDriver db = null;
+        DatabaseDriver db;
         try {
             db = DatabaseDriver.getInstance(new GUILabelManagement());
-            db.removeCrawlerInstance(new Scanner(new File("./AppData/instanceID.dta")).nextLine());
+            db.removeCrawlerInstance(DatabaseDriver.getInstance(guiLabelManagement).getInstanceName());
             db.closeConnection();
-        } catch (FileNotFoundException | SQLException e1) {
+        } catch (SQLException e1) {
             e1.printStackTrace();
         }
         Platform.exit();
+        //If we are restarting, then just reopen the application at this point
+        if (restart) {
+            //Get the current jar name
+            String currInstanceName = new java.io.File(WebServer.class.getProtectionDomain().getCodeSource()
+                    .getLocation().getPath()).getName();
+            if (!currInstanceName.contains(".jar")) {
+                currInstanceName = currInstanceName + ".jar";
+            }
+            try {
+                Runtime.getRuntime().exec("java -jar " + currInstanceName);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
         System.exit(0);
     }
 
@@ -156,13 +205,8 @@ class WebServer {
             DatabaseDriver.getInstance(guiLabelManagement).removeCrawlerInstance(instance);
         }
         //Remove operation
-        try {
-            DatabaseDriver.getInstance(guiLabelManagement).performOperation(new Scanner(new File("" +
-                    "./AppData/instanceID" +
-                    ".txt")).nextLine(), SupportedOperations.none);
-        } catch (FileNotFoundException e) {
-            guiLabelManagement.setAlertPopUp(e.getMessage());
-        }
+        DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+                (guiLabelManagement).getInstanceName(), SupportedOperations.none);
 
 
     }
@@ -174,22 +218,23 @@ class WebServer {
     void update(String typeOfUpdate) {
         int timeToWait = 0;
         //Get the type of update
-        if (typeOfUpdate.equals(TypeOfUpdate.criticalUpdate.name())){
+        if (typeOfUpdate.equals(TypeOfUpdate.criticalUpdate.name())) {
             //If its a critical update, restart in 1 second
-           timeToWait= 1000;
+            timeToWait = 1000;
         } else if (typeOfUpdate.equals(TypeOfUpdate.standardUpdate.name())) {
             //If its a normal update, restart in 30 m
-            timeToWait=  30 * 60 * 1000;
+            timeToWait = 30 * 60 * 1000;
         } else if (typeOfUpdate.equals(TypeOfUpdate.minorUpdate.name())) {
             //If its a minor update, restart in 6 hours
-            timeToWait=  6 * 60 * 60 * 1000;
+            timeToWait = 6 * 60 * 60 * 1000;
 
         }
         String urlStr = "https://github.com/rafaelcastrorc/sCrawler/releases";
         String baseURL = "https://github.com";
         try {
             //Get the current jar name
-            String currInstanceName = new java.io.File(WebServer.class.getProtectionDomain().getCodeSource().getLocation()
+            String currInstanceName = new java.io.File(WebServer.class.getProtectionDomain().getCodeSource()
+                    .getLocation()
                     .getPath()).getName();
             if (!currInstanceName.contains(".jar")) {
                 currInstanceName = currInstanceName + ".jar";
@@ -197,13 +242,13 @@ class WebServer {
 
             //Check if there are any other crawler versions in the current directory, if so, delete all of them
             File[] dir = new File("./").listFiles();
-            for (File file :dir) {
+            for (File file : dir) {
                 String ext = FilenameUtils.getExtension(file.getAbsolutePath());
                 String fileName = file.getName();
                 if (!fileName.contains(ext)) {
-                    fileName = fileName + "." +ext;
+                    fileName = fileName + "." + ext;
                 }
-                if (!fileName.equals(currInstanceName) && ext.equals("jar")) {
+                if (!fileName.equals(currInstanceName) && ext.equals("jar") && !fileName.contains("phantom")) {
                     File nFile = new File(fileName);
                     nFile.delete();
                 }
@@ -232,11 +277,11 @@ class WebServer {
 
             //Download the new version
             FileOutputStream out = new FileOutputStream("./sCrawler.zip");
-            ProxyChanger.copy(in, out);
+            FileUtilities.copy(in, out);
             out.close();
 
             //Unzip file
-            ProxyChanger.unzip("./sCrawler.zip", "./");
+            FileUtilities.unzip("./sCrawler.zip", "./");
             //Move the files
             File[] files = new File("./sCrawler").listFiles();
             String newVersionName = "";
@@ -259,10 +304,11 @@ class WebServer {
             guiLabelManagement.setInfoPopUp("A new version of the crawler was just downloaded into the directory " +
                     "where this crawler is located.\n" +
                     "-You can manually close and DELETE this instance and open the new version.\n" +
-                    "-OR this instance will be closed in "+timeToWait/1000 + " minutes and the new version will be " +
+                    "-OR this instance will be closed in " + timeToWait / 1000 + " minutes and the new version will " +
+                    "be " +
                     "opened automatically");
             //Log the update into the database just for confirmation
-            DatabaseDriver.getInstance(guiLabelManagement).addError("Updating this instance: "+typeOfUpdate);
+            DatabaseDriver.getInstance(guiLabelManagement).addError("Updating this instance: " + typeOfUpdate);
 
             //Wait for 30 minutes, if no response open the new crawler and close the old one
             ExecutorService connectionVerifier = Executors.newSingleThreadExecutor(new MyThreadFactory());
@@ -273,36 +319,67 @@ class WebServer {
                     //Sleep depending on the time of update
                     Thread.sleep(finalTimeToWait);
                     // Run a java app in a separate system process
-                    Runtime.getRuntime().exec("java -jar "+ finalNewVersionName);
+                    Runtime.getRuntime().exec("java -jar " + finalNewVersionName);
                     //Add the new version to the app dtaa
                     Logger.getInstance().writeLatestVersion(finalNewVersionName);
                     //Close this instance
-                    closeButtonAction();
+                    closeButtonAction(false);
                 } catch (InterruptedException ignored) {
                 } catch (IOException e) {
                     guiLabelManagement.setAlertPopUp(e.getMessage());
                 }
             });
-            DatabaseDriver.getInstance(guiLabelManagement).performOperation(new Scanner(new File("" +
-                    "./AppData/instanceID.dta")).nextLine(), SupportedOperations.none);
+            DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+                    (guiLabelManagement).getInstanceName(), SupportedOperations.none);
 
 
         } catch (IOException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
         }
-
-
     }
 
+    /**
+     * Restarts the application and resumes the download from where it was left behind
+     */
+    private void restart() {
+        guiLabelManagement.setInfoPopUp("This instance will be restarted. Everything will be configured automatically");
+        try {
+            //Check for current state, get whatever the document
+            ArrayList<String> args = new ArrayList<>();
+            //First get the search engine used
+            SearchEngine.SupportedSearchEngine engine = controller.getSearchEngine();
+            args.add(engine.name());
+            System.out.println(engine.name());
 
-    void restart() {
+            //Get the type of search
+            String typeOfSearch = controller.getTypeOfSearch();
+            args.add(typeOfSearch);
+            System.out.println(typeOfSearch);
 
+            //Get the number of PDFs to download for each article
+            String numOfPDFsToDownload = controller.getNumberOfPDFsToDownload();
+            args.add(numOfPDFsToDownload);
+            System.out.println(numOfPDFsToDownload);
+
+            //Get the location of the download file
+            String pathToDownloadFile = controller.getSubmittedFile().getPath();
+            args.add(pathToDownloadFile);
+            System.out.println(pathToDownloadFile);
+
+            //Write all the args to the restart file.
+            Logger.getInstance().writeRestartFile(args);
+            //Close and reopen the instance
+            closeButtonAction(true);
+        } catch (Exception e) {
+            guiLabelManagement.setAlertPopUp("Unable to restart this instance");
+            DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+                    (guiLabelManagement).getInstanceName(), SupportedOperations.none);
+        }
     }
 
     void downloadMissing() {
 
     }
-
 
     /**
      * Supported operations by the web server

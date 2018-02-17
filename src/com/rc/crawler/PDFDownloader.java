@@ -208,7 +208,6 @@ class PDFDownloader {
                         break;
                     }
 
-
                 } catch (Exception e) {
                     if (attempt == 0) {
                         InUseProxies.getInstance().removeProxy(ipAndPort);

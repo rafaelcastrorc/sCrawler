@@ -1,16 +1,10 @@
 package com.rc.crawler;
 
-import com.gargoylesoftware.htmlunit.BrowserVersion;
-import com.gargoylesoftware.htmlunit.WebClient;
-import org.apache.commons.lang3.SystemUtils;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.CapabilityType;
@@ -19,7 +13,9 @@ import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
@@ -30,8 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /**
  * Created by rafaelcastro on 7/7/17.
@@ -42,7 +36,7 @@ class ProxyChanger {
     private Crawler crawler;
     private boolean isError404;
     private boolean thereWasAnErrorWithProxy = false;
-    private SearchEngine.SupportedSearchEngine engine;
+    private static SearchEngine.SupportedSearchEngine engine;
     private Long threadID = null;
     private boolean isPageEmpty = false;
     private boolean comesFromDownload = false;
@@ -53,7 +47,7 @@ class ProxyChanger {
             stats) {
         this.guiLabels = guiLabels;
         this.crawler = crawler;
-        this.engine = engine;
+        ProxyChanger.engine = engine;
         this.stats = stats;
         this.db = DatabaseDriver.getInstance(guiLabels);
     }
@@ -142,7 +136,7 @@ class ProxyChanger {
     /**
      * Finds a new working proxy
      *
-     * @param url             URL we are trying to connect to
+     * @param url URL we are trying to connect to
      */
     private Document establishNewConnection(String url) {
         Document doc = null;
@@ -161,7 +155,7 @@ class ProxyChanger {
             //Sleep while there is a thread getting more proxies
             while (InUseProxies.getInstance().isThreadGettingMoreProxies()) {
                 try {
-                    Thread.sleep(10*1000);
+                    Thread.sleep(10 * 1000);
                 } catch (InterruptedException ignored) {
                 }
             }
@@ -265,12 +259,13 @@ class ProxyChanger {
 
             while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40 ||
                     !db.canUseProxy(proxyToUse) ||
-                    (InUseProxies.getInstance().isProxyInUseForSearching(proxyToUse) && crawler.getMapThreadIdToProxy().get
+                    (InUseProxies.getInstance().isProxyInUseForSearching(proxyToUse) && crawler.getMapThreadIdToProxy
+                            ().get
                             (currThreadID) != proxyToUse)) {
 
                 //Since we are using a new proxy, we need to find a replacement as long as there are less than 20
                 //proxies in the queue or we have gone through over 70% of the proxies in the queue and none works
-                if (first && InUseProxies.getInstance().getCounterOfRequestsToGetNewProxies().value() < 8  && crawler
+                if (first && InUseProxies.getInstance().getCounterOfRequestsToGetNewProxies().value() < 8 && crawler
                         .getQueueOfConnections().size() < 12) {
                     Request request = new Request("getConnection", crawler, guiLabels, engine);
                     crawler.getExecutorService().submit(request);
@@ -333,7 +328,7 @@ class ProxyChanger {
             } catch (Exception e) {
                 e.printStackTrace();
                 //Remove the proxy
-                if ((isPageEmpty && comesFromDownload && attempt > limit )|| attempt > limit) {
+                if ((isPageEmpty && comesFromDownload && attempt > limit) || attempt > limit) {
                     return null;
                 }
                 guiLabels.setConnectionOutput("There was a problem connecting to one of the Proxies from the " +
@@ -436,10 +431,9 @@ class ProxyChanger {
     /**
      * Use selenium to parse a website
      *
-     * @param proxyToUse          Proxy
-     * @param url                 url that needs to be parsed
-     * @param cookies             Set of cookies. Null if there are no cookies
-     * @param proxyComesFromQueue
+     * @param proxyToUse Proxy
+     * @param url        url that needs to be parsed
+     * @param cookies    Set of cookies. Null if there are no cookies
      * @return Document
      */
     Document useSelenium(Proxy proxyToUse, String url, boolean usesProxy, Set<Cookie> cookies, boolean
@@ -480,8 +474,8 @@ class ProxyChanger {
             PhantomJSDriver driver = new PhantomJSDriver(capabilities);
             String pageSource = "";
             try {
-                driver.manage().timeouts().pageLoadTimeout(3, TimeUnit.MINUTES);
-                driver.manage().timeouts().implicitlyWait(5, TimeUnit.MINUTES);
+                driver.manage().timeouts().pageLoadTimeout(2, TimeUnit.MINUTES);
+                driver.manage().timeouts().implicitlyWait(3, TimeUnit.MINUTES);
                 if (cookies != null && cookies.size() > 0) {
                     //load the url once before requesting cookies
                     driver.get(url);
@@ -509,7 +503,7 @@ class ProxyChanger {
                         "robot when JavaScript is turned off")) {
                     driver.navigate().refresh();
                     String temp = driver.getPageSource();
-                    if (cookies != null ) {
+                    if (cookies != null) {
                         for (Cookie c : cookies) {
                             try {
                                 driver.manage().addCookie(c);
@@ -553,23 +547,29 @@ class ProxyChanger {
                     if (cookies != null && cookies.size() > 0) {
                         stats.updateNumberOfUnlocked(stats.getNumberOfUnlockedProxies().get() - 1);
                     }
-                    //Remove it because this cannot be fixed
-                    InUseProxies.getInstance().removeGSProxy(proxyToUse);
-                    //We also remove the proxy since it won't work for any site
-                    InUseProxies.getInstance().removeProxy(proxyToUse);
-                    db.addLockedProxy(proxyToUse);
-                    crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
+                    blockProxy(proxyToUse, url, true);
                 }
 
-                //If proxy is blocked by provider, then we cant do anything so lock the proxy and remove it completly
-                  InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
+                InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
+                //Check if this proxy has failed to load more than 3 times
+                int numOfFailures = DatabaseDriver.getInstance(guiLabels).getFailureToLoad(proxyToUse);
+                if (numOfFailures >= 3) {
+                    blockProxy(proxyToUse, url, true);
+                }
+                DatabaseDriver.getInstance(guiLabels).addFailureToLoad(proxyToUse);
                 throw new IllegalArgumentException();
             }
             if (pageSource.contains("we can't verify that you're not a " +
                     "robot when JavaScript is turned off")) {
                 //This is a failure in loading so just throw an exception
                 InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
-                System.out.println("Failed to load");
+                //Check if this proxy has failed to load more than 3 times
+                int numOfFailures = DatabaseDriver.getInstance(guiLabels).getFailureToLoad(proxyToUse);
+                if (numOfFailures >= 3) {
+                    blockProxy(proxyToUse, url, true);
+                }
+                DatabaseDriver.getInstance(guiLabels).addFailureToLoad(proxyToUse);
+
                 throw new IllegalArgumentException();
             }
             //These errors can be fixed
@@ -579,11 +579,8 @@ class ProxyChanger {
                 System.out.println("There is a blocked proxy");
                 //Add to the queue of blocked proxies
                 if (crawler.isSeleniumActive()) {
-
-                    //Add locked proxy to server
-                    InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
-                    InUseProxies.getInstance().removeGSProxy(proxyToUse);
-                    db.addLockedProxy(proxyToUse);
+                    //Add locked proxy to server, but remove it only from GS
+                    blockProxy(proxyToUse, url, false);
 
                     crawler.getQueueOfBlockedProxies().add(proxyToUse);
                     //Notify GUI
@@ -623,7 +620,7 @@ class ProxyChanger {
      *
      * @param driver WebDriver
      */
-    private void stopPhantomDrive(PhantomJSDriver driver) throws IOException, InterruptedException {
+    static void stopPhantomDrive(PhantomJSDriver driver) throws IOException, InterruptedException {
         try {
             driver.close();
             driver.quit();
@@ -677,246 +674,6 @@ class ProxyChanger {
         return driver;
     }
 
-    /**
-     * Configures Selenium the first time
-     */
-    boolean setUpSelenium() {
-        guiLabels.setOutput("Configuring Selenium");
-        try {
-            String type;
-            if (SystemUtils.IS_OS_MAC_OSX) {
-                type = "mac";
-
-            } else if (SystemUtils.IS_OS_WINDOWS) {
-                type = "win";
-            } else {
-                type = null;
-            }
-
-
-            //Check if chromedriver and phantomjs exist
-            File[] files = new File(".").listFiles();
-            File chromeDriver = new File("chromedriver");
-            File phantomjs = new File("phantomjs/bin/phantomjs");
-
-            if (files != null) {
-                for (File curr : files) {
-                    if (curr.getName().contains("chrome")) {
-                        if (curr.getName().contains("zip") || curr.getName().contains("log")) {
-                            continue;
-                        }
-                        chromeDriver = new File(curr.getName());
-
-                    } else if (curr.getName().contains("phantomjs")) {
-                        if (curr.getName().contains("zip") || curr.getName().contains("log")) {
-                            continue;
-                        }
-                        phantomjs = new File(curr.getName() + "/bin/phantomjs");
-                    }
-                }
-            }
-
-            if (type == null) {
-                guiLabels.setAlertPopUp("Cannot use Javascript enable websites with your computer. sCrawler does " +
-                        "not " +
-                        "fully support your operating system");
-                return false;
-            }
-            if (!chromeDriver.exists()) {
-                chromeDriver = downloadChromeDriver(type);
-            }
-            if (!phantomjs.exists()) {
-                phantomjs = downloadPhantomJS(type);
-            }
-            if (chromeDriver == null || !chromeDriver.exists() || phantomjs == null || !phantomjs.exists()) {
-
-                guiLabels.setAlertPopUp("There was a problem downloading chromedriver and/or phantomjs in your " +
-                        "computer. You won't be able to use Javascript-enabled websites with this crawler. If you" +
-                        " " +
-                        "believe that this is an error," +
-                        " try restarting this crawler.\nYou can also manually download them from: http://docs" +
-                        ".seleniumhq.org/download/ and put it in the same directory where this crawler is " +
-                        "located, just" +
-                        "decompress the folder once it is downloaded, and restart the crawler.");
-                return false;
-            } else {
-
-                //Set up chromedriver
-                String path = chromeDriver.getAbsolutePath();
-                path = path.replaceAll("\\./", "");
-                System.setProperty("webdriver.chrome.driver", path);
-                //Set up phantomjs
-                System.setProperty("phantomjs.binary.path", phantomjs.getAbsolutePath());
-                String userAgent = "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/535.1 (KHTML, like Gecko) " +
-                        "Chrome/13.0.782.41" +
-                        " Safari/535.1";
-                System.setProperty("phantomjs.page.settings.userAgent", userAgent);
-                guiLabels.setOutput("Finding working proxies...");
-
-                testWebDrivers();
-            }
-        } catch (Exception e) {
-            e.printStackTrace(System.out);
-        }
-        return true;
-    }
-
-    /**
-     * Verify that the Web Drivers are working
-     */
-    private void testWebDrivers() throws IOException, InterruptedException {
-        guiLabels.setOutput("Verifying web drivers...");
-
-        //Test phantomjs
-        PhantomJSDriver driver = new PhantomJSDriver();
-        driver.manage().timeouts().pageLoadTimeout(5, TimeUnit.MINUTES);
-        driver.manage().timeouts().implicitlyWait(1, TimeUnit.MINUTES);
-        driver.get("https://www.google.com");
-        waitForLoad(driver, false, "https://www.google.com");
-        stopPhantomDrive(driver);
-
-        //Test chromedriver
-
-        ChromeDriver driver2 = new ChromeDriver();
-        driver2.manage().timeouts().implicitlyWait(60, TimeUnit.SECONDS);
-        driver2.get("https://www.google.com");
-        waitForLoad(driver2, false, "https://www.google.com");
-        driver2.close();
-        driver2.quit();
-        guiLabels.setOutput("Web drivers are working");
-
-    }
-
-    /**
-     * Downloads the chrome driver into the local computer
-     */
-
-    private File downloadPhantomJS(String type) {
-        guiLabels.setOutput("Downloading PhantomJS for " + type);
-        try {
-            //Get download link
-            Document doc = Jsoup.connect("http://phantomjs.org/download.html").timeout(10 * 1000).userAgent
-                    ("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
-                            "Gecko/20070725 Firefox/2.0.0.6").get();
-            Elements links = doc.select("a[href]");
-            String href = "";
-            for (Element link : links) {
-                if (link.toString().contains(type)) {
-                    href = link.attr("href");
-                    break;
-                }
-            }
-
-            if (!href.isEmpty()) {
-                //Download file
-                URL url = new URL(href);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                InputStream in = connection.getInputStream();
-                FileOutputStream out = new FileOutputStream("./phantomjs.zip");
-                copy(in, out);
-                out.close();
-
-                //Unzip file
-                String fileName = unzip("./phantomjs.zip", "./");
-                File phantomJS = new File("./" + fileName);
-                if (type.equals("mac")) {
-                    Runtime.getRuntime().exec("chmod u+x " + phantomJS);
-                }
-                return phantomJS;
-            }
-        } catch (Exception e) {
-            guiLabels.setAlertPopUp("There was a problem downloading PhantomJS. You won't be able to use " +
-                    "Javascript-enabled websites nor unlock proxies with this crawler. If you believe that this is an" +
-                    " error, try restarting this crawler.\nYou can also manually download it and put it in the same " +
-                    "directory" +
-                    " where this crawler is located, just decompress the folder, change the folder name to " +
-                    "phantomjs and restart the crawler.");
-            return null;
-        }
-        return null;
-    }
-
-    /**
-     * Downloads the chrome driver into the local computer
-     */
-    private File downloadChromeDriver(String type) {
-        guiLabels.setOutput("Downloading Chrome driver for " + type);
-        try {
-            //Get download link
-            Document doc = Jsoup.connect("http://docs.seleniumhq.org/download/").timeout(10 * 1000).userAgent
-                    ("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) " +
-                            "Gecko/20070725 Firefox/2.0.0.6").get();
-            Elements links = doc.select("a[href]");
-            String href = "";
-            for (Element link : links) {
-                if (link.toString().contains("http://chromedriver.storage.googleapis.com/index")) {
-                    href = link.attr("href");
-                    break;
-                }
-            }
-            //Find correct version
-            DesiredCapabilities caps = new DesiredCapabilities();
-            caps.setBrowserName("htmlunit");
-            caps.setJavascriptEnabled(true);
-            HtmlUnitDriver driver = new HtmlUnitDriver(caps) {
-                @Override
-                protected WebClient newWebClient(BrowserVersion version) {
-
-                    WebClient webClient = super.newWebClient(BrowserVersion.FIREFOX_52);
-                    webClient.getOptions().setThrowExceptionOnScriptError(false);
-                    return webClient;
-                }
-            };
-            driver.get(href);
-            try {
-                Thread.sleep(5000);
-            } catch (Exception ignored) {
-            }
-            driver.manage().timeouts().pageLoadTimeout(60, TimeUnit.SECONDS);
-            doc = Jsoup.parse(driver.getPageSource());
-            driver.quit();
-            links = doc.select("a[href]");
-            href = "";
-            for (Element link : links) {
-                if (link.toString().contains(type)) {
-                    href = link.attr("href");
-                    break;
-                }
-            }
-            href = "http://chromedriver.storage.googleapis.com" + href;
-
-            if (!href.isEmpty()) {
-                //Download file
-                URL url = new URL(href);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                InputStream in = connection.getInputStream();
-                FileOutputStream out = new FileOutputStream("./chromedriver.zip");
-                copy(in, out);
-                out.close();
-
-                //Unzip file
-                String fileName = unzip("./chromedriver.zip", "./");
-                File chromeDriver = new File("./" + fileName);
-                if (type.equals("mac")) {
-                    Runtime.getRuntime().exec("chmod u+x " + chromeDriver);
-                }
-                return chromeDriver;
-
-            }
-        } catch (Exception e) {
-            guiLabels.setAlertPopUp("There was a problem downloading chrome driver. You won't be able to use " +
-                    "Javascript-enabled websites nor unlock proxies with this crawler. If you believe that this is an" +
-                    " error, try " +
-                    "restarting this crawler.\nYou can also manually download it and put it in the same directory" +
-                    " where this crawler is located, just decompress the folder, change the folder name to " +
-                    "chromedriver and restart the crawler.");
-            return null;
-        }
-        return null;
-    }
-
 
     /**
      * Waits for the driver to correctly load the page
@@ -924,7 +681,10 @@ class ProxyChanger {
      * @param driver DatabaseDriver
      */
 
-    private String waitForLoad(WebDriver driver, boolean isSearch, String url) {
+    static String waitForLoad(WebDriver driver, boolean isSearch, String url) {
+        if (engine == null) {
+            engine = SearchEngine.SupportedSearchEngine.GoogleScholar;
+        }
         String pageSource = "";
         try {
             ExpectedCondition<Boolean> expectation = driver1 -> ((JavascriptExecutor) driver).
@@ -978,88 +738,25 @@ class ProxyChanger {
 
     }
 
-
     /**
-     * Unzip a file
-     *
-     * @param zipFilePath   zip location
-     * @param destDirectory destination
-     * @return name of the unzipped file
-     * @throws IOException Error writing to file
+     * Blocks a proxy
      */
-    static String unzip(String zipFilePath, String destDirectory) throws IOException {
-        String mainFile = "";
-        boolean first = true;
-        File destDir = new File(destDirectory);
-        if (!destDir.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            destDir.mkdir();
+    private void blockProxy(Proxy proxyToUse, String url, boolean removeFromAllWebsites) {
+        InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
+        InUseProxies.getInstance().removeGSProxy(proxyToUse);
+        db.addLockedProxy(proxyToUse);
+        crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
+        if (removeFromAllWebsites) {
+            InUseProxies.getInstance().removeProxy(proxyToUse);
         }
-        ZipInputStream zipIn = new ZipInputStream(new FileInputStream(zipFilePath));
-        ZipEntry entry = zipIn.getNextEntry();
-        // iterates over entries in the zip file
-        while (entry != null) {
-            String filePath = destDirectory + File.separator + entry.getName();
-            if (!entry.isDirectory()) {
-                if (first) {
-                    first = false;
-                    mainFile = entry.getName();
-                }
-                // if the entry is a file, extracts it
-                extractFile(zipIn, filePath);
-            } else {
-                // if the entry is a directory, make the directory
-                File dir = new File(filePath);
-                //noinspection ResultOfMethodCallIgnored
-                dir.mkdir();
-            }
-            zipIn.closeEntry();
-            entry = zipIn.getNextEntry();
-        }
-        zipIn.close();
-        //Delete the zip file
-        new File(zipFilePath).delete();
-        return mainFile;
-    }
-
-    /**
-     * Extracts a zip entry (file entry)
-     *
-     * @throws IOException Unable to write file
-     */
-    static void extractFile(ZipInputStream zipIn, String filePath) throws IOException {
-        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(filePath));
-        byte[] bytesIn = new byte[4096];
-        int read = 0;
-        while ((read = zipIn.read(bytesIn)) != -1) {
-            bos.write(bytesIn, 0, read);
-        }
-        bos.close();
-    }
-
-    /**
-     * Copy file from one location to another
-     *
-     * @param input  InputStream
-     * @param output OutputStream
-     * @throws IOException Error copying file
-     */
-    static void copy(InputStream input, OutputStream output) throws IOException {
-        byte[] buf = new byte[1024];
-        int n = input.read(buf);
-        while (n >= 0) {
-            output.write(buf, 0, n);
-            n = input.read(buf);
-        }
-        output.flush();
     }
 
     void setThreadID(Long threadID) {
         this.threadID = threadID;
     }
 
-    void setComesFromDownload(boolean comesFromDownload) {
-        this.comesFromDownload = comesFromDownload;
+    void setComesFromDownload() {
+        this.comesFromDownload = true;
     }
 }
 

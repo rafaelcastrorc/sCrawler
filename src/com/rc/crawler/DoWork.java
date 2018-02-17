@@ -5,6 +5,9 @@ import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import org.apache.commons.io.FilenameUtils;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
 import java.io.File;
@@ -33,6 +36,7 @@ class DoWork extends Task<Void> implements Callable {
     private HashSet<String> articleNames;
     private DatabaseDriver db;
     private Alert dialog;
+    private static AtomicCounter papersLeftToProcess;
 
 
     /**
@@ -64,7 +68,7 @@ class DoWork extends Task<Void> implements Callable {
         switch (type) {
             case "waitForNConnections":
                 this.loading = new LoadingWindow();
-                waitForConnections(10);
+                waitForConnections(8);
                 break;
 
             case "multipleSearch":
@@ -97,6 +101,23 @@ class DoWork extends Task<Void> implements Callable {
     private void initialize() {
         java.util.logging.Logger.getLogger(PhantomJSDriverService.class.getName()).setLevel(Level.OFF);
         //Prepare the GUI
+        prepareGUI();
+        initializeStats();
+        //Check for updates
+        verifyItsTheLatestLocalVersion();
+        checkForUpdates();
+        //Load the crawler
+        controller.getCrawler().loadCrawler(controller.getSearchEngine());
+        article = String.valueOf(1);
+        waitForConnections(1);
+        connectionEstablished();
+        if (Restart.isApplicationRestarting()) {
+            restartTheDownloadProcess();
+        }
+    }
+
+
+    private void prepareGUI() {
         //For single article mode
         guiLabels.getAlertPopUp().addListener((observable, oldValue, newValue) -> controller.displayAlert
                 (newValue));
@@ -125,15 +146,6 @@ class DoWork extends Task<Void> implements Callable {
             controller.getAlertButton().setVisible(newValue);
             controller.getAlertButton2().setVisible(newValue);
         });
-        initializeStats();
-        //Check for updates
-        verifyItsTheLatestLocalVersion();
-        checkForUpdates();
-        //Load the crawler
-        controller.getCrawler().loadCrawler(controller.getSearchEngine());
-        article = String.valueOf(1);
-        waitForConnections(1);
-        connectionEstablished();
     }
 
     /**
@@ -146,31 +158,35 @@ class DoWork extends Task<Void> implements Callable {
         if (!currInstanceName.contains(".jar")) {
             currInstanceName = currInstanceName + ".jar";
         }
-       if (!Logger.getInstance().getVersion().equals(currInstanceName) && !Logger.getInstance().getVersion().isEmpty() ) {
-           guiLabels.setAlertPopUp("This is not the latest version of the sCrawler that you have downloaded. Please " +
-                   "open the file "+ Logger.getInstance().getVersion() +". This instance will close in 15 seconds." );
-           try {
-               Thread.sleep(15*1000);
-               WebServer.getInstance(guiLabels).closeButtonAction();
-           } catch (InterruptedException ignored) {
-           }
-       } else{
-           //Delete any other sCrawler version that the user might have downloaded
-           File[] dir = new File("./").listFiles();
-           if (dir != null) {
-               for (File file :dir) {
-                   String ext = FilenameUtils.getExtension(file.getAbsolutePath());
-                   String fileName = file.getName();
-                   if (!fileName.contains(ext)) {
-                       fileName = fileName + "." +ext;
-                   }
-                   if (!fileName.equals(currInstanceName) && ext.equals("jar")) {
-                       File nFile = new File(fileName);
-                       nFile.delete();
-                   }
-               }
-           }
-       }
+        if (!Logger.getInstance().getVersion().equals(currInstanceName) && !Logger.getInstance().getVersion().isEmpty
+                ()) {
+            guiLabels.setAlertPopUp("This is not the latest version of the sCrawler that you have downloaded. Please " +
+                    "open the file " + Logger.getInstance().getVersion() + ". This instance will close in 15 seconds.");
+            try {
+                Thread.sleep(15 * 1000);
+                if (Restart.isApplicationRestarting()) {
+                    Restart.failedToRestart();
+                }
+                WebServer.getInstance(guiLabels).closeButtonAction(false);
+            } catch (InterruptedException ignored) {
+            }
+        } else {
+            //Delete any other sCrawler version that the user might have downloaded
+            File[] dir = new File("./").listFiles();
+            if (dir != null) {
+                for (File file : dir) {
+                    String ext = FilenameUtils.getExtension(file.getAbsolutePath());
+                    String fileName = file.getName();
+                    if (!fileName.contains(ext)) {
+                        fileName = fileName + "." + ext;
+                    }
+                    if (!fileName.equals(currInstanceName) && ext.equals("jar") && !fileName.contains("phantom")) {
+                        File nFile = new File(fileName);
+                        nFile.delete();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -192,11 +208,14 @@ class DoWork extends Task<Void> implements Callable {
         if (!currInstanceName.equals(version)) {
 
             guiLabels.setInfoPopUp(("There is a new sCrawler version available. The program will automatically " +
-                            "download it and start it. Please wait!\n" +
-                    "The changes in "+ version + " include:\n"
-                    +description));
+                    "download it and start it. Please wait!\n" +
+                    "The changes in " + version + " include:\n"
+                    + description));
+
+            //If there is a reload process active, then write again the reload.dta file
+            Logger.getInstance().writeRestartFile(Restart.getArgs());
             try {
-                Thread.sleep(30*1000);
+                Thread.sleep(30 * 1000);
             } catch (InterruptedException ignored) {
             }
             this.loading = new LoadingWindow();
@@ -205,8 +224,6 @@ class DoWork extends Task<Void> implements Callable {
             WebServer.getInstance(guiLabels).update(WebServer.TypeOfUpdate.criticalUpdate.name());
         }
     }
-
-
 
 
     /**
@@ -226,6 +243,7 @@ class DoWork extends Task<Void> implements Callable {
 
     }
 
+
     /**
      * Wait for n proxy connections to be established before searching
      *
@@ -237,9 +255,9 @@ class DoWork extends Task<Void> implements Callable {
         Platform.runLater(() -> loading.display());
 
         int currQueueSize = controller.getCrawler().getQueueOfConnections().size();
-        controller.updateOutputMultiple("Connecting to " + Integer.valueOf(article) + " different proxies...");
+        controller.updateOutputMultiple("Connecting to " + i + " different proxies...");
 
-        while (currQueueSize < Integer.valueOf(article)) {
+        while (currQueueSize < i) {
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -299,9 +317,7 @@ class DoWork extends Task<Void> implements Callable {
         });
 
 
-
-
-        }
+    }
 
 
     /**
@@ -367,7 +383,7 @@ class DoWork extends Task<Void> implements Callable {
         Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
                 .getMaxNumber());
         //Add to db
-        db.addDownloadRateToDB(rate2);
+        db.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
         //Add to the list of files that could not be downloaded
         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
         Logger logger = Logger.getInstance();
@@ -398,7 +414,7 @@ class DoWork extends Task<Void> implements Callable {
 
         Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
                 .getMaxNumber());
-        db.addDownloadRateToDB(rate2);
+        db.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
 
         if (currPercentage >= 0.999) {
             controller.updateOutputMultiple("All files have been downloaded");
@@ -427,7 +443,7 @@ class DoWork extends Task<Void> implements Callable {
 
         Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
                 .getMaxNumber());
-        db.addDownloadRateToDB(rate2);
+        db.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
 
         if (currPercentage >= 0.999) {
             controller.updateOutputMultiple("All files have been downloaded");
@@ -530,6 +546,45 @@ class DoWork extends Task<Void> implements Callable {
         this.typeOfSearch = typeOfSearch;
     }
 
+    /**
+     * Restarts the download process using the previous settings
+     */
+    private void restartTheDownloadProcess() {
+        //Display GUI showing it was restarted
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("dd/MM/yyyy HH:mm:ss");
+        guiLabels.setInfoPopUp("The current instance was restarted at "+new DateTime().toString(formatter));
+        guiLabels.setLoadBar(0);
+        SetupFile setupFiles = new SetupFile(Restart.getTypeOfSearch(), Restart.getDownloadFile(), Restart
+                .getNumberOfPDFsToDownload());
+        //Set up the list of files to download appropriately
+        setupFiles.setUp();
+
+        setMultipleDownloadFiles(Restart.getArticleNames(), Restart.getNumberOfPDFsToDownload(), Restart
+                .getTypeOfSearch());
+
+        //Link everything back to the controller
+        controller.setArticleNames(Restart.getArticleNames());
+        controller.setNumberOfPDFsToDownload(Restart.getNumberOfPDFsToDownload());
+        controller.setTypeOfSearch(Restart.getTypeOfSearch());
+        controller.setUpMultipleGUI();
+        controller.setFile(Restart.getDownloadFile());
+
+        //Start loading process
+        this.loading = new LoadingWindow();
+        waitForConnections(8);
+
+
+    }
+
+    int numberOfPapersMissingToProcess() {
+        if (papersLeftToProcess == null) {
+            papersLeftToProcess = new AtomicCounter();
+            papersLeftToProcess.setMaxNumber(controller.getArticleNames().size());
+            return papersLeftToProcess.value();
+        }
+        papersLeftToProcess.decrease();
+        return papersLeftToProcess.value();
+    }
 
     void setDialog(Alert dialog) {
         this.dialog = dialog;

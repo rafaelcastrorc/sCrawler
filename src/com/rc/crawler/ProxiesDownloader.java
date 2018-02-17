@@ -137,24 +137,29 @@ class ProxiesDownloader {
                                 }
                             }
                         }
-                        //Get the data from the table
-                        Elements table = doc.select("table");
-                        Elements rows = table.select("tr");
-                        Pattern ips = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}" +
-                                "(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b");
-                        Pattern ipAndPort = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\" +
-                                ".){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b:\\d{2,4}");
-                        for (int i = 1; i < rows.size(); i++) { //first row is the col names so skip it.
-                            Element row = rows.get(i);
-                            Elements cols = row.select("td");
-                            found = false;
-                            array = new String[2];
-                            for (Element elt : cols) {
-                                getProxiesFromWebsiteHelper(elt, crawler, logger, ips, ipAndPort,
-                                        numberOfProxiesToDownload);
+                        //Try to scrape directly from the page source, if there are none try going through the table
+                        // entries
+                        if (scrapeTheProxies(doc.toString(), crawler) == 0) {
+                            //Get the data from the table
+                            Elements table = doc.select("table");
+                            Elements rows = table.select("tr");
+                            Pattern ips = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}" +
+                                    "(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b");
+                            Pattern ipAndPort = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\" +
+                                    ".){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b:\\d{2,4}");
+                            for (int i = 1; i < rows.size(); i++) { //first row is the col names so skip it.
+                                Element row = rows.get(i);
+                                Elements cols = row.select("td");
+                                found = false;
+                                array = new String[2];
+                                for (Element elt : cols) {
+                                    getProxiesFromWebsiteHelper(elt, crawler, logger, ips, ipAndPort,
+                                            numberOfProxiesToDownload);
+                                }
                             }
                         }
                         Double d = (proxyCounter1 / (double) numberOfProxiesToDownload) * 0.7;
+
                         if (!addMore) {
                             guiLabels.setLoadBar(d);
                             guiLabels.setOutput("Proxies downloaded: " + proxyCounter1 + "/" +
@@ -194,14 +199,14 @@ class ProxiesDownloader {
     }
 
     /**
-     * Gets all the proxies from the database, and delete those that are older than 24 hours
+     * Gets all the proxies from the database, and delete those that are older than 14 hours
      */
     private void getAllProxiesFromDB(Crawler crawler) {
         HashSet<Proxy> proxies = DatabaseDriver.getInstance(guiLabels).getAllProxiesFromListOfProxies();
         DateTime now = new DateTime();
         for (Proxy proxy : proxies) {
             //Check if it less than 24 hours
-            if (now.getMillis() - proxy.getTime().getMillis() <= 24 * 60 * 60 * 1000) {
+            if (now.getMillis() - proxy.getTime().getMillis() <= 14 * 60 * 60 * 1000) {
                 if (!crawler.getSetOfAllProxiesEver().contains(proxy)) {
                     crawler.setSetOfProxyGathered(proxy);
                     crawler.setListOfProxiesGathered(proxy);
@@ -307,7 +312,12 @@ class ProxiesDownloader {
                     }
                 }
                 array[1] = portNum;
-                Proxy nProxy = new Proxy(array[0], Integer.valueOf(array[1]));
+                Proxy nProxy;
+                try {
+                    nProxy = new Proxy(array[0], Integer.valueOf(array[1]));
+                } catch (NumberFormatException e) {
+                    return numberOfProxiesToDownload;
+                }
                 //add as long as it is not already in the set
                 if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
                     try {
@@ -379,32 +389,42 @@ class ProxiesDownloader {
                 while (postMatcher.find()) {
                     post = postMatcher.group();
                 }
-                //Get all the proxies
-                Pattern proxyPattern = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}" +
-                        "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b:\\d{2,5}");
-                Matcher proxyMatcher = proxyPattern.matcher(post);
-                while (proxyMatcher.find()) {
-                    String proxyStr = proxyMatcher.group();
-                    String[] arr = proxyStr.split(":");
-                    Proxy proxy = new Proxy(arr[0], Integer.valueOf(arr[1]));
-                    if (!crawler.getSetOfAllProxiesEver().contains(proxy)) {
-                        try {
-                            DatabaseDriver.getInstance(guiLabels).addProxyToListOfProxies(proxy);
-                        } catch (IllegalArgumentException ignored) {
-                        }
-                        crawler.setSetOfProxyGathered(proxy);
-                        crawler.setListOfProxiesGathered(proxy);
-                        crawler.addToSetOfAllProxiesEver(proxy);
-
-                        proxyCounter1++;
-                    }
-                }
+                scrapeTheProxies(post, crawler);
             } catch (SQLException | NullPointerException | IOException e) {
                 e.printStackTrace();
             }
         }
 
 
+    }
+
+    /**
+     * Scrapes the proxies from a website
+     */
+    private int scrapeTheProxies(String text, Crawler crawler) {
+        int numOfProxiesFound = 0;
+        //Get all the proxies
+        Pattern proxyPattern = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}" +
+                "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b(:|/)\\d{2,5}");
+        Matcher proxyMatcher = proxyPattern.matcher(text);
+        while (proxyMatcher.find()) {
+            String proxyStr = proxyMatcher.group();
+            String[] arr = proxyStr.split("(:|/)");
+            Proxy proxy = new Proxy(arr[0], Integer.valueOf(arr[1]));
+            numOfProxiesFound++;
+            if (!crawler.getSetOfAllProxiesEver().contains(proxy)) {
+                try {
+                    DatabaseDriver.getInstance(guiLabels).addProxyToListOfProxies(proxy);
+                } catch (IllegalArgumentException ignored) {
+                }
+                crawler.setSetOfProxyGathered(proxy);
+                crawler.setListOfProxiesGathered(proxy);
+                crawler.addToSetOfAllProxiesEver(proxy);
+
+                proxyCounter1++;
+            }
+        }
+        return numOfProxiesFound;
     }
 
 

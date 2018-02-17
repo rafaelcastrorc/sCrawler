@@ -162,6 +162,7 @@ class DatabaseTables {
                 "  cookies          TEXT                   NULL," +
                 "  search_engine    VARCHAR(20)            NULL," +
                 "  num_of_instances INT DEFAULT '0'        NULL," +
+                "  failed_to_load   INT DEFAULT '0'        NULL," +
                 "  PRIMARY KEY (ip, port)" +
                 ")";
         String createIndexOnProxiesTable = "CREATE INDEX proxies_ip_port_index" +
@@ -255,9 +256,12 @@ class DatabaseTables {
         String createScrawlerTable = "CREATE TABLE scrawlers(" +
                 "  id            VARCHAR(40)        NOT NULL PRIMARY KEY," +
                 "  location      TEXT               NOT NULL," +
+                "  started  TIMESTAMP           NULL," +
+                "  effectiveness_rate DOUBLE PRECISION DEFAULT '0.00' NULL," +
                 "  download_rate DOUBLE PRECISION DEFAULT '0.00' NULL," +
                 "  last_updated  TIMESTAMP          NULL," +
-                "  operation     ENUM('close', 'clean', 'none', 'criticalUpdate', 'standardUpdate', 'minorUpdate') 'none'," +
+                "  missing_papers  INT          NULL," +
+                "  operation     ENUM('close', 'clean', 'none', 'restart', 'criticalUpdate', 'standardUpdate', 'minorUpdate') DEFAULT 'none'," +
                 "  CONSTRAINT scrawlers_id_uindex" +
                 "  UNIQUE (id)" +
                 ")";
@@ -276,6 +280,7 @@ class DatabaseTables {
         String createScrawlerTable = "CREATE TABLE versions(" +
                 "  version            VARCHAR(40)        NOT NULL PRIMARY KEY," +
                 "  description      TEXT               NOT NULL," +
+                "  last_maintenance      TIMESTAMP               NULL," +
                 "  CONSTRAINT scrawlers_version_uindex" +
                 "  UNIQUE (version)" +
                 ")";

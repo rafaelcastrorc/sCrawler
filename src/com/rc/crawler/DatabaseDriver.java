@@ -25,7 +25,6 @@ class DatabaseDriver {
     private static DatabaseDriver databaseDriver;
     private static Connection myConnection;
     private static GUILabelManagement guiLabelManagement;
-    private static boolean thereIsADialog = false;
     private static String instance;
     private static String dbName;
     private static String port;
@@ -45,7 +44,8 @@ class DatabaseDriver {
             try {
                 instance = Logger.getInstance().getInstanceID();
             } catch (FileNotFoundException e) {
-                guiLabelManagement.setAlertPopUp(e.getMessage());
+                guiLabelManagement.setAlertPopUp("Unable to find instance id, the application will be closed!");
+                WebServer.getInstance(guiLabelManagement).closeButtonAction(false);
             }
             displayMainMenuDB();
             //Set up the tables if they do not exist
@@ -67,16 +67,20 @@ class DatabaseDriver {
         Logger logger = Logger.getInstance();
         //Check for the user preferences
         boolean doNotShowThisAgain = false;
+        boolean isApplicationRestarting = Restart.isApplicationRestarting();
         try {
             doNotShowThisAgain = (boolean) logger.readUserDBData().get(0);
         } catch (IllegalArgumentException ignored) {
         }
-        //If it does not need to display the menu bc of user preferences, then just skip it.
-        if (doNotShowThisAgain) {
+        //If it does not need to display the menu bc of user preferences, or bc the application is restarting, then
+        // just skip it.
+        if (doNotShowThisAgain || isApplicationRestarting) {
             //Verify if you can connect to the db using the stored settings
-            if (!readDBConfigData(true)) {
+            if (!readDBConfigData()) {
                 thereWasAnError = true;
                 message = "Unable to connect to the database using your stored setting.";
+                //If there is an error connecting, then restart process won't work so stop it
+                Restart.failedToRestart();
             } else {
                 //If connection works, then do not show menu and just return
                 return;
@@ -89,8 +93,7 @@ class DatabaseDriver {
                 "same database. Do you want to access the MySQL database stored in\nyour local settings, or do you " +
                 "want to set up a new one.");
 
-        // Set the butt
-        // \on types.
+        // Set the button types.
         ButtonType useLocal = new ButtonType("Use stored settings");
         ButtonType connectToNew = new ButtonType("Connect to a new database");
 
@@ -122,7 +125,7 @@ class DatabaseDriver {
                 event -> {
                     //If it fails to read the configuration data, then let the user manually input the info
                     dialog.close();
-                    if (!readDBConfigData(true)) {
+                    if (!readDBConfigData()) {
                         showDialogForDBConfig(true);
                     }
 
@@ -142,7 +145,7 @@ class DatabaseDriver {
     /**
      * Reads the locally stored database login credentials. Returns false if it is unable to connect
      */
-    private static boolean readDBConfigData(boolean calledFromMainMenu) {
+    private static boolean readDBConfigData() {
         //Just read the login information already stored in the computer
         Logger logger = Logger.getInstance();
         ArrayList list;
@@ -151,9 +154,6 @@ class DatabaseDriver {
         } catch (IllegalArgumentException e) {
             guiLabelManagement.setAlertPopUp("There is no information about your database credentials.\nPlease " +
                     "manually set it up");
-            if (!calledFromMainMenu) {
-                showDialogForDBConfig(true);
-            }
             return false;
         }
         String serverAddress = (String) list.get(1);
@@ -165,11 +165,6 @@ class DatabaseDriver {
         if (!verifyIfConnectionWorks(databaseName, serverAddress, port, userName, password)) {
             guiLabelManagement.setAlertPopUp("Unable to connect to the database using your stored setting." +
                     "\nPlease manually set it up");
-            if (!calledFromMainMenu) {
-                if (!thereIsADialog) {
-                    Platform.runLater(() -> showDialogForDBConfig(true));
-                }
-            }
             return false;
         }
         return true;
@@ -182,7 +177,6 @@ class DatabaseDriver {
      * @param thereWasAnError If there was an error accessing the db using the current settings
      */
     private static void showDialogForDBConfig(boolean thereWasAnError) {
-        thereIsADialog = true;
         final boolean[] connected = {false};
         // Create the custom dialog.
         Alert dialog = new Alert(Alert.AlertType.NONE);
@@ -286,7 +280,6 @@ class DatabaseDriver {
                     Logger logger = Logger.getInstance();
                     logger.saveUserDBData(false, serverAddress.getText(), portNumber.getText
                             (), databaseName.getText(), username.getText(), password.getText());
-                    thereIsADialog = false;
                     dialog.close();
 
                 }
@@ -305,7 +298,7 @@ class DatabaseDriver {
      * Creates the different tables, if they do not exist, in the current database
      */
     private static void createTables() {
-       new DatabaseTables(myConnection, guiLabelManagement);
+        new DatabaseTables(myConnection, guiLabelManagement);
     }
 
 
@@ -606,13 +599,17 @@ class DatabaseDriver {
     void addCrawlerInstance() {
         //Map current instance to the proxy
         try {
+            Calendar calendar = Calendar.getInstance();
+            java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
             String sql = "INSERT INTO scrawlers " +
-                    "(id, location) " +
-                    "VALUES (?, ?)";
+                    "(id, location, started) " +
+                    "VALUES (?, ?, ?)";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             //Set params
             statement.setString(1, instance);
             statement.setString(2, "" + getClass().getProtectionDomain().getCodeSource().getLocation());
+            statement.setTimestamp(3, timestamp);
+
             statement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -662,21 +659,23 @@ class DatabaseDriver {
     }
 
     /**
-     * Adds the current download rate and a timestamp of when was this download rate updated
+     * Adds the current download rate info to the db
      */
-    void addDownloadRateToDB(Double currPercentage) {
+    void addDownloadRateToDB(Double currPercentage, Double effectiveness, int missingPapers) {
         //Get the current time
         Calendar calendar = Calendar.getInstance();
         java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
         try {
 
             String sql = "UPDATE scrawlers " +
-                    "SET download_rate = ?, last_updated = ? " +
+                    "SET download_rate = ?, last_updated = ?, effectiveness_rate = ?, missing_papers =?  " +
                     "WHERE id = ?";
             PreparedStatement statement = myConnection.prepareStatement(sql);
             statement.setDouble(1, currPercentage);
             statement.setTimestamp(2, timestamp);
-            statement.setString(3, instance);
+            statement.setDouble(3, effectiveness);
+            statement.setDouble(4, missingPapers);
+            statement.setString(5, instance);
             statement.executeUpdate();
         } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
@@ -700,6 +699,25 @@ class DatabaseDriver {
             statement.setString(2, "" + getClass().getProtectionDomain().getCodeSource().getLocation());
             statement.setString(3, error);
             statement.setTimestamp(4, timestamp);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+    /**
+     * Adds the current download rate info to the db
+     */
+    void updateMaintenanceTime() {
+        //Get the current time
+        Calendar calendar = Calendar.getInstance();
+        java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTime().getTime());
+        try {
+
+            String sql = "UPDATE versions " +
+                    "SET last_maintenance = ? ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setTimestamp(1, timestamp);
             statement.executeUpdate();
         } catch (SQLException e) {
             guiLabelManagement.setAlertPopUp(e.getMessage());
@@ -742,13 +760,16 @@ class DatabaseDriver {
             //Process result, if the id appears, then the current crawler is already using it
             while (res.next()) {
                 String operation = res.getString("operation");
-                if (operation.equals(WebServer.SupportedOperations.close.toString())) {
+                if (operation.equals(WebServer.SupportedOperations.close.name())) {
                     return WebServer.SupportedOperations.close.name();
-                } else if (operation.equals(WebServer.SupportedOperations.clean.toString())) {
+                } else if (operation.equals(WebServer.SupportedOperations.clean.name())) {
                     return WebServer.SupportedOperations.clean.name();
                 } else if (operation.contains("Update")) {
                     return operation;
+                } else if (operation.equals(WebServer.SupportedOperations.restart.name())) {
+                    return WebServer.SupportedOperations.restart.name();
                 }
+
             }
         } catch (NullPointerException e) {
             return "";
@@ -880,7 +901,6 @@ class DatabaseDriver {
     }
 
 
-
     void updateWebsiteTime(String website) {
         try {
             Calendar calendar = Calendar.getInstance();
@@ -915,11 +935,8 @@ class DatabaseDriver {
         }
     }
 
-
     /**
      * Deletes a locked proxy from the list of proxies
-     *
-     * @param proxy
      */
     void deleteProxyFromListOfProxies(Proxy proxy) {
         try {
@@ -967,10 +984,11 @@ class DatabaseDriver {
 
     /**
      * Retrieves the latest version with its description
+     *
      * @return String[] with two values, the
      */
     Map.Entry<String, String> getLatestVersion() {
-        Map.Entry<String,String> result = new AbstractMap.SimpleEntry<>("", "");
+        Map.Entry<String, String> result = new AbstractMap.SimpleEntry<>("", "");
         try {
             String sql = "SELECT * FROM versions ";
             PreparedStatement statement = myConnection.prepareStatement(sql);
@@ -992,6 +1010,94 @@ class DatabaseDriver {
         return result;
     }
 
+    DateTime getLastMaintenanceTime() {
+        DateTime result = new DateTime();
+        try {
+            String sql = "SELECT last_maintenance FROM versions ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            ResultSet res = statement.executeQuery();
+            //If there are no maintenance record, then clean the db
+            if (!res.isBeforeFirst()) {
+                return null;
+            }
+            //Process result, if the id appears, then the current crawler is already using it
+            while (res.next()) {
+                DateTime time;
+                if (res.getTimestamp("last_maintenance") != null) {
+                    time = new DateTime(res.getTimestamp("last_maintenance"));
+                } else {
+                    time = null;
+                }
+                result = time;
+            }
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Removes all the locked proxies
+     */
+    void cleanProxiesTable() {
+        try {
+            String sql = "UPDATE proxies " +
+                    "SET unlocked = 1, failed_to_load = 1 " +
+                    "WHERE cookies = '' AND unlocked = 0 AND failed_to_load > 0";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+    /**
+     * If a proxy fails to load a website, increase the counter
+     */
+    void addFailureToLoad(Proxy proxy) {
+        try {
+            String sql = "UPDATE proxies " +
+                    "SET failed_to_load = failed_to_load + 1 " +
+                    "WHERE ip = ?  AND port = ?";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            //Set params
+            statement.setString(1, proxy.getProxy());
+            statement.setInt(2, proxy.getPort());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves the current number of failures
+     */
+    int getFailureToLoad(Proxy proxy) {
+        try {
+            String sql = "SELECT failed_to_load " +
+                    " FROM proxies " +
+                    " WHERE ip = ?  AND port = ?";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            //Set params
+            statement.setString(1, proxy.getProxy());
+            statement.setInt(2, proxy.getPort());
+            ResultSet res = statement.executeQuery();
+            if (!res.isBeforeFirst()) {
+                return 0;
+            }
+            //Check if the proxy is unlocked
+            if (res.next()) {
+                return res.getInt("failed_to_load");
+            }
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+        return 0;
+    }
+
+    String getInstanceName() {
+        return instance;
+    }
 
 
 }

@@ -1,6 +1,5 @@
 package com.rc.crawler;
 
-import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -23,27 +22,35 @@ import java.util.concurrent.Executors;
 class SetupFile extends Task<Void> implements Callable<Void> {
     private final String typeOfSearch;
     private final File submittedFile;
-    private Controller controller;
     private HashSet<String> articleNames;
     private String numberOfPDFsToDownload;
     private DoWork task;
-    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor(new MyThreadFactory());
+    private ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor(new MyThreadFactory());
 
 
-
-    SetupFile(String typeOfSearch, File submittedFile, Controller controller, String numberOfPDFsToDownload, DoWork
+    SetupFile(String typeOfSearch, File submittedFile, String numberOfPDFsToDownload, DoWork
             task) {
         this.typeOfSearch = typeOfSearch;
         this.submittedFile = submittedFile;
-        this.controller = controller;
         this.numberOfPDFsToDownload = numberOfPDFsToDownload;
         this.task = task;
 
     }
 
+    SetupFile(String typeOfSearch, File submittedFile, String numberOfPDFsToDownload) {
+        this.typeOfSearch = typeOfSearch;
+        this.submittedFile = submittedFile;
+        this.numberOfPDFsToDownload = numberOfPDFsToDownload;
+    }
+
+
 
     @Override
     public Void call() throws Exception {
+        return setUp();
+    }
+
+    Void setUp() {
         HashSet<String> alreadyDownloadedPapers = new HashSet<>();
         this.articleNames = new HashSet<>();
         HashSet<String> articleNamesTemp = new HashSet<>();
@@ -83,8 +90,20 @@ class SetupFile extends Task<Void> implements Callable<Void> {
                 scanner.close();
             } catch (FileNotFoundException ignored) {
             }
+
+            if (Restart.isApplicationRestarting()) {
+                Restart.setArticleNames(articleNames);
+            }
+
             if (articleNamesTemp.size() != articleNames.size()) {
                 //If there are files that have already been downloaded, ask the user if they want to re-download them
+
+                //If its restarting, then assume that the user does not want to download the files again
+                if (Restart.isApplicationRestarting()) {
+                    articleNames = articleNamesTemp;
+                    Restart.setArticleNames(articleNames);
+                    return null;
+                }
 
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "The program found that you have already " +
                         "some of these files before. Do you want to download them again?", ButtonType.YES, ButtonType
@@ -103,7 +122,6 @@ class SetupFile extends Task<Void> implements Callable<Void> {
 
         }
         return null;
-
     }
 
 
@@ -111,7 +129,7 @@ class SetupFile extends Task<Void> implements Callable<Void> {
      * Re-download the files that could not be downloaded because of some error at runtime
      */
     private void setupFilesNotDownloadedFile() {
-        Scanner scanner = null;
+        Scanner scanner;
         ArrayList<String> holder = new ArrayList<>();
         try {
             scanner = new Scanner(new FileInputStream(submittedFile));

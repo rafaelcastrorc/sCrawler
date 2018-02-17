@@ -23,10 +23,11 @@ class Logger {
     private static BufferedWriter filesNotDownloaded;
     private static BufferedWriter listOfFilesToDownload;
     private static BufferedWriter cookieFile;
-    private static BufferedWriter versionWriter;
     private static String prevName = "";
     private static Preferences preferences = Preferences.userNodeForPackage(DatabaseDriver.class);
 
+    private Logger() {
+    }
 
     /**
      * Gets an instance of the Logger. Logs the current instance id when first called.
@@ -68,14 +69,16 @@ class Logger {
         return prevName;
     }
 
-    private Logger() {
-    }
 
     /**
      * Returns the current instance ID
      */
     String getInstanceID() throws FileNotFoundException {
-        Scanner scanner = new Scanner(new File("./AppData/instanceID.dta"));
+        File file = new File("./AppData/instanceID.dta");
+        if (!file.exists()) {
+            throw new FileNotFoundException();
+        }
+        Scanner scanner = new Scanner(file);
         return scanner.nextLine();
     }
 
@@ -85,7 +88,7 @@ class Logger {
     void writeLatestVersion(String version) {
         try {
             File file = new File("./AppData/Version.dta");
-            versionWriter = new BufferedWriter(new FileWriter(file));
+            BufferedWriter versionWriter = new BufferedWriter(new FileWriter(file));
             versionWriter.write(version);
             versionWriter.flush();
         } catch (IOException ignored) {
@@ -106,6 +109,50 @@ class Logger {
         }
         return "";
     }
+
+
+    /**
+     * Writes the restartFile
+     */
+    void writeRestartFile(ArrayList<String> restartArgs) throws IllegalArgumentException {
+        try {
+            File file = new File("./AppData/Restart.dta");
+            BufferedWriter restartWriter = new BufferedWriter(new FileWriter(file));
+            for (String s : restartArgs) {
+                restartWriter.write(s);
+                restartWriter.newLine();
+
+            }
+            restartWriter.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new IllegalArgumentException();
+        }
+    }
+
+    /**
+     * Returns the latest sCrawler version that this directory has
+     */
+    ArrayList<String> getRestartFile() {
+        ArrayList<String> res = new ArrayList<>();
+        try {
+            File file = new File("./AppData/Restart.dta");
+            Scanner scanner = new Scanner(file);
+            while (scanner.hasNextLine()) {
+                 res.add(scanner.nextLine());
+            }
+        } catch (IOException ignored) {
+        }
+        return res;
+    }
+
+     void deleteRestartFile() {
+         File file = new File("./AppData/Restart.dta");
+         file.delete();
+     }
+
+
+
 
     /**
      * Sets the file to be used to write the report.
