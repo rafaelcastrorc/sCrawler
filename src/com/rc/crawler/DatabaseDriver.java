@@ -37,6 +37,7 @@ class DatabaseDriver {
 
     }
 
+
     static DatabaseDriver getInstance(GUILabelManagement guiLabelManagement) {
         if (databaseDriver == null) {
             databaseDriver = new DatabaseDriver();
@@ -380,15 +381,7 @@ class DatabaseDriver {
                     Cookie ck = new Cookie(name, value, domain, path, expiry, isSecure);
                     cookies.add(ck);
                 }
-                if (!result.containsKey(currProxy)) {
-                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
-                    map.put(engine, cookies);
-                    result.put(currProxy, map);
-                } else {
-                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
-                    map.put(engine, cookies);
-                    result.put(currProxy, map);
-                }
+                SCrawlerWeb.getCookiesFromString(result, engine, cookies, currProxy);
 
             }
         } catch (Exception e) {
@@ -442,7 +435,6 @@ class DatabaseDriver {
      * Inserts an unlocked proxy into the database, if it already exists it updates the value
      *
      * @param proxy Proxy that is unlocked
-     * @param stats
      */
     void addUnlockedProxy(Proxy proxy, String cookies, SearchEngine.SupportedSearchEngine searchEngine, StatsGUI
             stats) {
@@ -1100,4 +1092,16 @@ class DatabaseDriver {
     }
 
 
+    void setNumberOfProxiesFound(int proxiesFoundInThisSite, String website) {
+        try {
+
+            String sql = "UPDATE list_of_websites SET numOfProxiesFound = ? WHERE website = ? ";
+            PreparedStatement statement = myConnection.prepareStatement(sql);
+            statement.setInt(1, proxiesFoundInThisSite);
+            statement.setString(2, website);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            guiLabelManagement.setAlertPopUp(e.getMessage());
+        }
+    }
 }

@@ -22,8 +22,7 @@ class GUILabelManagement {
     private StringProperty connectionOutput = new SimpleStringProperty();
     private StringProperty numberOfPDF = new SimpleStringProperty();
     private StringProperty numberOfPDFsMultiple = new SimpleStringProperty();
-    private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<Long,
-            SearchResultWindow>());
+    private Map<Long, SearchResultWindow> mapThreadToSearchResultW = Collections.synchronizedMap(new HashMap<>());
     private BooleanProperty isThereAnAlert = new SimpleBooleanProperty();
 
     BooleanProperty getIsThereAnAlert() {

@@ -27,6 +27,7 @@ class ProxiesDownloader {
     private String[] array;
     private boolean mainPage;
     private GUILabelManagement guiLabels;
+    private int proxiesFoundInThisSite = 0;
 
     ProxiesDownloader(GUILabelManagement guiLabels) {
         this.guiLabels = guiLabels;
@@ -41,7 +42,7 @@ class ProxiesDownloader {
      */
     private void getProxiesList() {
         //Get all the websites from the database
-        HashMap<String, DateTime> map = DatabaseDriver.getInstance(guiLabels).getAllWebsites();
+        HashMap<String, DateTime> map = OutsideServer.getInstance(guiLabels).getAllWebsites();
         //If the timeStamp is null, or its been more than 6 hours since a crawler visited the site, we can use it
         for (String website : map.keySet()) {
             if (map.get(website) == null) {
@@ -80,18 +81,24 @@ class ProxiesDownloader {
 
             //If there are no websites that we can explore because we have already visited all in them last 6 hours,
             // then just reset all lists.
-            if (websiteList.size() ==0) {
+            if (websiteList.size() == 0) {
                 crawler.resetProxyTracking();
             }
 
             //Iterate over all websites
             for (String url : websiteList) {
+
                 //If we have enough proxies, we stop
                 if (proxyCounter1 >= numberOfProxiesToDownload) {
                     break;
                 }
+
+                //Count the number of proxies found in this url (for debugging purposes)
+                this.proxiesFoundInThisSite = 0;
+                OutsideServer.getInstance(guiLabels).setNumberOfProxiesFound(proxiesFoundInThisSite, url);
+
                 //Mark website as visited in the db
-                DatabaseDriver.getInstance(guiLabels).updateWebsiteTime(url);
+                OutsideServer.getInstance(guiLabels).updateWebsiteTime(url);
 
                 //Get Base URI
                 URL urlObj = new URL(url);
@@ -143,9 +150,11 @@ class ProxiesDownloader {
                             //Get the data from the table
                             Elements table = doc.select("table");
                             Elements rows = table.select("tr");
-                            Pattern ips = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}" +
+                            Pattern ips = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.)" +
+                                    "{3}" +
                                     "(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b");
-                            Pattern ipAndPort = Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\" +
+                            Pattern ipAndPort = Pattern.compile("\\b(?:" +
+                                    "(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\" +
                                     ".){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\b:\\d{2,4}");
                             for (int i = 1; i < rows.size(); i++) { //first row is the col names so skip it.
                                 Element row = rows.get(i);
@@ -185,6 +194,8 @@ class ProxiesDownloader {
                         }
                     }
                 }
+
+                OutsideServer.getInstance(guiLabels).setNumberOfProxiesFound(proxiesFoundInThisSite, url);
             }
             //Once it is done downloading from all the websites that can be used, add all the proxies that currently
             // exist in the db (To avoid having the same proxies in every instance)
@@ -202,7 +213,7 @@ class ProxiesDownloader {
      * Gets all the proxies from the database, and delete those that are older than 14 hours
      */
     private void getAllProxiesFromDB(Crawler crawler) {
-        HashSet<Proxy> proxies = DatabaseDriver.getInstance(guiLabels).getAllProxiesFromListOfProxies();
+        HashSet<Proxy> proxies =  OutsideServer.getInstance(guiLabels).getAllProxiesFromListOfProxies();
         DateTime now = new DateTime();
         for (Proxy proxy : proxies) {
             //Check if it less than 24 hours
@@ -215,7 +226,7 @@ class ProxiesDownloader {
                 }
             } else {
                 //If it is older than 24h, delete it
-                DatabaseDriver.getInstance(guiLabels).deleteProxyFromListOfProxies(proxy);
+                OutsideServer.getInstance(guiLabels).deleteProxyFromListOfProxies(proxy);
             }
         }
 
@@ -283,10 +294,11 @@ class ProxiesDownloader {
             int port = Integer.valueOf(currIPAndPort[1]);
             Proxy nProxy = new Proxy(ip, port);
 
+            this.proxiesFoundInThisSite++;
             if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
                 //Add it to db
                 try {
-                    DatabaseDriver.getInstance(guiLabels).addProxyToListOfProxies(nProxy);
+                    OutsideServer.getInstance(guiLabels).addProxyToListOfProxies(nProxy);
                 } catch (IllegalArgumentException e) {
                     return proxyCounter1;
                 }
@@ -318,17 +330,17 @@ class ProxiesDownloader {
                 } catch (NumberFormatException e) {
                     return numberOfProxiesToDownload;
                 }
+                this.proxiesFoundInThisSite++;
                 //add as long as it is not already in the set
                 if (!crawler.getSetOfAllProxiesEver().contains(nProxy)) {
                     try {
-                        DatabaseDriver.getInstance(guiLabels).addProxyToListOfProxies(nProxy);
+                        OutsideServer.getInstance(guiLabels).addProxyToListOfProxies(nProxy);
                     } catch (IllegalArgumentException e) {
                         return proxyCounter1;
                     }
                     crawler.setSetOfProxyGathered(nProxy);
                     crawler.setListOfProxiesGathered(nProxy);
                     crawler.addToSetOfAllProxiesEver(nProxy);
-
                     proxyCounter1++;
                 }
                 array = new String[2];
@@ -367,8 +379,8 @@ class ProxiesDownloader {
             while (linkMatcher.find()) {
                 url = linkMatcher.group();
             }
-            if (url!= null) {
-                url = url.replaceAll("href=\"","");
+            if (url != null) {
+                url = url.replaceAll("href=\"", "");
                 urlsToVisit.add(url);
                 numOfThreadsVisited++;
             }
@@ -377,7 +389,7 @@ class ProxiesDownloader {
         for (String absLink2 : urlsToVisit) {
             try {
                 URL urlObj = new URL(baseURI);
-                baseURI = urlObj.getProtocol() + "://" + urlObj.getHost()+"/";
+                baseURI = urlObj.getProtocol() + "://" + urlObj.getHost() + "/";
                 Document newDoc = getWebsiteDoc("", baseURI, crawler, absLink2, guiLabels, stats);
                 Pattern postPattern = Pattern.compile("(<li id=\"post)([^∞])+?(?=((<li id=\"post)|(<div " +
                         "class=\"ad_message_below_last\">)))");
@@ -412,9 +424,10 @@ class ProxiesDownloader {
             String[] arr = proxyStr.split("(:|/)");
             Proxy proxy = new Proxy(arr[0], Integer.valueOf(arr[1]));
             numOfProxiesFound++;
+            this.proxiesFoundInThisSite++;
             if (!crawler.getSetOfAllProxiesEver().contains(proxy)) {
                 try {
-                    DatabaseDriver.getInstance(guiLabels).addProxyToListOfProxies(proxy);
+                    OutsideServer.getInstance(guiLabels).addProxyToListOfProxies(proxy);
                 } catch (IllegalArgumentException ignored) {
                 }
                 crawler.setSetOfProxyGathered(proxy);

@@ -50,7 +50,7 @@ class WebDrivers {
             //Check if chromedriver and phantomjs exist
             File[] files = new File(".").listFiles();
             File chromeDriver = new File("chromedriver");
-            File phantomjs = new File("phantomjs/bin/phantomjs");
+            File phantomjs = null;
 
             if (files != null) {
                 for (File curr : files) {
@@ -67,15 +67,6 @@ class WebDrivers {
                         phantomjs = new File(curr.getName() + "/bin/phantomjs");
                     }
                 }
-                //Try checking if it was downloaded just as a single file
-                if (!phantomjs.exists()) {
-                    for (File curr : files) {
-                        if (curr.getName().contains("phantomjs")) {
-                            phantomjs = new File(curr.getName());
-                        }
-                    }
-
-                }
             }
 
             if (type == null) {
@@ -87,7 +78,7 @@ class WebDrivers {
             if (!chromeDriver.exists()) {
                 chromeDriver = downloadChromeDriver(type);
             }
-            if (!phantomjs.exists()) {
+            if (phantomjs == null || !phantomjs.exists()) {
                 phantomjs = downloadPhantomJS(type);
             }
             if (chromeDriver == null || !chromeDriver.exists() || phantomjs == null || !phantomjs.exists()) {
@@ -118,7 +109,7 @@ class WebDrivers {
                 testWebDrivers();
             }
         } catch (Exception e) {
-            e.printStackTrace(System.out);
+            guiLabels.setAlertPopUp(e.getMessage());
             guiLabels.setAlertPopUp("There was a problem downloading chromedriver and/or phantomjs in your " +
                     "computer. You won't be able to use Javascript-enabled websites with this crawler. If you" +
                     " " +
@@ -177,9 +168,7 @@ class WebDrivers {
                     break;
                 }
             }
-
             if (!href.isEmpty()) {
-
                 //Download file
                 URL url = new URL(href);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -188,28 +177,11 @@ class WebDrivers {
                 FileOutputStream out = new FileOutputStream("./phantomjs.zip");
                 FileUtilities.copy(in, out);
 
-                //Make a backup copy
-
-                url = new URL(href);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                in = connection.getInputStream();
-                FileOutputStream out2 = new FileOutputStream("./phantomjs2");
-                FileUtilities.copy(in, out2);
-
-
                 //Unzip file
                 String fileName = FileUtilities.unzip("./phantomjs.zip", "./");
-                //If this happens, phantomjs was not downloaded as a zip file
-                if (fileName.isEmpty()) {
-                    File[] files = new File("./").listFiles();
-                    for (File f : files) {
-                        if (f.getName().contains("phantom")) {
-                            fileName = f.getName();
-                        }
-                    }
-                }
                 out.close();
+                //delete zip file
+                new File("./phantomjs.zip").delete();
                 if (fileName.isEmpty()) throw new IllegalArgumentException();
                 File phantomJS = new File("./" + fileName);
 

@@ -41,7 +41,7 @@ class ProxyChanger {
     private boolean isPageEmpty = false;
     private boolean comesFromDownload = false;
     private StatsGUI stats;
-    private DatabaseDriver db;
+    private OutsideServer server;
 
     ProxyChanger(GUILabelManagement guiLabels, Crawler crawler, SearchEngine.SupportedSearchEngine engine, StatsGUI
             stats) {
@@ -49,7 +49,7 @@ class ProxyChanger {
         this.crawler = crawler;
         ProxyChanger.engine = engine;
         this.stats = stats;
-        this.db = DatabaseDriver.getInstance(guiLabels);
+        this.server = OutsideServer.getInstance(guiLabels);
     }
 
     /**
@@ -161,8 +161,8 @@ class ProxyChanger {
             }
             //Check if it the proxy is not null, it is being used by less than 4 crawlers, it has less than 40
             // requests and there is not another thread that has already unlocked
-            while (proxyToBeUsed == null || !db.canUseProxy(proxyToBeUsed) || crawler.getNumberOfRequestFromMap(url,
-                    proxyToBeUsed) > 40 || db.isCurrentInstanceUsingProxy(proxyToBeUsed)) {
+            while (proxyToBeUsed == null || !server.canUseProxy(proxyToBeUsed) || crawler.getNumberOfRequestFromMap(url,
+                    proxyToBeUsed) > 40 || server.isCurrentInstanceUsingProxy(proxyToBeUsed)) {
 
                 //Try to use one of the unlocked proxies first
                 if (crawler.isSeleniumActive() && crawler.getQueueOfUnlockedProxies().size() != 0) {
@@ -184,7 +184,7 @@ class ProxyChanger {
 
             try {
                 InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, false);
-                if (db.isCurrentInstanceUsingProxy(proxyToBeUsed)) {
+                if (server.isCurrentInstanceUsingProxy(proxyToBeUsed)) {
                     throw new IllegalArgumentException();
                 }
                 if (!thereWasAnError) {
@@ -198,7 +198,7 @@ class ProxyChanger {
                     //Verify again that no other thread is using it
                     InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, true);
                     //If no error happens add it
-                    db.addProxyToCurrentInstance(proxyToBeUsed);
+                    server.addProxyToCurrentInstance(proxyToBeUsed);
                     connected = true;
                     crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
                 } else {
@@ -206,7 +206,7 @@ class ProxyChanger {
                     //If no error happens add it
                     InUseProxies.getInstance().hasCrawlerConnectedToProxy(proxyToBeUsed, true);
                     //If no error happens add it
-                    db.addProxyToCurrentInstance(proxyToBeUsed);
+                    server.addProxyToCurrentInstance(proxyToBeUsed);
                     connected = true;
                     crawler.getMapThreadIdToProxy().put(Thread.currentThread().getId(), proxyToBeUsed);
                 }
@@ -258,7 +258,7 @@ class ProxyChanger {
 
 
             while (proxyToUse == null || crawler.getNumberOfRequestFromMap(url, proxyToUse) > 40 ||
-                    !db.canUseProxy(proxyToUse) ||
+                    !server.canUseProxy(proxyToUse) ||
                     (InUseProxies.getInstance().isProxyInUseForSearching(proxyToUse) && crawler.getMapThreadIdToProxy
                             ().get
                             (currThreadID) != proxyToUse)) {
@@ -552,11 +552,11 @@ class ProxyChanger {
 
                 InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
                 //Check if this proxy has failed to load more than 3 times
-                int numOfFailures = DatabaseDriver.getInstance(guiLabels).getFailureToLoad(proxyToUse);
+                int numOfFailures = OutsideServer.getInstance(guiLabels).getFailureToLoad(proxyToUse);
                 if (numOfFailures >= 3) {
                     blockProxy(proxyToUse, url, true);
                 }
-                DatabaseDriver.getInstance(guiLabels).addFailureToLoad(proxyToUse);
+                OutsideServer.getInstance(guiLabels).addFailureToLoad(proxyToUse);
                 throw new IllegalArgumentException();
             }
             if (pageSource.contains("we can't verify that you're not a " +
@@ -564,11 +564,11 @@ class ProxyChanger {
                 //This is a failure in loading so just throw an exception
                 InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
                 //Check if this proxy has failed to load more than 3 times
-                int numOfFailures = DatabaseDriver.getInstance(guiLabels).getFailureToLoad(proxyToUse);
+                int numOfFailures = OutsideServer.getInstance(guiLabels).getFailureToLoad(proxyToUse);
                 if (numOfFailures >= 3) {
                     blockProxy(proxyToUse, url, true);
                 }
-                DatabaseDriver.getInstance(guiLabels).addFailureToLoad(proxyToUse);
+                OutsideServer.getInstance(guiLabels).addFailureToLoad(proxyToUse);
 
                 throw new IllegalArgumentException();
             }
@@ -608,7 +608,7 @@ class ProxyChanger {
         }
         //If there are no cookies, then add it to the list of unlocked proxies since is not already there
         if ((cookies == null || cookies.size() == 0) && proxyToUse != null) {
-            crawler.addUnlockedProxy(proxyToUse, new HashSet<>(), engine, db, false);
+            crawler.addUnlockedProxy(proxyToUse, new HashSet<>(), engine, server, false);
         }
 
         return doc;
@@ -678,7 +678,7 @@ class ProxyChanger {
     /**
      * Waits for the driver to correctly load the page
      *
-     * @param driver DatabaseDriver
+     * @param driver WebDriver
      */
 
     static String waitForLoad(WebDriver driver, boolean isSearch, String url) {
@@ -744,7 +744,7 @@ class ProxyChanger {
     private void blockProxy(Proxy proxyToUse, String url, boolean removeFromAllWebsites) {
         InUseProxies.getInstance().releaseProxyUsedToSearch(proxyToUse);
         InUseProxies.getInstance().removeGSProxy(proxyToUse);
-        db.addLockedProxy(proxyToUse);
+        server.addLockedProxy(proxyToUse);
         crawler.addRequestToMapOfRequests(url, proxyToUse, 50);
         if (removeFromAllWebsites) {
             InUseProxies.getInstance().removeProxy(proxyToUse);

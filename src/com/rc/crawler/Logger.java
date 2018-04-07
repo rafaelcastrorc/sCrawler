@@ -24,7 +24,8 @@ class Logger {
     private static BufferedWriter listOfFilesToDownload;
     private static BufferedWriter cookieFile;
     private static String prevName = "";
-    private static Preferences preferences = Preferences.userNodeForPackage(DatabaseDriver.class);
+    private static Preferences preferencesDB = Preferences.userNodeForPackage(DatabaseDriver.class);
+    private static Preferences preferencesSCrawlerW = Preferences.userNodeForPackage(SCrawlerWeb.class);
 
     private Logger() {
     }
@@ -379,12 +380,11 @@ class Logger {
 
     /**
      * Adds a cookie to the Cookies.dta file and the database file
-     *
-     * @param cookies Set of cookies
+     *  @param cookies Set of cookies
      * @param proxy   proxy that was unlocked
      */
     synchronized void writeToCookiesFile(Set<Cookie> cookies, Proxy proxy, SearchEngine.SupportedSearchEngine engine,
-                                         DatabaseDriver db, StatsGUI stats)
+                                         OutsideServer server, StatsGUI stats)
             throws IOException, SQLException {
         StringBuilder sb = new StringBuilder();
         StringBuilder sb2 = new StringBuilder();
@@ -405,7 +405,7 @@ class Logger {
             cookieFile.flush();
         }
         //Write to db
-        db.addUnlockedProxy(proxy, sb2.toString(), engine, stats);
+        server.addUnlockedProxy(proxy, sb2.toString(), engine, stats);
     }
 
     /**
@@ -414,8 +414,8 @@ class Logger {
     HashMap<Proxy, Map<SearchEngine.SupportedSearchEngine, Set<Cookie>>> readCookieFileFromDB(GUILabelManagement
                                                                                                       guiLabels)
             throws FileNotFoundException, SQLException {
-        DatabaseDriver driver = DatabaseDriver.getInstance(guiLabels);
-        return driver.getAllUnlockedProxies();
+
+        return OutsideServer.getInstance(guiLabels).getAllUnlockedProxies();
     }
 
     /**
@@ -427,7 +427,7 @@ class Logger {
         Scanner scanner = new Scanner(new File("./AppData/Cookies.dta"));
         Proxy currProxy = null;
         SearchEngine.SupportedSearchEngine engine = null;
-        DatabaseDriver db =  DatabaseDriver.getInstance(guiLabels);
+        OutsideServer server =  OutsideServer.getInstance(guiLabels);
         Set<Cookie> cookies = new HashSet<>();
         try {
             while (scanner.hasNextLine()) {
@@ -436,15 +436,7 @@ class Logger {
                     //If there are cookies, we have already gone through at least one proxy, so we add it to the map.
                     if (!cookies.isEmpty()) {
                         //Check if map already contains the proxy. If it does, replace it
-                        if (!result.containsKey(currProxy)) {
-                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
-                            map.put(engine, cookies);
-                            result.put(currProxy, map);
-                        } else {
-                            Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
-                            map.put(engine, cookies);
-                            result.put(currProxy, map);
-                        }
+                        SCrawlerWeb.getCookiesFromString(result, engine, cookies, currProxy);
                         StringBuilder sb = new StringBuilder();
                         for (Cookie cookie : cookies) {
                             sb.append(cookie.getName()).append(";").append(cookie.getValue()).append(";").append
@@ -452,7 +444,7 @@ class Logger {
                                     .append(";").append(cookie.getPath()).append(";").append(cookie
                                     .getExpiry()).append(";").append(cookie.isSecure()).append("\n");
                         }
-                        db.addUnlockedProxy(currProxy, sb.toString(), engine, stats);
+                        server.addUnlockedProxy(currProxy, sb.toString(), engine, stats);
                         cookies = new HashSet<>();
                     }
                     line = line.replace("Proxy: ", "");
@@ -487,15 +479,7 @@ class Logger {
                 }
             }
             if (!cookies.isEmpty()) {
-                if (!result.containsKey(currProxy)) {
-                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = new HashMap<>();
-                    map.put(engine, cookies);
-                    result.put(currProxy, map);
-                } else {
-                    Map<SearchEngine.SupportedSearchEngine, Set<Cookie>> map = result.get(currProxy);
-                    map.put(engine, cookies);
-                    result.put(currProxy, map);
-                }
+                SCrawlerWeb.getCookiesFromString(result, engine, cookies, currProxy);
 
             }
         } catch (NullPointerException e) {
@@ -529,13 +513,12 @@ class Logger {
      */
     void saveUserDBData(boolean doNotShowThisAgain, String serverAddress, String port,
                         String databaseName, String username, String password) {
-        preferences.putBoolean("doNotShowThisAgain", doNotShowThisAgain);
-        preferences.put("serverAddress", serverAddress);
-        preferences.put("port", port);
-        preferences.put("databaseName", databaseName);
-        preferences.put("username", username);
-        preferences.put("password", password);
-
+        preferencesDB.putBoolean("doNotShowThisAgain", doNotShowThisAgain);
+        preferencesDB.put("serverAddress", serverAddress);
+        preferencesDB.put("port", port);
+        preferencesDB.put("databaseName", databaseName);
+        preferencesDB.put("username", username);
+        preferencesDB.put("password", password);
     }
 
     /**
@@ -544,15 +527,40 @@ class Logger {
     ArrayList readUserDBData() throws IllegalArgumentException {
         ArrayList list = new ArrayList<>();
         try {
-            list.add(preferences.getBoolean("doNotShowThisAgain", false));
-            list.add(preferences.get("serverAddress", null));
-            list.add(preferences.get("port", null));
-            list.add(preferences.get("databaseName", null));
-            list.add(preferences.get("username", null));
-            list.add(preferences.get("password", null));
+            list.add(preferencesDB.getBoolean("doNotShowThisAgain", false));
+            list.add(preferencesDB.get("serverAddress", null));
+            list.add(preferencesDB.get("port", null));
+            list.add(preferencesDB.get("databaseName", null));
+            list.add(preferencesDB.get("username", null));
+            list.add(preferencesDB.get("password", null));
         } catch (IllegalStateException | NullPointerException e) {
             throw new IllegalArgumentException();
         }
         return list;
     }
+
+    /**
+     * Stores the user sCrawler w login
+     */
+    void saveUserLoginData(boolean doNotShowThisAgain, String email, String password) {
+        preferencesSCrawlerW.putBoolean("doNotShowThisAgain", doNotShowThisAgain);
+        preferencesSCrawlerW.put("email", email);
+        preferencesSCrawlerW.put("password", password);
+    }
+
+    /**
+     * Retrieves the user database information stored in the preference file
+     */
+    ArrayList readUserSCrawlerWData() throws IllegalArgumentException {
+        ArrayList list = new ArrayList<>();
+        try {
+            list.add(preferencesSCrawlerW.getBoolean("doNotShowThisAgain", false));
+            list.add(preferencesSCrawlerW.get("email", null));
+            list.add(preferencesSCrawlerW.get("password", null));
+        } catch (IllegalStateException | NullPointerException e) {
+            throw new IllegalArgumentException();
+        }
+        return list;
+    }
+
 }

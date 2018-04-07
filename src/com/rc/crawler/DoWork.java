@@ -34,7 +34,7 @@ class DoWork extends Task<Void> implements Callable {
     private GUILabelManagement guiLabels;
     private String numberOfPDFsToDownload;
     private HashSet<String> articleNames;
-    private DatabaseDriver db;
+    private OutsideServer server;
     private Alert dialog;
     private static AtomicCounter papersLeftToProcess;
 
@@ -103,9 +103,13 @@ class DoWork extends Task<Void> implements Callable {
         //Prepare the GUI
         prepareGUI();
         initializeStats();
-        //Check for updates
-        verifyItsTheLatestLocalVersion();
-        checkForUpdates();
+        //Check for updates, but first check if its in debug mode to ignore
+        boolean isDebug = java.lang.management.ManagementFactory.getRuntimeMXBean().
+                getInputArguments().toString().contains("jdwp");
+        if (!isDebug) {
+            verifyItsTheLatestLocalVersion();
+            checkForUpdates();
+        }
         //Load the crawler
         controller.getCrawler().loadCrawler(controller.getSearchEngine());
         article = String.valueOf(1);
@@ -194,7 +198,7 @@ class DoWork extends Task<Void> implements Callable {
      */
     private void checkForUpdates() {
         //Get the latest version
-        Map.Entry<String, String> latestVersion = DatabaseDriver.getInstance(guiLabels).getLatestVersion();
+        Map.Entry<String, String> latestVersion = OutsideServer.getInstance(guiLabels).getLatestVersion();
         String version = latestVersion.getKey();
         String description = latestVersion.getValue();
         //Get the current version. We know that the current name of the jar file is the latest version since we
@@ -383,7 +387,7 @@ class DoWork extends Task<Void> implements Callable {
         Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
                 .getMaxNumber());
         //Add to db
-        db.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
+        server.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
         //Add to the list of files that could not be downloaded
         File file = new File("./DownloadedPDFs/FilesNotDownloaded.txt");
         Logger logger = Logger.getInstance();
@@ -414,7 +418,7 @@ class DoWork extends Task<Void> implements Callable {
 
         Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
                 .getMaxNumber());
-        db.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
+        server.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
 
         if (currPercentage >= 0.999) {
             controller.updateOutputMultiple("All files have been downloaded");
@@ -443,7 +447,7 @@ class DoWork extends Task<Void> implements Callable {
 
         Double currPercentage = controller.getAtomicCounter().value() / ((double) controller.getAtomicCounter()
                 .getMaxNumber());
-        db.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
+        server.addDownloadRateToDB(rate2, rate, numberOfPapersMissingToProcess());
 
         if (currPercentage >= 0.999) {
             controller.updateOutputMultiple("All files have been downloaded");
@@ -512,12 +516,12 @@ class DoWork extends Task<Void> implements Callable {
 
 
     void setObjects(Controller controller, SimultaneousDownloadsGUI simultaneousDownloadsGUI,
-                    GUILabelManagement guiLabels, StatsGUI stats, DatabaseDriver db) {
+                    GUILabelManagement guiLabels, StatsGUI stats, OutsideServer server) {
         this.controller = controller;
         this.guiLabels = guiLabels;
         this.simultaneousDownloadsGUI = simultaneousDownloadsGUI;
         this.stats = stats;
-        this.db = db;
+        this.server = server;
     }
 
     /**

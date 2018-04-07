@@ -37,6 +37,7 @@ class DatabaseTables {
         createListOfProxiesTable();
         createListOfWebsitesTable();
         createVersionTable();
+        createUserTable();
     }
 
 
@@ -47,6 +48,7 @@ class DatabaseTables {
         String createListOfWebsites = "CREATE TABLE list_of_websites(" +
                 "  website               VARCHAR(200)            NOT NULL," +
                 "  visited             TIMESTAMP                     NULL," +
+                "  numOfProxiesFound   INT                           NULL," +
                 "  PRIMARY KEY (website)" +
                 ")";
         try {
@@ -274,7 +276,7 @@ class DatabaseTables {
     }
 
     /**
-     * Creates a table with the
+     * Creates a table with the version of the crawler
      */
     private void createVersionTable() {
         String createScrawlerTable = "CREATE TABLE versions(" +
@@ -290,5 +292,28 @@ class DatabaseTables {
         } catch (SQLException ignored) {
         }
     }
+
+    /**
+     * Creates a users table (used by sCrawler W
+     */
+    private void createUserTable() {
+        String createUserTable = "CREATE TABLE users " +
+                "  id         int auto_increment primary key, " +
+                "  first_name varchar(100)                        not null," +
+                "  last_name  varchar(100)                        not null," +
+                "  email      varchar(100)                        not null," +
+                "  password   varchar(255)                        not null," +
+                "  created    timestamp default CURRENT_TIMESTAMP not null," +
+                "  constraint users_email_pk" +
+                "  unique (email)" +
+                ")";
+        try {
+            Statement stmt = myConnection.createStatement();
+            stmt.execute(createUserTable);
+        } catch (SQLException ignored) {
+        }
+    }
+
+
 
 }

@@ -11,6 +11,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
@@ -53,7 +55,7 @@ public class Controller implements Initializable {
     private AtomicCounter numOfSuccessfulGral = new AtomicCounter();
     private SearchEngine.SupportedSearchEngine engine;
     private StatsGUI stats;
-    private DatabaseDriver db;
+    private OutsideServer server;
     private String typeOfSearch;
     private String numberOfPDFsToDownload;
 
@@ -118,6 +120,8 @@ public class Controller implements Initializable {
     private Text numOfUnlocked;
     @FXML
     private Text lockedByProvider;
+    @FXML
+    private ImageView image;
 
 
     @SuppressWarnings("WeakerAccess")
@@ -245,7 +249,7 @@ public class Controller implements Initializable {
             try {
                 DoWork task = new DoWork("download", articleName, "searchForCitedBy"
                 );
-                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
+                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, server);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -272,7 +276,7 @@ public class Controller implements Initializable {
             numOfPDFToDownload = matcher.group();
             try {
                 DoWork task = new DoWork("download", articleName, "searchForTheArticle");
-                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
+                task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, server);
                 singleThreadExecutor.submit((Runnable) task);
             } catch (Exception e1) {
                 displayAlert(e1.getMessage());
@@ -427,7 +431,7 @@ public class Controller implements Initializable {
         Node node = (Node) e.getSource();
         window = node.getScene().getWindow();
         DoWork task = new DoWork("upload", null, null);
-        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
+        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, server);
         singleThreadExecutor.submit((Runnable) task);
 
     }
@@ -514,7 +518,7 @@ public class Controller implements Initializable {
         if (matcher.find()) {
             this.numberOfPDFsToDownload = matcher.group();
             DoWork task = new DoWork("waitForNConnections", String.valueOf(numOfConnectionsNeeded), null);
-            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
+            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, server);
             SetupFile setup = new SetupFile(typeOfSearch, submittedFile, numberOfPDFsToDownload, task);
             //Set up the list of files to download appropriately
             FutureTask<Void> futureTask = new FutureTask<>(setup);
@@ -551,7 +555,7 @@ public class Controller implements Initializable {
         List<Future> futures = new ArrayList<>();
         for (String article : articleNames) {
             DoWork task = new DoWork("multipleSearch", article, typeOfSearch);
-            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
+            task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, server);
             futures.add(taskCompletionService.submit(task));
         }
         Task task = new Task() {
@@ -728,7 +732,7 @@ public class Controller implements Initializable {
                             cookies = driver[0].manage().getCookies();
                             driver[0].close();
                             driver[0].quit();
-                            crawler.addUnlockedProxy(proxy, cookies, engine, db, true);
+                            crawler.addUnlockedProxy(proxy, cookies, engine, server, true);
                         } catch (Exception ignored) {
                         }
 
@@ -758,8 +762,8 @@ public class Controller implements Initializable {
      */
     void displayAlert(String message) {
         Platform.runLater(() -> {
-            if (db != null) {
-                db.addError(message);
+            if (server != null) {
+                server.addError(message);
             }
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
@@ -910,16 +914,19 @@ public class Controller implements Initializable {
         }
         increaseSpeedButton.setSelectedColor(Color.web("#7d9a4f"));
         increaseSpeedButton1.setSelectedColor(Color.web("#7d9a4f"));
+        //Add image
+        Image logo = new Image("file:./imgs/scrawler_logo.png");
+        image.setImage(logo);
         //Initialize GUI management object
         guiLabels = new GUILabelManagement();
         //Check if there is a restart file, if so start restart process
         Restart.setGUILabels(guiLabels);
         Restart.configureRestart();
-        //Initialize database
-        db = DatabaseDriver.getInstance(guiLabels);
+        //Initialize connection to outside server
+        OutsideServer server = OutsideServer.getInstance(guiLabels);
         // Remove any records associated with the previous instance id, if there are any
-        db.removeCrawlerInstance(logger.getPrevName());
-        db.addCrawlerInstance();
+        server.removeCrawlerInstance(logger.getPrevName());
+        server.addCrawlerInstance();
         //Select the correct search engine
         selectEngine();
         //Initialize stats
@@ -928,7 +935,7 @@ public class Controller implements Initializable {
         //Start loading crawler. Show loading screen until first connection found. Block the rest of the GUI
         crawler = new Crawler(guiLabels, stats);
         DoWork task = new DoWork("initialize", null, null);
-        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, db);
+        task.setObjects(this, simultaneousDownloadsGUI, guiLabels, stats, server);
         Thread thread = new MyThreadFactory().newThread(task);
         thread.setDaemon(true);
         thread.start();
@@ -1061,7 +1068,7 @@ public class Controller implements Initializable {
         return submittedFile;
     }
 
-    public HashSet<String> getArticleNames() {
+    HashSet<String> getArticleNames() {
         return articleNames;
     }
 

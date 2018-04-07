@@ -59,7 +59,7 @@ class WebServer {
      */
     void checkForOperations() {
         String operationToPerform;
-        operationToPerform = DatabaseDriver.getInstance(guiLabelManagement).getOperationToPerform();
+        operationToPerform = OutsideServer.getInstance(guiLabelManagement).getOperationToPerform();
         if (operationToPerform.equals(SupportedOperations.close.name())) {
             closeButtonAction(false);
         } else if (operationToPerform.equals(SupportedOperations.clean.name())) {
@@ -79,17 +79,17 @@ class WebServer {
      */
     private void dbClean() {
         //Check if there has been more than 24 hours since last update, or if time is not null
-        DateTime time = DatabaseDriver.getInstance(guiLabelManagement).getLastMaintenanceTime();
+        DateTime time = OutsideServer.getInstance(guiLabelManagement).getLastMaintenanceTime();
         DateTime now = new DateTime();
         //Check if it more than 24 hours
         if (time == null || now.getMillis() - time.getMillis() >= 12 * 60 * 60 * 1000) {
             //Clean the proxies table
-            DatabaseDriver.getInstance(guiLabelManagement).cleanProxiesTable();
+            OutsideServer.getInstance(guiLabelManagement).cleanProxiesTable();
             clean();
-            DatabaseDriver.getInstance(guiLabelManagement).updateMaintenanceTime();;
+            OutsideServer.getInstance(guiLabelManagement).updateMaintenanceTime();;
         }
         //Remove operation
-        DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+        OutsideServer.getInstance(guiLabelManagement).performOperation(OutsideServer.getInstance
                 (guiLabelManagement).getInstanceName(), SupportedOperations.none);
 
     }
@@ -124,11 +124,11 @@ class WebServer {
             }
         }
         //Remove all the information from the db related to this instance
-        DatabaseDriver db;
+        OutsideServer server;
         try {
-            db = DatabaseDriver.getInstance(new GUILabelManagement());
-            db.removeCrawlerInstance(DatabaseDriver.getInstance(guiLabelManagement).getInstanceName());
-            db.closeConnection();
+            server = OutsideServer.getInstance(new GUILabelManagement());
+            server.removeCrawlerInstance(OutsideServer.getInstance(guiLabelManagement).getInstanceName());
+            server.closeConnection();
         } catch (SQLException e1) {
             e1.printStackTrace();
         }
@@ -161,7 +161,7 @@ class WebServer {
     private void clean() {
         DateTime now = new DateTime();
         //Get all the times
-        HashSet<ScrawlerInstance> set = DatabaseDriver.getInstance(guiLabelManagement).getAllInstances();
+        HashSet<ScrawlerInstance> set = OutsideServer.getInstance(guiLabelManagement).getAllInstances();
         HashSet<String> instancesThatShouldBeClosed = new HashSet<>();
         for (ScrawlerInstance instance : set) {
 
@@ -177,7 +177,7 @@ class WebServer {
         }
         //Close all the crawlers that have more than one hour
         for (String instance : instancesThatShouldBeClosed) {
-            DatabaseDriver.getInstance(guiLabelManagement).performOperation(instance, SupportedOperations.close);
+            OutsideServer.getInstance(guiLabelManagement).performOperation(instance, SupportedOperations.close);
         }
         //Wait for 2 minutes
         try {
@@ -185,7 +185,7 @@ class WebServer {
         } catch (InterruptedException ignored) {
         }
         //Remove all the crawlers manually if they did not close
-        set = DatabaseDriver.getInstance(guiLabelManagement).getAllInstances();
+        set = OutsideServer.getInstance(guiLabelManagement).getAllInstances();
         HashSet<String> instancesLeftToBeClosed = new HashSet<>();
 
         for (ScrawlerInstance instance : set) {
@@ -202,10 +202,10 @@ class WebServer {
 
         //Remove them
         for (String instance : instancesLeftToBeClosed) {
-            DatabaseDriver.getInstance(guiLabelManagement).removeCrawlerInstance(instance);
+            OutsideServer.getInstance(guiLabelManagement).removeCrawlerInstance(instance);
         }
         //Remove operation
-        DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+        OutsideServer.getInstance(guiLabelManagement).performOperation(OutsideServer.getInstance
                 (guiLabelManagement).getInstanceName(), SupportedOperations.none);
 
 
@@ -308,7 +308,7 @@ class WebServer {
                     "be " +
                     "opened automatically");
             //Log the update into the database just for confirmation
-            DatabaseDriver.getInstance(guiLabelManagement).addError("Updating this instance: " + typeOfUpdate);
+            OutsideServer.getInstance(guiLabelManagement).addError("Updating this instance: " + typeOfUpdate);
 
             //Wait for 30 minutes, if no response open the new crawler and close the old one
             ExecutorService connectionVerifier = Executors.newSingleThreadExecutor(new MyThreadFactory());
@@ -329,7 +329,7 @@ class WebServer {
                     guiLabelManagement.setAlertPopUp(e.getMessage());
                 }
             });
-            DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+            OutsideServer.getInstance(guiLabelManagement).performOperation(OutsideServer.getInstance
                     (guiLabelManagement).getInstanceName(), SupportedOperations.none);
 
 
@@ -372,7 +372,7 @@ class WebServer {
             closeButtonAction(true);
         } catch (Exception e) {
             guiLabelManagement.setAlertPopUp("Unable to restart this instance");
-            DatabaseDriver.getInstance(guiLabelManagement).performOperation(DatabaseDriver.getInstance
+            OutsideServer.getInstance(guiLabelManagement).performOperation(OutsideServer.getInstance
                     (guiLabelManagement).getInstanceName(), SupportedOperations.none);
         }
     }
